@@ -3,13 +3,20 @@
     "id": "better-shulker-hud",
     "version": "${version}",
     "name": "Better Shulker HUD",
-    "description": "Client HUD for browsing and extracting items through QuickShulker",
-    "authors": ["zeroowo24 (original HUD design)", "Codex adaptation"],
-    "contact": {},
+    "description": "集中预览、搜索、排序和管理随身潜影盒物品，支持 QuickShulker 快速取放、来源归还、拼音搜索，以及 Litematica 轻松放置自动补块。HUD 设计参考 BetterBundleHUD（zeroowo24）。",
+    "authors": ["BF_skt"],
+    "contributors": [
+        "zeroowo24 - BetterBundleHUD 原作者，HUD 设计参考"
+    ],
+    "contact": {
+        "homepage": "https://github.com/unionofblackbean/BetterShulkerHUDMod",
+        "sources": "https://github.com/unionofblackbean/BetterShulkerHUDMod",
+        "issues": "https://github.com/unionofblackbean/BetterShulkerHUDMod/issues"
+    },
     "license": "CC0-1.0",
     "environment": "client",
     "entrypoints": {
-        "client": [
+        "main": [
             "bettershulkerhud.BetterBundleMod"
         ]
     },
@@ -23,8 +30,12 @@
     "depends": {
         "fabricloader": ">=0.18.4",
         "fabric-api": "*",
+        "malilib": ">=0.28.2 <0.29.0",
         "quickshulker": ">=3.0.1-26.1",
         "minecraft": ">=26.1 <=26.1.2",
         "java": ">=25"
+    },
+    "suggests": {
+        "litematica": ">=0.27.1"
     }
 }

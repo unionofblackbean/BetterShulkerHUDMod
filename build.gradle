@@ -9,6 +9,14 @@ group = project.maven_group
 repositories {
     mavenCentral()
     maven { url 'https://jitpack.io' }
+    maven {
+        url 'https://masa.dy.fi/maven/sakura-ryoko'
+        content { includeGroupAndSubgroups 'fi.dy.masa' }
+    }
+    maven {
+        url 'https://maven.fallenbreath.me/releases'
+        content { includeGroupAndSubgroups 'me.fallenbreath' }
+    }
 }
 
 configurations {
@@ -38,6 +46,8 @@ dependencies {
     compileOnly('com.github.MoRanpcy:quickshulker:3.0.1-26.1') {
         transitive = false
     }
+
+    implementation 'fi.dy.masa.malilib:malilib-fabric-26.1.1:0.28.2'
 
     embed 'com.belerweb:pinyin4j:2.5.1'
     embed('com.github.Towdium:PinIn:1.6.0') {

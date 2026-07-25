@@ -1,149 +1,69 @@
-# Better Shulker HUD
+# Better Shulker HUD 1.5.0
 
-[English](#english) | [简体中文](#简体中文)
+[简体中文](#简体中文) | [English](#english)
 
 ## 简体中文
 
-Better Shulker HUD 是一款适用于 Minecraft 26.1-26.1.2 Fabric 的客户端物品管理模组。它会在玩家背包界面中集中展示所有随身潜影盒的内容，让玩家无需逐个放置和打开潜影盒，也能搜索、取出、存放和归还物品。
+Better Shulker HUD 是 Minecraft 26.1-26.1.2 Fabric 客户端物品管理模组。1.5.0 以 MaLiLib 的初始化、客户端 tick 和世界加载生命周期为基础，并通过服务器端 QuickShulker 完成真实物品转移。
 
-界面的分类与排列方式参考了 BetterBundleHUDMod，并针对潜影盒和 QuickShulker 的交互方式进行了重新实现。所有物品移动都通过服务器打开的原版容器完成，由服务器验证并保存，不会在客户端直接生成或修改物品。
+作者：`BF_skt`
 
-### 主要功能
+HUD 设计与交互方式参考了 zeroowo24 的 BetterBundleHUD；本项目针对潜影盒、QuickShulker 和 Litematica 工作流进行了独立实现与扩展。
 
-- 在背包界面中汇总显示背包和快捷栏内所有潜影盒的物品。
-- 将物品和组件完全相同的条目合并显示，并标注总数量。
-- 按工具、战斗、方块、食物等类别筛选，支持滚轮浏览。
-- 搜索时仅显示匹配物品，支持中文、物品 ID、全拼、拼音首字母和中英文混合输入。
-- 左键取出一组物品，右键取出一个物品。
-- 将鼠标拿起的物品拖到 HUD 上，可自动存入任意有空间的潜影盒。
-- 记录取出物品的来源潜影盒；点击漏斗按钮可整理背包并批量归还。
-- 原槽位被占用时，会优先尝试原潜影盒中的其他可用槽位。
-- 自动归还会排除工具、武器、装备和食物；手动拖放存入不受此限制。
-- HUD 可展开或最小化，并会根据 GUI 缩放和屏幕尺寸自动调整布局。
-- 搜索框支持输入法切换、Unicode 输入和 `Ctrl+V` 粘贴中文。
+### 功能
 
-拼音搜索示例：
+- 在背包界面汇总背包和快捷栏内所有潜影盒物品。
+- 合并物品与组件完全相同的条目并显示总数。
+- 支持分类、滚动、中文、物品 ID、全拼和拼音首字母搜索。
+- 左键取出一组，右键取出一个；支持拖入 HUD 自由存放。
+- 记录取出物品的来源，使用漏斗按钮批量归还；原槽被占用时尝试原盒其他槽位。
+- 自动归还排除工具、武器、装备和食物。
+- 归还后读取来源槽前后差值，只按服务器实际接受的数量扣减记录。
+- 切换维度、世界或服务器时清空操作队列、归还记录和 HUD 缓存。
+- HUD 使用背包指纹、哈希聚合和搜索结果缓存，背包未变化时不重复解析潜影盒。
+- 安装 Litematica 后，轻松放置缺少目标方块时会从随身潜影盒取出一组，并自动选中该方块。第一次操作补充方块，下一次操作放置。
 
-- `潜影盒` -> `qianyinghe`
-- `潜影盒` -> `qyh`
-- `红色羊毛` -> `hong色ym`
+### 依赖
 
-### 操作方式
+客户端：Fabric Loader、Fabric API、MaLiLib 0.28.2、QuickShulker 3.0.1-26.1、Better Shulker HUD。
 
-- 点击背包界面中配方书旁的潜影盒按钮：展开 HUD。
-- 点击 HUD 右上角的减号按钮：最小化 HUD。
-- 左键点击 HUD 物品：取出该条目中的一组物品。
-- 右键点击 HUD 物品：取出一个物品。
-- 在 HUD 中滚动鼠标滚轮：浏览更多物品。
-- 将光标上的物品拖入 HUD 后松开：存入任意有空间的潜影盒。
-- 点击左下角漏斗按钮：将已记录的物品归还到来源潜影盒。
-
-### 安装要求
-
-客户端：
-
-- Minecraft 26.1-26.1.2
-- Java 25
-- Fabric Loader 0.18.4 或更高版本
-- Fabric API
-- QuickShulker 3.0.1-26.1 或更高版本
-- Better Shulker HUD
-
-服务端：
-
-- Fabric Loader 与 Fabric API
-- QuickShulker 3.0.1-26.1 或更高版本
-
-Better Shulker HUD 本体只需安装在客户端。客户端与服务端都必须安装兼容版本的 QuickShulker，才能执行取出、归还和自由存放操作。
-
-### 从源码构建
-
-本项目使用 Gradle Wrapper，第三方编译依赖会从公开 Maven 仓库下载，不需要把依赖 JAR 放入仓库。
+服务端：Fabric Loader、Fabric API、QuickShulker 3.0.1-26.1。Litematica 为可选客户端依赖。
 
 ```powershell
-$env:JAVA_HOME='你的 Java 25 安装目录'
+$env:JAVA_HOME='Java 25 路径'
 .\gradlew.bat clean build
 ```
-
-构建产物位于 `build/libs/`。
-
-### 开源许可与致谢
-
-- 本项目以 [CC0 1.0](LICENSE) 发布。
-- HUD 的界面设计参考 [BetterBundleHUDMod](https://github.com/zeroowo24/BetterBundleHUDMod)，感谢 zeroowo24 的原始设计。
-- 潜影盒交互依赖 [QuickShulker](https://github.com/MoRanpcy/quickshulker)。
-- 拼音搜索使用 [PinIn](https://github.com/Towdium/PinIn) 和 [pinyin4j](https://github.com/belerweb/pinyin4j)。PinIn 以 MIT 许可证发布，许可证副本见 [LICENSE-PinIn](LICENSE-PinIn)。
-
----
 
 ## English
 
-Better Shulker HUD is a client-side inventory management mod for Minecraft 26.1-26.1.2 on Fabric. It presents the contents of every shulker box carried by the player in one inventory HUD, allowing items to be searched, extracted, stored, and returned without placing and opening each box manually.
+Better Shulker HUD is a client-side inventory manager for Minecraft 26.1-26.1.2 on Fabric. Version 1.5.0 uses MaLiLib for initialization, client ticks, and world lifecycle handling while QuickShulker performs server-authoritative item transfers.
 
-Its category layout is inspired by BetterBundleHUDMod and has been reimplemented for shulker boxes and QuickShulker. Every item transfer uses a vanilla container opened by the server. The server validates and saves all inventory changes; the mod never creates or edits items on the client alone.
+Author: `BF_skt`
+
+The HUD design and interaction model reference BetterBundleHUD by zeroowo24. This project independently implements and extends that design for shulker boxes, QuickShulker, and Litematica workflows.
 
 ### Features
 
-- Displays items from every shulker box in the inventory and hotbar.
-- Combines entries with identical items and components, then displays their total count.
-- Filters items by categories such as tools, combat, blocks, and food, with scroll-wheel navigation.
-- Shows only matching items while searching by localized name, item ID, full pinyin, pinyin initials, or mixed Chinese and pinyin.
-- Extracts one stack with left click or one item with right click.
-- Stores the item carried by the cursor in any shulker box with enough space by dropping it onto the HUD.
-- Tracks the source shulker of extracted items and returns them in batches with the hopper button.
-- Falls back to another available slot in the original shulker when the recorded slot is occupied.
-- Excludes tools, weapons, equipment, and food from automatic return; manual drag-to-store remains unrestricted.
-- Supports minimize/expand controls and responsive layout across GUI scales and screen sizes.
-- Supports IME switching, Unicode input, and Chinese text pasted with `Ctrl+V`.
-
-Pinyin search examples:
-
-- `潜影盒` -> `qianyinghe`
-- `潜影盒` -> `qyh`
-- `红色羊毛` -> `hong色ym`
-
-### Controls
-
-- Click the shulker button beside the recipe book control to expand the HUD.
-- Click the minus button in the upper-right corner of the HUD to minimize it.
-- Left-click a HUD item to extract one stack from its source.
-- Right-click a HUD item to extract one item.
-- Scroll over the HUD to browse additional items.
-- Release an item carried by the cursor over the HUD to store it in any shulker with space.
-- Click the hopper button in the lower-left corner to return tracked items to their source shulkers.
+- Aggregates all shulker contents carried in the inventory and hotbar.
+- Combines identical items and components and displays their total count.
+- Supports categories and localized name, item ID, full-pinyin, and pinyin-initial search.
+- Extracts a stack with left click or one item with right click; items can be dropped onto the HUD for storage.
+- Tracks source shulkers and batch-returns items, falling back to another slot in the original box.
+- Excludes tools, weapons, equipment, and food from automatic returns.
+- Reconciles each return against the actual source-slot count change before updating tracked quantities.
+- Clears pending operations, return history, and HUD caches when changing dimensions, worlds, or servers.
+- Caches shulker scans, hash-based aggregation, and filtered search results using an inventory fingerprint.
+- With Litematica installed, an easy-place pick that lacks its target block extracts one stack from a carried shulker and selects it. The first action restocks; the next places the block.
 
 ### Requirements
 
-Client:
+Client: Fabric Loader, Fabric API, MaLiLib 0.28.2, QuickShulker 3.0.1-26.1, and Better Shulker HUD.
 
-- Minecraft 26.1-26.1.2
-- Java 25
-- Fabric Loader 0.18.4 or newer
-- Fabric API
-- QuickShulker 3.0.1-26.1 or newer
-- Better Shulker HUD
-
-Server:
-
-- Fabric Loader and Fabric API
-- QuickShulker 3.0.1-26.1 or newer
-
-Better Shulker HUD itself is client-side only. A compatible QuickShulker version must be installed on both the client and server for extraction, return, and drag-to-store operations.
-
-### Building From Source
-
-The project uses the Gradle Wrapper. Third-party compile dependencies are downloaded from public Maven repositories, so no dependency JARs need to be committed.
+Server: Fabric Loader, Fabric API, and QuickShulker 3.0.1-26.1. Litematica is an optional client dependency.
 
 ```powershell
-$env:JAVA_HOME='path to your Java 25 installation'
+$env:JAVA_HOME='path to Java 25'
 .\gradlew.bat clean build
 ```
 
-Build artifacts are written to `build/libs/`.
-
-### License And Credits
-
-- This project is released under [CC0 1.0](LICENSE).
-- The HUD layout is inspired by [BetterBundleHUDMod](https://github.com/zeroowo24/BetterBundleHUDMod). Credit goes to zeroowo24 for the original design.
-- Shulker interaction is powered by [QuickShulker](https://github.com/MoRanpcy/quickshulker).
-- Pinyin search uses [PinIn](https://github.com/Towdium/PinIn) and [pinyin4j](https://github.com/belerweb/pinyin4j). PinIn is licensed under MIT; a copy is included in [LICENSE-PinIn](LICENSE-PinIn).
+The project is released under CC0-1.0. BetterBundleHUD and its original author zeroowo24 are credited as the HUD design reference. Pinyin search uses PinIn and pinyin4j; see `LICENSE-PinIn`.

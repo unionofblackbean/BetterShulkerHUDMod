@@ -23,10 +23,7 @@ public final class BundlePanelInteraction {
 
     private static BundlePanelRenderer.FlatItem getClickedItem(
             double mouseX, double mouseY, int leftPos, int topPos, int imageHeight) {
-        List<BundlePanelRenderer.ShulkerSlotEntry> shulkers = BundlePanelRenderer.getShulkers();
-        List<BundlePanelRenderer.FlatItem> items = BundlePanelRenderer.filterItems(
-                BundlePanelRenderer.buildFlatItemList(shulkers),
-                BundlePanelRenderer.searchQuery);
+        List<BundlePanelRenderer.FlatItem> items = BundlePanelRenderer.getVisibleItems();
         if (items.isEmpty()) return null;
 
         int relX = (int) mouseX - gridX(leftPos);
