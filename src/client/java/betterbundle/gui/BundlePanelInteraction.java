@@ -60,8 +60,11 @@ public final class BundlePanelInteraction {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null) return true;
         boolean shift = (modifiers & GLFW.GLFW_MOD_SHIFT) != 0;
-        boolean takeOne = button == GLFW.GLFW_MOUSE_BUTTON_RIGHT && !shift;
-        QuickShulkerExtractionController.request(clicked, takeOne);
+        if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
+            QuickShulkerExtractionController.requestToHand(clicked);
+        } else {
+            QuickShulkerExtractionController.request(clicked, !shift);
+        }
         return true;
     }
 

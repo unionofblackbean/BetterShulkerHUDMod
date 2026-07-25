@@ -5,6 +5,7 @@
   "message.better-shulker-hud.source_missing": "找不到对应的潜影盒",
   "message.better-shulker-hud.source_changed": "潜影盒内容已经发生变化",
   "message.better-shulker-hud.inventory_full": "背包没有空间",
+  "message.better-shulker-hud.hand_unavailable": "当前主手没有空间，或主手物品与目标物品不兼容",
   "message.better-shulker-hud.open_failed": "QuickShulker 打开潜影盒失败",
   "message.better-shulker-hud.return_button": "整理背包并归还到原潜影盒",
   "message.better-shulker-hud.nothing_to_return": "没有可归还的物品记录",
