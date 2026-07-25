@@ -54,6 +54,8 @@ public abstract class InventoryScreenMixin {
     private static void betterShulkerHud$renderToggleButton(
             GuiGraphicsExtractor graphics, int x, int y, int mouseX, int mouseY) {
         boolean hovered = mouseX >= x && mouseX < x + 20 && mouseY >= y && mouseY < y + 20;
+        graphics.fill(x + 2, y + 3, x + 22, y + 23, 0x68000000);
+        graphics.fill(x + 1, y + 1, x + 21, y + 21, 0x38000000);
         graphics.fill(x, y, x + 20, y + 20, hovered ? 0xFFD6D6D6 : 0xFFC6C6C6);
         graphics.fill(x, y, x + 19, y + 1, 0xFFFFFFFF);
         graphics.fill(x, y, x + 1, y + 19, 0xFFFFFFFF);

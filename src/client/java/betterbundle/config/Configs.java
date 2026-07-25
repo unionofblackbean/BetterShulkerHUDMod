@@ -37,6 +37,12 @@ public final class Configs implements IConfigHandler {
                 new ConfigInteger("autoPickupScanInterval", 2, 1, 20).apply(PREFIX);
         public static final ConfigInteger PICKUP_TRACKING_TIMEOUT =
                 new ConfigInteger("pickupTrackingTimeout", 40, 10, 200).apply(PREFIX);
+        public static final ConfigInteger AUTO_RESTOCK_THRESHOLD =
+                new ConfigInteger("autoRestockThreshold", 6, 1, 64).apply(PREFIX);
+        public static final ConfigInteger AUTO_RESTOCK_AMOUNT =
+                new ConfigInteger("autoRestockAmount", 64, 1, 64).apply(PREFIX);
+        public static final ConfigInteger AUTO_RESTOCK_SCAN_INTERVAL =
+                new ConfigInteger("autoRestockScanInterval", 4, 1, 40).apply(PREFIX);
 
         public static final List<IConfigBase> OPTIONS = List.of(
                 HUD_MAX_COLUMNS,
@@ -44,7 +50,10 @@ public final class Configs implements IConfigHandler {
                 HUD_CORNER_RADIUS,
                 AUTO_PICKUP_RANGE,
                 AUTO_PICKUP_SCAN_INTERVAL,
-                PICKUP_TRACKING_TIMEOUT
+                PICKUP_TRACKING_TIMEOUT,
+                AUTO_RESTOCK_THRESHOLD,
+                AUTO_RESTOCK_AMOUNT,
+                AUTO_RESTOCK_SCAN_INTERVAL
         );
 
         private General() {}
@@ -65,6 +74,8 @@ public final class Configs implements IConfigHandler {
                 new ConfigBooleanHotkeyed("pinyinSearch", true, "").apply(PREFIX);
         public static final ConfigBooleanHotkeyed RETURN_HISTORY =
                 new ConfigBooleanHotkeyed("returnHistory", true, "").apply(PREFIX);
+        public static final ConfigBooleanHotkeyed AUTO_RESTOCK =
+                new ConfigBooleanHotkeyed("autoRestock", true, "").apply(PREFIX);
 
         public static final List<ConfigBooleanHotkeyed> OPTIONS = List.of(
                 HUD_ENABLED,
@@ -72,7 +83,8 @@ public final class Configs implements IConfigHandler {
                 LITEMATICA_RESTOCK,
                 HIDE_QUICK_SHULKER_SCREEN,
                 PINYIN_SEARCH,
-                RETURN_HISTORY
+                RETURN_HISTORY,
+                AUTO_RESTOCK
         );
 
         private Features() {}

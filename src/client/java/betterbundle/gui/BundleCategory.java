@@ -1,5 +1,6 @@
 package bettershulkerhud.gui;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
@@ -10,6 +11,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 public enum BundleCategory {
+    OVERVIEW(null, Items.CHEST),
     BUILDING_BLOCKS(CreativeModeTabs.BUILDING_BLOCKS, Items.BRICKS),
     COLORED_BLOCKS(CreativeModeTabs.COLORED_BLOCKS, Items.CYAN_WOOL),
     NATURAL_BLOCKS(CreativeModeTabs.NATURAL_BLOCKS, Items.GRASS_BLOCK),
@@ -30,6 +32,10 @@ public enum BundleCategory {
     }
 
     public String getDisplayName() {
+        if (this == OVERVIEW) {
+            return Component.translatable(
+                    "better-shulker-hud.category.overview").getString();
+        }
         CreativeModeTab tab = getTab();
         return tab != null
                 ? tab.getDisplayName().getString()
@@ -44,6 +50,7 @@ public enum BundleCategory {
     }
 
     public boolean matches(ItemStack stack) {
+        if (this == OVERVIEW) return !stack.isEmpty();
         CreativeModeTab tab = getTab();
         if (tab == null || stack.isEmpty()) return false;
         return tab.getDisplayItems().stream()
@@ -51,10 +58,21 @@ public enum BundleCategory {
     }
 
     private CreativeModeTab getTab() {
+        if (tabKey == null) return null;
         return BuiltInRegistries.CREATIVE_MODE_TAB.getValue(tabKey);
     }
 
-    public static void registerCategoryItems() {
-        // Vanilla rebuilds the creative tab contents after joining a world.
+    public static boolean registerCategoryItems() {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null || client.level == null
+                || client.player.connection == null) return false;
+        try {
+            return CreativeModeTabs.tryRebuildTabContents(
+                    client.player.connection.enabledFeatures(),
+                    client.player.canUseGameMasterBlocks(),
+                    client.level.registryAccess());
+        } catch (RuntimeException ignored) {
+            return false;
+        }
     }
 }

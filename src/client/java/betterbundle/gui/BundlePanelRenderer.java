@@ -54,6 +54,8 @@ public final class BundlePanelRenderer {
     private static final int COLOR_BORDER_DARK = 0xFF373737;
     private static final int COLOR_TEXT = 0xFF404040;
     private static final int COLOR_TEXT_MUTED = 0xFF707070;
+    private static final int COLOR_SHADOW_SOFT = 0x38000000;
+    private static final int COLOR_SHADOW_DEEP = 0x68000000;
 
     private static final Identifier SLOT_SPRITE =
             Identifier.withDefaultNamespace("container/slot");
@@ -82,7 +84,7 @@ public final class BundlePanelRenderer {
     private static String cachedSearchQuery = null;
     private static BundleCategory cachedCategory = null;
 
-    public static BundleCategory currentCategory = BundleCategory.BUILDING_BLOCKS;
+    public static BundleCategory currentCategory = BundleCategory.OVERVIEW;
 
     private BundlePanelRenderer() {}
 
@@ -224,6 +226,9 @@ public final class BundlePanelRenderer {
 
     public static List<FlatItem> getVisibleItems() {
         ensureCache();
+        if (BundleCategory.registerCategoryItems()) {
+            cachedCategory = null;
+        }
         if (cachedCategory != currentCategory
                 || !java.util.Objects.equals(cachedSearchQuery, searchQuery)) {
             cachedVisibleItems = List.copyOf(filterItems(cachedFlatItems, searchQuery));
@@ -395,9 +400,14 @@ public final class BundlePanelRenderer {
 
     // --- category button layout ---
 
+    private static int catButtonHeight(int panelHeight) {
+        int available = Math.max(0, panelHeight - 4);
+        return Math.clamp(available / BundleCategory.values().length, 16, CAT_BUTTON_SIZE);
+    }
+
     /** Shared button layout: returns Y position of category button i. */
-    private static int catButtonY(int i, int panelY) {
-        return panelY + 2 + i * CAT_BAR_WIDTH;
+    private static int catButtonY(int i, int panelY, int panelHeight) {
+        return panelY + 2 + i * catButtonHeight(panelHeight);
     }
 
     public static BundleCategory getCategoryAt(double mouseX, double mouseY, int leftPos, int topPos, int imageHeight) {
@@ -407,14 +417,15 @@ public final class BundlePanelRenderer {
         int panelY = topPos;
 
         BundleCategory[] cats = BundleCategory.values();
+        int buttonHeight = catButtonHeight(panelHeight);
         for (int i = 0; i < cats.length; i++) {
-            int by = catButtonY(i, panelY);
-            if (by + CAT_BAR_WIDTH > panelY + panelHeight - 2) break;
+            int by = catButtonY(i, panelY, panelHeight);
+            if (by + buttonHeight > panelY + panelHeight - 2) break;
             int bx = baseCatX;
             int bw = CAT_BAR_WIDTH;
             if (cats[i] == currentCategory) { bx -= 3; bw += 4; }
             if (mouseX >= bx && mouseX < bx + bw
-                    && mouseY >= by && mouseY < by + CAT_BAR_WIDTH) {
+                    && mouseY >= by && mouseY < by + buttonHeight) {
                 return cats[i];
             }
         }
@@ -563,26 +574,28 @@ public final class BundlePanelRenderer {
         // Category tabs overlap the panel edge, matching the framed inventory style.
         BundleCategory[] cats = BundleCategory.values();
         int catX = panelX;
+        int catHeight = catButtonHeight(panelHeight);
 
         for (int i = 0; i < cats.length; i++) {
-            int by = catButtonY(i, panelY);
-            if (by + CAT_BAR_WIDTH > panelY + panelHeight - 2) break;
+            int by = catButtonY(i, panelY, panelHeight);
+            if (by + catHeight > panelY + panelHeight - 2) break;
 
             boolean selected = cats[i] == currentCategory;
             int bx = catX;
             int bw = CAT_BAR_WIDTH;
             if (selected) { bx -= 3; bw += 4; }
             boolean hovered = mouseX >= bx && mouseX < bx + bw
-                    && mouseY >= by && mouseY < by + CAT_BAR_WIDTH;
+                    && mouseY >= by && mouseY < by + catHeight;
             int bg = selected ? COLOR_PANEL_SELECTED
                     : (hovered ? COLOR_PANEL_HOVER : COLOR_PANEL);
             if (selected) {
-                drawInsetFrame(graphics, bx, by, bw, CAT_BAR_WIDTH, bg);
+                drawInsetFrame(graphics, bx, by, bw, catHeight, bg);
             } else {
-                drawFrame(graphics, bx, by, bw, CAT_BAR_WIDTH, bg);
+                drawFrame(graphics, bx, by, bw, catHeight, bg);
             }
-            int iconOff = (CAT_BAR_WIDTH - 16) / 2;
-            graphics.item(cats[i].getIcon(), bx + Math.max(2, iconOff), by + iconOff);
+            int iconX = bx + (CAT_BAR_WIDTH - 16) / 2;
+            int iconY = by + (catHeight - 16) / 2;
+            graphics.item(cats[i].getIcon(), iconX, iconY);
         }
 
         // Scroll bar
@@ -647,6 +660,7 @@ public final class BundlePanelRenderer {
             int sby = panelY + 3;
             int sbw = searchBarWidth(leftPos);
             boolean active = searchFocused;
+            drawControlShadow(graphics, sbx, sby, sbw, SEARCH_BAR_HEIGHT, 2);
             graphics.blitSprite(RenderPipelines.GUI_TEXTURED,
                     active ? TEXT_FIELD_HIGHLIGHTED_SPRITE : TEXT_FIELD_SPRITE,
                     sbx, sby, sbw, SEARCH_BAR_HEIGHT);
@@ -730,6 +744,7 @@ public final class BundlePanelRenderer {
             GuiGraphicsExtractor graphics, int x, int y, int width, int height, int fill) {
         int radius = Math.min(Configs.General.HUD_CORNER_RADIUS.getIntegerValue(),
                 Math.max(0, Math.min(width, height) / 2));
+        drawControlShadow(graphics, x, y, width, height, radius);
         fillRoundedRect(graphics, x, y, width, height, radius, fill);
         if (radius == 0) {
             graphics.fill(x, y, x + width - 1, y + 1, COLOR_BORDER_LIGHT);
@@ -748,6 +763,7 @@ public final class BundlePanelRenderer {
             GuiGraphicsExtractor graphics, int x, int y, int width, int height, int fill) {
         int radius = Math.min(Configs.General.HUD_CORNER_RADIUS.getIntegerValue(),
                 Math.max(0, Math.min(width, height) / 2));
+        drawInsetShadow(graphics, x, y, width, height, radius);
         fillRoundedRect(graphics, x, y, width, height, radius, fill);
         if (radius == 0) {
             graphics.fill(x, y, x + width - 1, y + 1, COLOR_BORDER_DARK);
@@ -760,6 +776,17 @@ public final class BundlePanelRenderer {
             graphics.fill(x + radius, y + height - 1, x + width - radius, y + height, COLOR_BORDER_LIGHT);
             graphics.fill(x + width - 1, y + radius, x + width, y + height - radius, COLOR_BORDER_LIGHT);
         }
+    }
+
+    private static void drawControlShadow(
+            GuiGraphicsExtractor graphics, int x, int y, int width, int height, int radius) {
+        fillRoundedRect(graphics, x + 1, y + 1, width, height, radius, COLOR_SHADOW_SOFT);
+        fillRoundedRect(graphics, x + 2, y + 3, width, height, radius, COLOR_SHADOW_DEEP);
+    }
+
+    private static void drawInsetShadow(
+            GuiGraphicsExtractor graphics, int x, int y, int width, int height, int radius) {
+        fillRoundedRect(graphics, x + 1, y + 2, width, height, radius, COLOR_SHADOW_SOFT);
     }
 
     private static void fillRoundedRect(
