@@ -57,7 +57,9 @@ public final class BundlePanelInteraction {
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT
                 && BundlePanelRenderer.isReturnButtonHovered(
                 mouseX, mouseY, leftPos, topPos, imageHeight)) {
-            QuickShulkerExtractionController.requestReturnAll();
+            if (!QuickShulkerExtractionController.isEnderChestPreviewActive()) {
+                QuickShulkerExtractionController.requestReturnAll();
+            }
             return true;
         }
 
@@ -66,6 +68,11 @@ public final class BundlePanelInteraction {
         if (clicked == null) return false;
 
         boolean shift = (modifiers & GLFW.GLFW_MOD_SHIFT) != 0;
+        if (QuickShulkerExtractionController.isEnderChestPreviewActive()) {
+            QuickShulkerExtractionController.requestEnderChestItem(
+                    clicked, !shift, button == GLFW.GLFW_MOUSE_BUTTON_RIGHT);
+            return true;
+        }
         if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
             QuickShulkerExtractionController.requestToCursor(clicked);
         } else {

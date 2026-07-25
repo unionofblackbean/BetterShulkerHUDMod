@@ -87,6 +87,7 @@ public final class BundlePanelRenderer {
     private static List<FlatItem> cachedVisibleItems = List.of();
     private static String cachedSearchQuery = null;
     private static BundleCategory cachedCategory = null;
+    private static boolean cachedEnderChestPreview;
 
     public static BundleCategory currentCategory = BundleCategory.OVERVIEW;
 
@@ -174,6 +175,58 @@ public final class BundlePanelRenderer {
         return Math.clamp(desired, SCREEN_MARGIN,
                 Math.max(SCREEN_MARGIN,
                         client.getWindow().getGuiScaledHeight() - 20 - SCREEN_MARGIN));
+    }
+
+    public static boolean shouldShowEnderChestButton() {
+        Minecraft client = Minecraft.getInstance();
+        return Configs.Features.SHOW_ENDER_CHEST_BUTTON.getBooleanValue()
+                && client.screen instanceof InventoryScreen;
+    }
+
+    public static int enderChestButtonX(int leftPos, int imageWidth) {
+        Minecraft client = Minecraft.getInstance();
+        int toggle = toggleX(leftPos, imageWidth);
+        int desired = toggle + 24;
+        int maximum = client.getWindow().getGuiScaledWidth() - 20 - SCREEN_MARGIN;
+        return desired <= maximum ? desired : Math.max(SCREEN_MARGIN, toggle - 24);
+    }
+
+    public static int enderChestButtonY(int topPos) {
+        return toggleY(topPos);
+    }
+
+    public static boolean isEnderChestButtonHovered(
+            double mouseX, double mouseY, int leftPos, int topPos, int imageWidth) {
+        if (!shouldShowEnderChestButton()) return false;
+        int x = enderChestButtonX(leftPos, imageWidth);
+        int y = enderChestButtonY(topPos);
+        return mouseX >= x && mouseX < x + 20 && mouseY >= y && mouseY < y + 20;
+    }
+
+    public static boolean shouldRenderHudToggleButton() {
+        Minecraft client = Minecraft.getInstance();
+        if (!QuickShulkerExtractionController.isEnderChestPreviewActive()) return true;
+        return client.screen instanceof AbstractContainerScreen<?> screen
+                && canFitEnderChestPreview(screen.imageWidth);
+    }
+
+    public static void ensureEnderChestLayout(AbstractContainerScreen<?> screen) {
+        if (!QuickShulkerExtractionController.isEnderChestPreviewActive()) return;
+        if (Configs.Features.HUD_ENABLED.getBooleanValue()
+                && canFitEnderChestPreview(screen.imageWidth)) {
+            screen.leftPos = SCREEN_MARGIN;
+        } else {
+            screen.leftPos = (Minecraft.getInstance().getWindow().getGuiScaledWidth()
+                    - screen.imageWidth) / 2;
+        }
+    }
+
+    private static boolean canFitEnderChestPreview(int imageWidth) {
+        Minecraft client = Minecraft.getInstance();
+        int minimumPanelWidth = PADDING + CAT_BAR_WIDTH + CATEGORY_GAP
+                + SCROLL_BAR_WIDTH + SCROLL_GAP + SLOT_SIZE + PADDING;
+        return client.getWindow().getGuiScaledWidth()
+                >= SCREEN_MARGIN * 2 + imageWidth + PANEL_GAP + minimumPanelWidth;
     }
 
     public static int gridX(int leftPos) {
@@ -333,6 +386,7 @@ public final class BundlePanelRenderer {
         cachedVisibleItems = List.of();
         cachedSearchQuery = null;
         cachedCategory = null;
+        cachedEnderChestPreview = false;
         hoveredShulkerInventorySlot = -1;
     }
 
@@ -343,26 +397,45 @@ public final class BundlePanelRenderer {
             invalidateCache();
             return;
         }
+        boolean enderChestPreview =
+                QuickShulkerExtractionController.isEnderChestPreviewActive();
         Inventory inv = player.getInventory();
         long fingerprint = 1;
-        for (int i = 0; i < 36; i++) {
-            ItemStack stack = inv.getItem(i);
-            fingerprint = 31 * fingerprint + ItemStack.hashItemAndComponents(stack);
-            fingerprint = 31 * fingerprint + stack.getCount();
+        int sourceSize = enderChestPreview
+                ? player.getEnderChestInventory().getContainerSize() : 36;
+        for (int i = 0; i < sourceSize; i++) {
+            ItemStack stack = enderChestPreview
+                    ? player.getEnderChestInventory().getItem(i) : inv.getItem(i);
+            fingerprint = 31L * fingerprint + ItemStack.hashItemAndComponents(stack);
+            fingerprint = 31L * fingerprint + stack.getCount();
         }
-        if (cachedPlayer == player && cachedInventoryFingerprint == fingerprint) return;
+        if (cachedPlayer == player
+                && cachedEnderChestPreview == enderChestPreview
+                && cachedInventoryFingerprint == fingerprint) return;
 
         List<ShulkerSlotEntry> all = new ArrayList<>();
         List<ShulkerSlotEntry> nonEmpty = new ArrayList<>();
-        for (int i = 0; i < 36; i++) {
-            ItemStack stack = inv.getItem(i);
-            if (!ShulkerContentsHelper.isShulker(stack)) continue;
-            List<ItemStack> contents = List.copyOf(ShulkerContentsHelper.getStacks(stack));
-            ShulkerSlotEntry entry = new ShulkerSlotEntry(i, stack.copy(), contents);
+        if (enderChestPreview) {
+            List<ItemStack> contents = new ArrayList<>(sourceSize);
+            for (int i = 0; i < sourceSize; i++) {
+                contents.add(player.getEnderChestInventory().getItem(i).copy());
+            }
+            ShulkerSlotEntry entry = new ShulkerSlotEntry(
+                    -1, new ItemStack(Items.ENDER_CHEST), List.copyOf(contents));
             all.add(entry);
             if (contents.stream().anyMatch(item -> !item.isEmpty())) nonEmpty.add(entry);
+        } else {
+            for (int i = 0; i < 36; i++) {
+                ItemStack stack = inv.getItem(i);
+                if (!ShulkerContentsHelper.isShulker(stack)) continue;
+                List<ItemStack> contents = List.copyOf(ShulkerContentsHelper.getStacks(stack));
+                ShulkerSlotEntry entry = new ShulkerSlotEntry(i, stack.copy(), contents);
+                all.add(entry);
+                if (contents.stream().anyMatch(item -> !item.isEmpty())) nonEmpty.add(entry);
+            }
         }
         cachedPlayer = player;
+        cachedEnderChestPreview = enderChestPreview;
         cachedInventoryFingerprint = fingerprint;
         cachedAllShulkers = List.copyOf(all);
         cachedNonEmptyShulkers = List.copyOf(nonEmpty);
@@ -409,10 +482,15 @@ public final class BundlePanelRenderer {
 
     public static int getHoveredShulkerInventorySlot() {
         return Configs.Features.HUD_ENABLED.getBooleanValue()
+                && !QuickShulkerExtractionController.isEnderChestPreviewActive()
                 ? hoveredShulkerInventorySlot : -1;
     }
     public static boolean isEffectivelyVisible() {
-        return Configs.Features.HUD_ENABLED.getBooleanValue() && !isRecipeBookOpen();
+        if (!Configs.Features.HUD_ENABLED.getBooleanValue() || isRecipeBookOpen()) return false;
+        Minecraft client = Minecraft.getInstance();
+        return !QuickShulkerExtractionController.isEnderChestPreviewActive()
+                || (client.screen instanceof AbstractContainerScreen<?> screen
+                && canFitEnderChestPreview(screen.imageWidth));
     }
     public static void toggleVisible() {
         Configs.Features.HUD_ENABLED.setBooleanValue(
@@ -721,11 +799,15 @@ public final class BundlePanelRenderer {
         int returnY = panelY + panelHeight - 21;
         boolean returnHovered = isReturnButtonHovered(
                 mouseX, mouseY, leftPos, topPos, imageHeight);
-        boolean canReturn = QuickShulkerExtractionController.canOrganizeInventory();
+        boolean enderChestPreview =
+                QuickShulkerExtractionController.isEnderChestPreviewActive();
+        boolean canReturn = !enderChestPreview
+                && QuickShulkerExtractionController.canOrganizeInventory();
         drawFrame(graphics, returnX, returnY, 18, 18,
                 returnHovered ? COLOR_PANEL_HOVER
                         : (canReturn ? COLOR_PANEL : COLOR_BORDER_MID));
-        graphics.item(new ItemStack(Items.HOPPER), returnX + 1, returnY + 1);
+        graphics.item(new ItemStack(
+                enderChestPreview ? Items.ENDER_CHEST : Items.HOPPER), returnX + 1, returnY + 1);
 
         int categoryX = returnX + 22;
         int categoryWidth = Math.max(0, countX - categoryX - 6);
@@ -738,7 +820,9 @@ public final class BundlePanelRenderer {
         }
         if (returnHovered) {
             graphics.setTooltipForNextFrame(client.font,
-                    Component.translatable("message.better-shulker-hud.return_button"),
+                    Component.translatable(enderChestPreview
+                            ? "message.better-shulker-hud.ender_chest_preview"
+                            : "message.better-shulker-hud.return_button"),
                     mouseX, mouseY);
         }
 
@@ -756,7 +840,9 @@ public final class BundlePanelRenderer {
                     mouseX, mouseY);
         } else if (dropHovered) {
             graphics.setTooltipForNextFrame(client.font,
-                    Component.translatable("message.better-shulker-hud.store_drop_target"),
+                    Component.translatable(enderChestPreview
+                            ? "message.better-shulker-hud.ender_chest_drop_target"
+                            : "message.better-shulker-hud.store_drop_target"),
                     mouseX, mouseY);
         }
 

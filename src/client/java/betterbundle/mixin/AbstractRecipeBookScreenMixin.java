@@ -22,6 +22,14 @@ public abstract class AbstractRecipeBookScreenMixin {
         double mouseX = event.x();
         double mouseY = event.y();
 
+        if (BundlePanelRenderer.isEnderChestButtonHovered(
+                mouseX, mouseY, self.leftPos, self.topPos, self.imageWidth)) {
+            bettershulkerhud.compat.QuickShulkerExtractionController
+                    .requestEnderChestPreview(self);
+            cir.setReturnValue(true);
+            return;
+        }
+
         // Toggle button
         int bx = BundlePanelRenderer.toggleX(self.leftPos, self.imageWidth);
         int by = BundlePanelRenderer.toggleY(self.topPos);

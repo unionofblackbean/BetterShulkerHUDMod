@@ -9,8 +9,10 @@ import fi.dy.masa.malilib.config.IConfigBase;
 import fi.dy.masa.malilib.config.IConfigHandler;
 import fi.dy.masa.malilib.config.options.ConfigBooleanHotkeyed;
 import fi.dy.masa.malilib.config.options.ConfigInteger;
+import fi.dy.masa.malilib.config.options.ConfigStringList;
 import fi.dy.masa.malilib.util.FileUtils;
 import fi.dy.masa.malilib.util.data.json.JsonUtils;
+import com.google.common.collect.ImmutableList;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,6 +32,10 @@ public final class Configs implements IConfigHandler {
                 new ConfigInteger("hudMaxRows", 8, 3, 16).apply(PREFIX);
         public static final ConfigInteger HUD_CORNER_RADIUS =
                 new ConfigInteger("hudCornerRadius", 3, 0, 6).apply(PREFIX);
+        public static final ConfigStringList CLEAR_SLOT_WHITELIST =
+                new ConfigStringList("clearSlotWhitelist", ImmutableList.of()).apply(PREFIX);
+        public static final ConfigStringList CLEAR_SLOT_BLACKLIST =
+                new ConfigStringList("clearSlotBlacklist", ImmutableList.of()).apply(PREFIX);
         public static final ConfigInteger AUTO_RESTOCK_THRESHOLD =
                 new ConfigInteger("autoRestockThreshold", 6, 1, 64).apply(PREFIX);
         public static final ConfigInteger AUTO_RESTOCK_AMOUNT =
@@ -41,6 +47,8 @@ public final class Configs implements IConfigHandler {
                 HUD_MAX_COLUMNS,
                 HUD_MAX_ROWS,
                 HUD_CORNER_RADIUS,
+                CLEAR_SLOT_WHITELIST,
+                CLEAR_SLOT_BLACKLIST,
                 AUTO_RESTOCK_THRESHOLD,
                 AUTO_RESTOCK_AMOUNT,
                 AUTO_RESTOCK_SCAN_INTERVAL
@@ -54,6 +62,8 @@ public final class Configs implements IConfigHandler {
 
         public static final ConfigBooleanHotkeyed HUD_ENABLED =
                 new ConfigBooleanHotkeyed("hudEnabled", false, "").apply(PREFIX);
+        public static final ConfigBooleanHotkeyed SHOW_ENDER_CHEST_BUTTON =
+                new ConfigBooleanHotkeyed("showEnderChestButton", true, "").apply(PREFIX);
         public static final ConfigBooleanHotkeyed LITEMATICA_RESTOCK =
                 new ConfigBooleanHotkeyed("litematicaRestock", true, "").apply(PREFIX);
         public static final ConfigBooleanHotkeyed HIDE_QUICK_SHULKER_SCREEN =
@@ -67,6 +77,7 @@ public final class Configs implements IConfigHandler {
 
         public static final List<ConfigBooleanHotkeyed> OPTIONS = List.of(
                 HUD_ENABLED,
+                SHOW_ENDER_CHEST_BUTTON,
                 LITEMATICA_RESTOCK,
                 HIDE_QUICK_SHULKER_SCREEN,
                 PINYIN_SEARCH,
