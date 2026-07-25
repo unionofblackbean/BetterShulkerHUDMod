@@ -17,5 +17,6 @@
   "message.better-shulker-hud.store_failed": "Storage did not complete; the item remains in your inventory",
   "message.better-shulker-hud.store_complete": "Stored %s items in a shulker box",
   "message.better-shulker-hud.store_drop_target": "Release to store this item in any shulker with space",
-  "message.better-shulker-hud.minimize": "Minimize the shulker HUD"
+  "message.better-shulker-hud.minimize": "Minimize the shulker HUD",
+  "message.better-shulker-hud.search": "Search items..."
 }

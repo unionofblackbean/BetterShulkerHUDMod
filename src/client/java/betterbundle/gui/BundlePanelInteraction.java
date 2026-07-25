@@ -10,15 +10,11 @@ public final class BundlePanelInteraction {
     private BundlePanelInteraction() {}
 
     private static int gridX(int leftPos) {
-        int panelX = BundlePanelRenderer.panelX(leftPos);
-        return panelX + BundlePanelRenderer.PADDING
-                + BundlePanelRenderer.CAT_BAR_WIDTH + 2
-                + BundlePanelRenderer.SCROLL_BAR_WIDTH + 2;
+        return BundlePanelRenderer.gridX(leftPos);
     }
 
     private static int gridY(int topPos) {
-        return topPos + BundlePanelRenderer.SEARCH_BAR_HEIGHT + 3
-                + BundlePanelRenderer.PADDING;
+        return BundlePanelRenderer.gridY(topPos);
     }
 
     private static BundlePanelRenderer.FlatItem getClickedItem(

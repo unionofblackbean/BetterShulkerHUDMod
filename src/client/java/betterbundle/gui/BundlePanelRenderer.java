@@ -31,15 +31,28 @@ import org.lwjgl.glfw.GLFW;
 
 public final class BundlePanelRenderer {
 
-    public static final int SLOT_SIZE = 18;
+    public static final int SLOT_SIZE = 20;
     public static final int MAX_COLUMNS = 6;
     public static final int MAX_VISIBLE_ROWS = 8;
-    public static final int SLOT_SPACING = 1;
-    public static final int PADDING = 3;
-    public static final int SCROLL_BAR_WIDTH = 4;
-    public static final int CAT_BUTTON_SIZE = 23;
+    public static final int SLOT_SPACING = 2;
+    public static final int PADDING = 4;
+    public static final int SCROLL_BAR_WIDTH = 3;
+    public static final int CAT_BUTTON_SIZE = 22;
     public static final int CAT_BAR_WIDTH = CAT_BUTTON_SIZE;
-    public static final int SEARCH_BAR_HEIGHT = 14;
+    public static final int SEARCH_BAR_HEIGHT = 16;
+    public static final int HEADER_HEIGHT = 22;
+    public static final int FOOTER_HEIGHT = 24;
+
+    private static final int BODY_INSET = 14;
+    private static final int CONTROL_SIZE = 14;
+    private static final int COLOR_PANEL = 0xE6AEB3C5;
+    private static final int COLOR_PANEL_INNER = 0xD99BA1B6;
+    private static final int COLOR_SLOT = 0xD982889F;
+    private static final int COLOR_SLOT_HOVER = 0xEAA1A7BB;
+    private static final int COLOR_BORDER = 0xFFF1F2F7;
+    private static final int COLOR_BORDER_SHADOW = 0xFF71778F;
+    private static final int COLOR_TEXT = 0xFFF8F8FC;
+    private static final int COLOR_TEXT_MUTED = 0xFFC9CDDA;
 
     private static int scrollOffset = 0;
     public static boolean visible = false;
@@ -73,7 +86,8 @@ public final class BundlePanelRenderer {
         int leftSpace = leftPos - 4;
         int rightSpace = screenWidth - (leftPos + imageWidth + 28);
         int available = Math.max(leftSpace, rightSpace);
-        int fixedWidth = CAT_BAR_WIDTH + 2 + SCROLL_BAR_WIDTH + 2 + PADDING * 2;
+        int fixedWidth = PADDING + CAT_BAR_WIDTH + 3
+                + SCROLL_BAR_WIDTH + 3 + PADDING;
         int columns = (available - fixedWidth + SLOT_SPACING)
                 / (SLOT_SIZE + SLOT_SPACING);
         return Math.clamp(columns, 2, MAX_COLUMNS);
@@ -82,21 +96,21 @@ public final class BundlePanelRenderer {
     public static int visibleRowCount(int topPos, int imageHeight) {
         Minecraft client = Minecraft.getInstance();
         int availableHeight = client.getWindow().getGuiScaledHeight() - topPos - 4;
-        int contentHeight = availableHeight - (SEARCH_BAR_HEIGHT + 3) - PADDING * 2 - 24;
+        int contentHeight = availableHeight - HEADER_HEIGHT - PADDING * 2 - FOOTER_HEIGHT;
         int rows = (contentHeight + SLOT_SPACING) / (SLOT_SIZE + SLOT_SPACING);
         return Math.clamp(rows, 3, MAX_VISIBLE_ROWS);
     }
 
     public static int panelWidth(int leftPos) {
         int columns = columnCount(leftPos);
-        return CAT_BAR_WIDTH + 2 + SCROLL_BAR_WIDTH + 2
-                + columns * (SLOT_SIZE + SLOT_SPACING) - SLOT_SPACING + PADDING * 2;
+        return PADDING + CAT_BAR_WIDTH + 3 + SCROLL_BAR_WIDTH + 3
+                + columns * (SLOT_SIZE + SLOT_SPACING) - SLOT_SPACING + PADDING;
     }
 
     public static int panelHeight(int topPos, int imageHeight) {
         int rows = visibleRowCount(topPos, imageHeight);
-        return SEARCH_BAR_HEIGHT + 3 + PADDING * 2
-                + rows * SLOT_SIZE + (rows - 1) * SLOT_SPACING + 24;
+        return HEADER_HEIGHT + PADDING * 2
+                + rows * SLOT_SIZE + (rows - 1) * SLOT_SPACING + FOOTER_HEIGHT;
     }
 
     public static int panelX(int leftPos) {
@@ -126,6 +140,25 @@ public final class BundlePanelRenderer {
             return topPos + 60;
         }
         return topPos + (FabricLoader.getInstance().isModLoaded("better-bundle") ? 27 : 5);
+    }
+
+    public static int gridX(int leftPos) {
+        return panelX(leftPos) + PADDING + CAT_BAR_WIDTH + 3
+                + SCROLL_BAR_WIDTH + 3;
+    }
+
+    public static int gridY(int topPos) {
+        return topPos + HEADER_HEIGHT + PADDING;
+    }
+
+    private static int gridWidth(int leftPos) {
+        int columns = columnCount(leftPos);
+        return columns * SLOT_SIZE + (columns - 1) * SLOT_SPACING;
+    }
+
+    private static int gridHeight(int topPos, int imageHeight) {
+        int rows = visibleRowCount(topPos, imageHeight);
+        return rows * SLOT_SIZE + (rows - 1) * SLOT_SPACING;
     }
 
     public static int getScrollOffset() { return scrollOffset; }
@@ -348,24 +381,22 @@ public final class BundlePanelRenderer {
 
     /** Shared button layout: returns Y position of category button i. */
     private static int catButtonY(int i, int panelY) {
-        return panelY + PADDING - 3 + i * CAT_BAR_WIDTH;
+        return panelY + 2 + i * CAT_BAR_WIDTH;
     }
 
     public static BundleCategory getCategoryAt(double mouseX, double mouseY, int leftPos, int topPos, int imageHeight) {
-        int pw = panelWidth(leftPos);
         int panelHeight = panelHeight(topPos, imageHeight);
         int panelX = panelX(leftPos);
-        int baseCatX = panelX + PADDING - 10;
+        int baseCatX = panelX;
         int panelY = topPos;
-        int searchH = SEARCH_BAR_HEIGHT + 3;
 
         BundleCategory[] cats = BundleCategory.values();
         for (int i = 0; i < cats.length; i++) {
             int by = catButtonY(i, panelY);
-            if (by + CAT_BAR_WIDTH > panelY + panelHeight) break;
+            if (by + CAT_BAR_WIDTH > panelY + panelHeight - 2) break;
             int bx = baseCatX;
             int bw = CAT_BAR_WIDTH;
-            if (cats[i] == currentCategory) { bx -= 5; bw += 5; }
+            if (cats[i] == currentCategory) { bx -= 3; bw += 4; }
             if (mouseX >= bx && mouseX < bx + bw
                     && mouseY >= by && mouseY < by + CAT_BAR_WIDTH) {
                 return cats[i];
@@ -378,18 +409,16 @@ public final class BundlePanelRenderer {
 
     public static boolean isInsideSearchBar(double mouseX, double mouseY, int leftPos, int topPos, int imageHeight) {
         if (currentCategory != BundleCategory.ALL) return false; // Only ALL mode has interactive search
-        int pw = panelWidth(leftPos);
-        int panelX = panelX(leftPos);
-        int sbx = panelX + PADDING + CAT_BAR_WIDTH + 2;
-        int sby = topPos + 2;
-        int sbw = pw - PADDING - CAT_BAR_WIDTH - 2 - PADDING - 10;
+        int sbx = searchBarX(leftPos);
+        int sby = topPos + 3;
+        int sbw = searchBarWidth(leftPos);
         return mouseX >= sbx && mouseX <= sbx + sbw && mouseY >= sby && mouseY <= sby + SEARCH_BAR_HEIGHT;
     }
 
     public static boolean isInsidePanelBounds(
             double mouseX, double mouseY, int leftPos, int topPos, int imageHeight) {
         if (!isEffectivelyVisible()) return false;
-        int x = panelX(leftPos) + 16;
+        int x = panelX(leftPos) + BODY_INSET;
         int y = topPos;
         return mouseX >= x && mouseX < panelX(leftPos) + panelWidth(leftPos)
                 && mouseY >= y && mouseY < y + panelHeight(topPos, imageHeight);
@@ -398,14 +427,23 @@ public final class BundlePanelRenderer {
     public static boolean isMinimizeButtonHovered(
             double mouseX, double mouseY, int leftPos, int topPos, int imageHeight) {
         int x = minimizeButtonX(leftPos);
-        int y = topPos + 1;
+        int y = topPos + 4;
         return isEffectivelyVisible()
-                && mouseX >= x && mouseX < x + 11
-                && mouseY >= y && mouseY < y + 11;
+                && mouseX >= x && mouseX < x + CONTROL_SIZE
+                && mouseY >= y && mouseY < y + CONTROL_SIZE;
     }
 
     private static int minimizeButtonX(int leftPos) {
-        return panelX(leftPos) + panelWidth(leftPos) - 12;
+        return panelX(leftPos) + panelWidth(leftPos) - CONTROL_SIZE - 4;
+    }
+
+    private static int searchBarX(int leftPos) {
+        return gridX(leftPos);
+    }
+
+    private static int searchBarWidth(int leftPos) {
+        int right = minimizeButtonX(leftPos) - 4;
+        return Math.max(24, right - searchBarX(leftPos));
     }
 
     public static boolean onCharTyped(int codepoint) {
@@ -476,14 +514,19 @@ public final class BundlePanelRenderer {
         int panelY = topPos;
 
         boolean isAllMode = currentCategory == BundleCategory.ALL;
-        int searchH = SEARCH_BAR_HEIGHT + 3;
-
         int columns = columnCount(leftPos);
         int rows = visibleRowCount(topPos, imageHeight);
         int panelHeight = panelHeight(topPos, imageHeight);
+        int bodyX = panelX + BODY_INSET;
+        int bodyWidth = pw - BODY_INSET;
+        int gridX = gridX(leftPos);
+        int gridY = gridY(topPos);
+        int gridWidth = gridWidth(leftPos);
+        int gridHeight = gridHeight(topPos, imageHeight);
 
-        // Panel background (left edge inset 16px)
-        graphics.fill(panelX + 16, panelY, panelX + pw, panelY + panelHeight, 0xC0101010);
+        drawFrame(graphics, bodyX, panelY, bodyWidth, panelHeight, COLOR_PANEL);
+        drawFrame(graphics, gridX - 2, gridY - 2,
+                gridWidth + 4, gridHeight + 4, COLOR_PANEL_INNER);
 
         Minecraft client = Minecraft.getInstance();
         Font font = client.font;
@@ -492,79 +535,71 @@ public final class BundlePanelRenderer {
         boolean dropHovered = !carried.isEmpty()
                 && isInsidePanelBounds(mouseX, mouseY, leftPos, topPos, imageHeight);
         if (!carried.isEmpty()) {
-            int color = dropHovered ? 0x6040B060 : 0x302E6FA8;
-            int border = dropHovered ? 0xFF70E080 : 0xFF5590C8;
-            graphics.fill(panelX + 16, panelY, panelX + pw, panelY + panelHeight, color);
-            graphics.fill(panelX + 16, panelY, panelX + pw, panelY + 1, border);
-            graphics.fill(panelX + 16, panelY + panelHeight - 1, panelX + pw, panelY + panelHeight, border);
-            graphics.fill(panelX + 16, panelY, panelX + 17, panelY + panelHeight, border);
-            graphics.fill(panelX + pw - 1, panelY, panelX + pw, panelY + panelHeight, border);
+            int color = dropHovered ? 0x505CBA79 : 0x303E789B;
+            int border = dropHovered ? 0xFFD9F4DF : 0xFFDCEAF4;
+            graphics.fill(bodyX + 1, panelY + 1,
+                    panelX + pw - 1, panelY + panelHeight - 1, color);
+            drawBorder(graphics, bodyX, panelY, bodyWidth, panelHeight, border);
         }
 
         int totalRows = Math.max(1, (items.size() + columns - 1) / columns);
         int maxScroll = Math.max(0, totalRows - rows);
         if (scrollOffset > maxScroll) scrollOffset = maxScroll;
 
-        // Category buttons always at panel top (no searchH offset)
-        int catTop = panelY;
-        // Grid starts below search bar
-        int gridTop = panelY + searchH;
-        int gridContentH = panelHeight - searchH - 24;
-
-        // Category buttons
+        // Category tabs overlap the panel edge, matching the framed inventory style.
         BundleCategory[] cats = BundleCategory.values();
-        int catX = panelX + PADDING - 10;
-        int catAreaH = panelHeight - PADDING * 2;
+        int catX = panelX;
 
         for (int i = 0; i < cats.length; i++) {
-            int by = catButtonY(i, catTop);
-            if (by + CAT_BAR_WIDTH > catTop + panelHeight) break;
+            int by = catButtonY(i, panelY);
+            if (by + CAT_BAR_WIDTH > panelY + panelHeight - 2) break;
 
             boolean selected = cats[i] == currentCategory;
             int bx = catX;
             int bw = CAT_BAR_WIDTH;
-            if (selected) { bx -= 5; bw += 5; }
+            if (selected) { bx -= 3; bw += 4; }
             boolean hovered = mouseX >= bx && mouseX < bx + bw
                     && mouseY >= by && mouseY < by + CAT_BAR_WIDTH;
-            int bg = selected ? 0xC0101010 : (hovered ? 0xFF555555 : 0xFF2D2D2D);
-            graphics.fill(bx, by, bx + bw, by + CAT_BAR_WIDTH, bg);
+            int bg = selected ? 0xEE9298AE : (hovered ? 0xECA4AABD : 0xD883899F);
+            drawFrame(graphics, bx, by, bw, CAT_BAR_WIDTH, bg);
             int iconOff = (CAT_BAR_WIDTH - 16) / 2;
-            graphics.item(cats[i].getIcon(), bx + iconOff, by + iconOff);
+            graphics.item(cats[i].getIcon(), bx + Math.max(2, iconOff), by + iconOff);
         }
 
         // Scroll bar
-        int sbX = panelX + PADDING + CAT_BAR_WIDTH + 2;
-        int sbY = gridTop + PADDING;
-        int sbH = gridContentH - PADDING * 2;
+        int sbX = gridX - SCROLL_BAR_WIDTH - 3;
+        int sbY = gridY;
+        int sbH = gridHeight;
 
-        graphics.fill(sbX, sbY, sbX + SCROLL_BAR_WIDTH, sbY + sbH, 0xFF2D2D2D);
+        graphics.fill(sbX, sbY, sbX + SCROLL_BAR_WIDTH, sbY + sbH, COLOR_BORDER_SHADOW);
         if (maxScroll > 0) {
             int thumbH = Math.max(12, sbH * rows / totalRows);
             int thumbY = sbY + (sbH - thumbH) * scrollOffset / maxScroll;
-            graphics.fill(sbX, thumbY, sbX + SCROLL_BAR_WIDTH, thumbY + thumbH, 0xFF888888);
+            graphics.fill(sbX, thumbY, sbX + SCROLL_BAR_WIDTH, thumbY + thumbH, COLOR_BORDER);
+        } else {
+            graphics.fill(sbX, sbY, sbX + SCROLL_BAR_WIDTH, sbY + sbH, 0x80F1F2F7);
         }
 
-        // Item grid
-        int gridX = sbX + SCROLL_BAR_WIDTH + 2;
-        int gridY = gridTop + PADDING;
         int startRow = scrollOffset;
         int hoveredFlatIndex = -1;
 
         for (int row = 0; row < rows; row++) {
             for (int col = 0; col < columns; col++) {
                 int flatIndex = (startRow + row) * columns + col;
-                if (flatIndex >= items.size()) break;
                 int sx = gridX + col * (SLOT_SIZE + SLOT_SPACING);
                 int sy = gridY + row * (SLOT_SIZE + SLOT_SPACING);
 
-                graphics.fill(sx, sy, sx + SLOT_SIZE, sy + SLOT_SIZE, 0xFF373737);
-                graphics.fill(sx + 1, sy + 1, sx + SLOT_SIZE - 1, sy + SLOT_SIZE - 1, 0xFFC6C6C6);
+                boolean hovered = mouseX >= sx && mouseX < sx + SLOT_SIZE
+                        && mouseY >= sy && mouseY < sy + SLOT_SIZE;
+                drawFrame(graphics, sx, sy, SLOT_SIZE, SLOT_SIZE,
+                        hovered ? COLOR_SLOT_HOVER : COLOR_SLOT);
 
+                if (flatIndex >= items.size()) continue;
                 FlatItem fi = items.get(flatIndex);
-                graphics.item(fi.stack(), sx + 1, sy + 1);
-                renderItemDecorations(graphics, client.font, fi.stack(), sx + 1, sy + 1);
+                graphics.item(fi.stack(), sx + 2, sy + 2);
+                renderItemDecorations(graphics, client.font, fi.stack(), sx + 2, sy + 2);
 
-                if (mouseX >= sx && mouseX < sx + SLOT_SIZE && mouseY >= sy && mouseY < sy + SLOT_SIZE) {
+                if (hovered) {
                     hoveredFlatIndex = flatIndex;
                 }
             }
@@ -575,57 +610,62 @@ public final class BundlePanelRenderer {
             int hCol = hoveredFlatIndex % columns;
             int hx = gridX + hCol * (SLOT_SIZE + SLOT_SPACING);
             int hy = gridY + hRow * (SLOT_SIZE + SLOT_SPACING);
-            graphics.fill(hx, hy, hx + SLOT_SIZE, hy + SLOT_SIZE, 0x80FFFFFF);
+            graphics.fill(hx + 1, hy + 1, hx + SLOT_SIZE - 1, hy + SLOT_SIZE - 1, 0x28FFFFFF);
             graphics.setTooltipForNextFrame(client.font, items.get(hoveredFlatIndex).stack(), mouseX, mouseY);
             hoveredShulkerInventorySlot = items.get(hoveredFlatIndex).inventorySlot();
         } else {
             hoveredShulkerInventorySlot = -1;
         }
 
-        // Search bar (always visible, only interactive in ALL mode)
+        // Framed search/title area.
         {
-            int sbx = panelX + PADDING + CAT_BAR_WIDTH + 2;
-            int sby = panelY + 2;
-            int sbw = pw - PADDING - CAT_BAR_WIDTH - 2 - PADDING - 10;
+            int sbx = searchBarX(leftPos);
+            int sby = panelY + 3;
+            int sbw = searchBarWidth(leftPos);
             boolean active = isAllMode && searchFocused;
-            int bg = isAllMode ? (active ? 0xFF000000 : 0xFF2D2D2D) : 0xFF1A1A1A;
-            graphics.fill(sbx, sby, sbx + sbw, sby + SEARCH_BAR_HEIGHT, bg);
-            if (active) graphics.fill(sbx + 1, sby + 1, sbx + sbw - 1, sby + SEARCH_BAR_HEIGHT - 1, 0xFF3D3D3D);
+            int bg = active ? 0xE7767D95 : 0xD88C92A8;
+            drawFrame(graphics, sbx, sby, sbw, SEARCH_BAR_HEIGHT, bg);
             int textY = sby + (SEARCH_BAR_HEIGHT - font.lineHeight) / 2;
             if (isAllMode && searchQuery.isEmpty() && !searchFocused) {
-                graphics.text(font, "Search...", sbx + 3, textY, 0xFF666666, false);
+                String placeholder = Component.translatable(
+                        "message.better-shulker-hud.search").getString();
+                graphics.text(font, fitTail(font, placeholder, sbw - 7),
+                        sbx + 4, textY, COLOR_TEXT_MUTED, false);
+            } else if (isAllMode && searchQuery.isEmpty()) {
+                searchCursorTick = (searchCursorTick + 1) % 40;
+                if (searchCursorTick < 20) {
+                    graphics.fill(sbx + 4, textY, sbx + 5,
+                            textY + font.lineHeight, COLOR_TEXT);
+                }
             } else if (isAllMode && !searchQuery.isEmpty()) {
-                graphics.text(font, searchQuery, sbx + 3, textY, 0xFFFFFFFF, false);
+                String shown = fitTail(font, searchQuery, sbw - 8);
+                graphics.text(font, shown, sbx + 4, textY, COLOR_TEXT, false);
                 searchCursorTick = (searchCursorTick + 1) % 40;
                 if (searchFocused && searchCursorTick < 20) {
-                    int cursorX = sbx + 3 + font.width(searchQuery);
-                    graphics.fill(cursorX, textY, cursorX + 1, textY + font.lineHeight, 0xFFFFFFFF);
+                    int cursorX = sbx + 4 + font.width(shown);
+                    graphics.fill(cursorX, textY, cursorX + 1, textY + font.lineHeight, COLOR_TEXT);
                 }
+            } else if (!isAllMode) {
+                graphics.text(font, fitTail(font, currentCategory.getDisplayName(), sbw - 7),
+                        sbx + 4, textY, COLOR_TEXT, false);
             }
         }
 
-        // Category title (on top of search bar)
-        if (currentCategory != BundleCategory.ALL) {
-            String label = currentCategory.getDisplayName();
-            graphics.text(font, label, panelX + 16 + 3, panelY + 2, 0xFFCCCCCC, false);
-        }
-
-        // Bundle count display (bottom-right of grid)
+        // Capacity display in the footer.
         int[] stats = getShulkerStats();
-        String countText = stats[0] + "/" + stats[1];
+        String countText = fitTail(font, stats[0] + " / " + stats[1], gridWidth);
         int textW = font.width(countText);
-        int countX = gridX + columns * (SLOT_SIZE + SLOT_SPACING) - SLOT_SPACING - textW;
-        int countY = gridY + rows * SLOT_SIZE + (rows - 1) * SLOT_SPACING + 7;
-        graphics.fill(countX - 2, countY, countX + textW + 2, countY + font.lineHeight, 0xC0101010);
-        graphics.text(font, countText, countX, countY, 0xFFAAAAAA, false);
+        int countX = gridX + gridWidth - textW;
+        int countY = panelY + panelHeight - 17;
+        graphics.text(font, countText, countX, countY, COLOR_TEXT_MUTED, false);
 
-        int returnX = panelX + 16;
+        int returnX = bodyX + 4;
         int returnY = panelY + panelHeight - 21;
         boolean returnHovered = isReturnButtonHovered(
                 mouseX, mouseY, leftPos, topPos, imageHeight);
         boolean canReturn = QuickShulkerExtractionController.hasReturnableHistory();
-        graphics.fill(returnX, returnY, returnX + 18, returnY + 18,
-                returnHovered ? 0x80FFFFFF : (canReturn ? 0xFF555555 : 0xFF303030));
+        drawFrame(graphics, returnX, returnY, 18, 18,
+                returnHovered ? COLOR_SLOT_HOVER : (canReturn ? COLOR_SLOT : 0xB9787E93));
         graphics.item(new ItemStack(Items.HOPPER), returnX + 1, returnY + 1);
         if (returnHovered) {
             graphics.setTooltipForNextFrame(client.font,
@@ -634,12 +674,13 @@ public final class BundlePanelRenderer {
         }
 
         int minimizeX = minimizeButtonX(leftPos);
-        int minimizeY = panelY + 1;
+        int minimizeY = panelY + 4;
         boolean minimizeHovered = isMinimizeButtonHovered(
                 mouseX, mouseY, leftPos, topPos, imageHeight);
-        graphics.fill(minimizeX, minimizeY, minimizeX + 11, minimizeY + 11,
-                minimizeHovered ? 0xFF666666 : 0xFF303030);
-        graphics.text(font, "-", minimizeX + 4, minimizeY, 0xFFFFFFFF, false);
+        drawFrame(graphics, minimizeX, minimizeY, CONTROL_SIZE, CONTROL_SIZE,
+                minimizeHovered ? COLOR_SLOT_HOVER : COLOR_SLOT);
+        graphics.fill(minimizeX + 4, minimizeY + 7,
+                minimizeX + CONTROL_SIZE - 4, minimizeY + 8, COLOR_TEXT);
         if (minimizeHovered) {
             graphics.setTooltipForNextFrame(client.font,
                     Component.translatable("message.better-shulker-hud.minimize"),
@@ -650,6 +691,31 @@ public final class BundlePanelRenderer {
                     mouseX, mouseY);
         }
 
+    }
+
+    private static void drawFrame(
+            GuiGraphicsExtractor graphics, int x, int y, int width, int height, int fill) {
+        graphics.fill(x + 1, y + 1, x + width + 1, y + height + 1, COLOR_BORDER_SHADOW);
+        graphics.fill(x, y, x + width, y + height, COLOR_BORDER);
+        graphics.fill(x + 1, y + 1, x + width - 1, y + height - 1, fill);
+    }
+
+    private static void drawBorder(
+            GuiGraphicsExtractor graphics, int x, int y, int width, int height, int color) {
+        graphics.fill(x, y, x + width, y + 1, color);
+        graphics.fill(x, y + height - 1, x + width, y + height, color);
+        graphics.fill(x, y, x + 1, y + height, color);
+        graphics.fill(x + width - 1, y, x + width, y + height, color);
+    }
+
+    private static String fitTail(Font font, String text, int maxWidth) {
+        if (font.width(text) <= maxWidth) return text;
+        int start = 0;
+        while (start < text.length() && font.width(text.substring(start)) > maxWidth) {
+            int codePoint = text.codePointAt(start);
+            start += Character.charCount(codePoint);
+        }
+        return text.substring(Math.min(start, text.length()));
     }
 
     private static void renderItemDecorations(
@@ -675,7 +741,7 @@ public final class BundlePanelRenderer {
     }
 
     public static int returnButtonX(int leftPos) {
-        return panelX(leftPos) + 16;
+        return panelX(leftPos) + BODY_INSET + 4;
     }
 
     public static int returnButtonY(int topPos, int imageHeight) {
