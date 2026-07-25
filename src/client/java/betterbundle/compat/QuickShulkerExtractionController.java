@@ -24,30 +24,49 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public final class QuickShulkerExtractionController {
     private static final int OPEN_TIMEOUT_TICKS = 60;
-    private static final int AUTO_PICKUP_BATCH_IDLE_TICKS = 3;
+    private static final int AUTO_PICKUP_BATCH_IDLE_TICKS = 10;
     private static final int AUTO_PICKUP_STALE_SLOT_TICKS = 8;
+
+    private static long containerSyncVersion;
+    private static final Map<Integer, Long> containerSyncVersions = new HashMap<>();
 
     private static PendingExtraction pendingExtraction;
     private static int extractionWaitTicks;
     private static int extractionMenuId = -1;
     private static int extractionCloseDelay = -1;
+    private static int extractionMovedItemCount;
+    private static long extractionOpenSyncVersion;
+    private static long extractionMoveSyncVersion;
+    private static int extractionExpectedSourceCount = -1;
+
+    private static PendingCursorPickup pendingCursorPickup;
+    private static int cursorPickupWaitTicks;
 
     private static PendingStore pendingStore;
     private static int storeWaitTicks;
     private static int storeMenuId = -1;
     private static int storeCloseDelay = -1;
     private static int storedItemCount;
+    private static long storeOpenSyncVersion;
+    private static long storeMoveSyncVersion;
+    private static int storeExpectedTargetCount = -1;
 
     private static PendingRestore pendingRestore;
     private static int restoreWaitTicks;
     private static int restoreMenuId = -1;
     private static int restoreCloseDelay = -1;
+    private static long restoreOpenSyncVersion;
+    private static long restoreMoveSyncVersion;
+    private static int restoreExpectedSourceCount = -1;
+    private static int restoreMoveSourceSlot = -1;
 
     private static int autoPickupCooldown;
     private static int autoRestockCooldown;
@@ -62,6 +81,7 @@ public final class QuickShulkerExtractionController {
     private static int returnMenuId = -1;
     private static int nextReturnDelay = -1;
     private static int returnedItemCount;
+    private static long returnOpenSyncVersion;
     private static ItemStack pendingLitematicaSelection = ItemStack.EMPTY;
 
     private QuickShulkerExtractionController() {}
@@ -70,8 +90,30 @@ public final class QuickShulkerExtractionController {
         tick(client);
     }
 
+    public static void onContainerSync(int containerId) {
+        containerSyncVersions.put(containerId, ++containerSyncVersion);
+        BundlePanelRenderer.invalidateCache();
+    }
+
+    public static void onItemPickup(int itemEntityId, int playerId, int amount) {
+        Minecraft client = Minecraft.getInstance();
+        if (autoPickupCycle == null || client.player == null || client.level == null
+                || client.player.getId() != playerId || amount <= 0) return;
+        if (!(client.level.getEntity(itemEntityId) instanceof ItemEntity entity)) return;
+
+        ItemStack stack = entity.getItem();
+        if (stack.isEmpty()) return;
+        autoPickupCycle.pickupConfirmations.addLast(
+                new PickupConfirmation(stack.copyWithCount(1), amount));
+        while (autoPickupCycle.pickupConfirmations.size() > 64) {
+            autoPickupCycle.pickupConfirmations.removeFirst();
+        }
+        autoPickupCycle.waitTicks = 0;
+    }
+
     public static void clearWorldState() {
         clearExtraction();
+        clearCursorPickup();
         clearStore();
         clearRestore();
         clearReturnProcess();
@@ -79,6 +121,8 @@ public final class QuickShulkerExtractionController {
         autoPickupCooldown = 0;
         autoRestockCooldown = 0;
         autoPickupProtocolWarningShown = false;
+        containerSyncVersion = 0;
+        containerSyncVersions.clear();
         originRecords.clear();
         pendingLitematicaSelection = ItemStack.EMPTY;
         BundlePanelRenderer.invalidateCache();
@@ -108,14 +152,18 @@ public final class QuickShulkerExtractionController {
 
         pendingExtraction = new PendingExtraction(
                 source.inventorySlot(), source.shulkerSlot(), source.expectedStack(), takeOne,
-                source.shulkerItem(), source.shulkerName(), false, false, -1, 0);
+                source.shulkerItem(), source.shulkerName(), false, false, false,
+                -1, 0, 0);
         extractionWaitTicks = 0;
         extractionMenuId = -1;
         extractionCloseDelay = -1;
+        extractionMovedItemCount = 0;
+        extractionExpectedSourceCount = -1;
+        extractionOpenSyncVersion = containerSyncVersion;
         OpenShulkerPacket.sendOpenPacket(source.quickShulkerSlot());
     }
 
-    public static void requestToHand(BundlePanelRenderer.FlatItem item) {
+    public static void requestToCursor(BundlePanelRenderer.FlatItem item) {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null
                 || !(client.screen instanceof AbstractContainerScreen<?> screen)) return;
@@ -134,28 +182,29 @@ public final class QuickShulkerExtractionController {
             return;
         }
 
-        int targetInventorySlot = inventory.getSelectedSlot();
-        ItemStack targetStack = inventory.getItem(targetInventorySlot);
-        if (!targetStack.isEmpty()
-                && !ItemStack.isSameItemSameComponents(
-                targetStack, source.expectedStack())) {
-            show(client, "message.better-shulker-hud.hand_unavailable");
+        CursorStaging staging = findCursorStagingDestination(
+                screen, inventory, source.expectedStack(), source.inventorySlot());
+        if (staging == null) {
+            show(client, "message.better-shulker-hud.inventory_full");
             return;
         }
-        int capacity = source.expectedStack().getMaxStackSize() - targetStack.getCount();
-        int requestedAmount = Math.min(source.expectedStack().getCount(), capacity);
+        int requestedAmount = Math.min(
+                source.expectedStack().getCount(), staging.capacity());
         if (requestedAmount <= 0) {
-            show(client, "message.better-shulker-hud.hand_unavailable");
+            show(client, "message.better-shulker-hud.inventory_full");
             return;
         }
 
         pendingExtraction = new PendingExtraction(
                 source.inventorySlot(), source.shulkerSlot(), source.expectedStack(), false,
-                source.shulkerItem(), source.shulkerName(), false, false,
-                targetInventorySlot, requestedAmount);
+                source.shulkerItem(), source.shulkerName(), false, false, true,
+                staging.inventorySlot(), requestedAmount, staging.baselineCount());
         extractionWaitTicks = 0;
         extractionMenuId = -1;
         extractionCloseDelay = -1;
+        extractionMovedItemCount = 0;
+        extractionExpectedSourceCount = -1;
+        extractionOpenSyncVersion = containerSyncVersion;
         OpenShulkerPacket.sendOpenPacket(source.quickShulkerSlot());
     }
 
@@ -175,11 +224,14 @@ public final class QuickShulkerExtractionController {
 
         pendingExtraction = new PendingExtraction(
                 source.inventorySlot(), source.shulkerSlot(), source.expectedStack(), false,
-                source.shulkerItem(), source.shulkerName(), true, false, -1, 0);
+                source.shulkerItem(), source.shulkerName(), true, false, false,
+                -1, 0, 0);
         pendingLitematicaSelection = required.copyWithCount(1);
         extractionWaitTicks = 0;
         extractionMenuId = -1;
         extractionCloseDelay = -1;
+        extractionExpectedSourceCount = -1;
+        extractionOpenSyncVersion = containerSyncVersion;
         OpenShulkerPacket.sendOpenPacket(source.quickShulkerSlot());
     }
 
@@ -259,11 +311,14 @@ public final class QuickShulkerExtractionController {
         storeMenuId = -1;
         storeCloseDelay = -1;
         storedItemCount = 0;
+        storeExpectedTargetCount = -1;
+        storeOpenSyncVersion = containerSyncVersion;
         OpenShulkerPacket.sendOpenPacket(targetMenuSlot);
     }
 
     private static boolean isBusy() {
         return pendingExtraction != null || pendingStore != null || pendingRestore != null
+                || pendingCursorPickup != null
                 || autoPickupCycle != null || activeReturn != null
                 || !returnQueue.isEmpty() || nextReturnDelay >= 0;
     }
@@ -289,6 +344,9 @@ public final class QuickShulkerExtractionController {
             return;
         } else if (pendingExtraction != null) {
             tickExtraction(client);
+            return;
+        } else if (pendingCursorPickup != null) {
+            tickCursorPickup(client);
             return;
         } else if (activeReturn != null || !returnQueue.isEmpty() || nextReturnDelay >= 0) {
             tickReturn(client);
@@ -338,11 +396,14 @@ public final class QuickShulkerExtractionController {
 
         pendingExtraction = new PendingExtraction(
                 source.inventorySlot(), source.shulkerSlot(), source.expectedStack(), false,
-                source.shulkerItem(), source.shulkerName(), false, true,
-                targetInventorySlot, requestedAmount);
+                source.shulkerItem(), source.shulkerName(), false, true, false,
+                targetInventorySlot, requestedAmount, targetStack.getCount());
         extractionWaitTicks = 0;
         extractionMenuId = -1;
         extractionCloseDelay = -1;
+        extractionMovedItemCount = 0;
+        extractionExpectedSourceCount = -1;
+        extractionOpenSyncVersion = containerSyncVersion;
         OpenShulkerPacket.sendOpenPacket(source.quickShulkerSlot());
         return true;
     }
@@ -416,18 +477,12 @@ public final class QuickShulkerExtractionController {
         Inventory inventory = client.player.getInventory();
         ItemStack pickedUp = inventory.getItem(autoPickupCycle.originalInventorySlot);
         if (pickedUp.isEmpty()) {
-            if (autoPickupCycle.groundSnapshot.isEmpty()) {
-                List<GroundItemRecord> nearby = snapshotNearbyGroundItems(client);
-                if (!nearby.isEmpty()) {
-                    autoPickupCycle.groundSnapshot = nearby;
-                    autoPickupCycle.waitTicks = 0;
-                    return;
-                }
-            }
+            autoPickupCycle.groundSnapshot = snapshotNearbyGroundItems(client);
             autoPickupCycle.waitTicks++;
             if (autoPickupCycle.storedPickup
                     && autoPickupCycle.waitTicks >= AUTO_PICKUP_BATCH_IDLE_TICKS
-                    && autoPickupCycle.groundSnapshot.isEmpty()) {
+                    && autoPickupCycle.groundSnapshot.isEmpty()
+                    && autoPickupCycle.pickupConfirmations.isEmpty()) {
                 finishAutoPickupBatch(client);
                 return;
             }
@@ -437,7 +492,8 @@ public final class QuickShulkerExtractionController {
             return;
         }
 
-        boolean confirmedPickup = !autoPickupCycle.confirmedPickup.isEmpty()
+        boolean confirmedPickup = consumePickupConfirmation(autoPickupCycle, pickedUp)
+                || !autoPickupCycle.confirmedPickup.isEmpty()
                 && ItemStack.isSameItemSameComponents(
                 autoPickupCycle.confirmedPickup, pickedUp);
         if (!confirmedPickup
@@ -497,6 +553,8 @@ public final class QuickShulkerExtractionController {
         storeMenuId = -1;
         storeCloseDelay = -1;
         storedItemCount = 0;
+        storeExpectedTargetCount = -1;
+        storeOpenSyncVersion = containerSyncVersion;
         OpenShulkerPacket.sendOpenPacket(targetMenuSlot);
         return true;
     }
@@ -521,6 +579,9 @@ public final class QuickShulkerExtractionController {
         restoreWaitTicks = 0;
         restoreMenuId = -1;
         restoreCloseDelay = -1;
+        restoreExpectedSourceCount = -1;
+        restoreMoveSourceSlot = -1;
+        restoreOpenSyncVersion = containerSyncVersion;
         OpenShulkerPacket.sendOpenPacket(quickSlot);
         return true;
     }
@@ -569,6 +630,20 @@ public final class QuickShulkerExtractionController {
             }
         }
         return false;
+    }
+
+    private static boolean consumePickupConfirmation(
+            AutoPickupCycle cycle, ItemStack pickedUp) {
+        boolean matched = false;
+        Iterator<PickupConfirmation> iterator = cycle.pickupConfirmations.iterator();
+        while (iterator.hasNext()) {
+            PickupConfirmation confirmation = iterator.next();
+            if (ItemStack.isSameItemSameComponents(confirmation.prototype(), pickedUp)) {
+                matched = true;
+                iterator.remove();
+            }
+        }
+        return matched;
     }
 
     private static AutoStoreCandidate findAutoStoreCandidate(
@@ -634,7 +709,18 @@ public final class QuickShulkerExtractionController {
         }
 
         if (storeCloseDelay >= 0) {
-            if (storeCloseDelay-- == 0) closeAfterStore(client);
+            if (!hasContainerSyncAfter(storeMenuId, storeMoveSyncVersion)) {
+                if (++storeWaitTicks > OPEN_TIMEOUT_TICKS) {
+                    failStore(client, "message.better-shulker-hud.store_failed");
+                }
+                return;
+            }
+            if (!(client.player.containerMenu instanceof ShulkerBoxMenu menu)
+                    || !isConfirmedStoreTarget(menu)) {
+                failStore(client, "message.better-shulker-hud.store_failed");
+                return;
+            }
+            closeAfterStore(client);
             return;
         }
 
@@ -647,6 +733,12 @@ public final class QuickShulkerExtractionController {
         if (storeMenuId != menu.containerId) {
             storeMenuId = menu.containerId;
             storeWaitTicks = 0;
+        }
+        if (!hasContainerSyncAfter(menu.containerId, storeOpenSyncVersion)) {
+            if (++storeWaitTicks > OPEN_TIMEOUT_TICKS) {
+                failStore(client, "message.better-shulker-hud.open_failed");
+            }
+            return;
         }
 
         if (!isExpectedStoreShulker(menu, client.player.getInventory(), pendingStore)) {
@@ -671,6 +763,8 @@ public final class QuickShulkerExtractionController {
         }
 
         int before = menu.getSlot(sourceMenuSlot).getItem().getCount();
+        storeMoveSyncVersion = containerSyncVersion;
+        storeExpectedTargetCount = targetStack.getCount() + pendingStore.amount();
         moveExactAmount(client, menu, sourceMenuSlot, pendingStore.shulkerSlot(), pendingStore.amount());
         int moved = before - menu.getSlot(sourceMenuSlot).getItem().getCount();
         if (moved != pendingStore.amount()) {
@@ -683,6 +777,16 @@ public final class QuickShulkerExtractionController {
             consumeOriginRecords(pendingStore.prototype(), moved);
         }
         storeCloseDelay = 0;
+        storeWaitTicks = 0;
+    }
+
+    private static boolean isConfirmedStoreTarget(ShulkerBoxMenu menu) {
+        if (pendingStore == null || pendingStore.shulkerSlot() < 0
+                || pendingStore.shulkerSlot() >= ShulkerContentsHelper.SHULKER_SIZE
+                || storeExpectedTargetCount < 0) return false;
+        ItemStack target = menu.getSlot(pendingStore.shulkerSlot()).getItem();
+        return ItemStack.isSameItemSameComponents(target, pendingStore.prototype())
+                && target.getCount() >= storeExpectedTargetCount;
     }
 
     private static void tickRestore(Minecraft client) {
@@ -693,7 +797,16 @@ public final class QuickShulkerExtractionController {
         }
 
         if (restoreCloseDelay >= 0) {
-            if (restoreCloseDelay-- == 0) closeAfterRestore(client);
+            if (!hasContainerSyncAfter(restoreMenuId, restoreMoveSyncVersion)) {
+                if (++restoreWaitTicks > OPEN_TIMEOUT_TICKS) failRestore(client);
+                return;
+            }
+            if (!(client.player.containerMenu instanceof ShulkerBoxMenu menu)
+                    || !isConfirmedRestoreSource(menu)) {
+                failRestore(client);
+                return;
+            }
+            closeAfterRestore(client);
             return;
         }
 
@@ -704,6 +817,10 @@ public final class QuickShulkerExtractionController {
         if (restoreMenuId != menu.containerId) {
             restoreMenuId = menu.containerId;
             restoreWaitTicks = 0;
+        }
+        if (!hasContainerSyncAfter(menu.containerId, restoreOpenSyncVersion)) {
+            if (++restoreWaitTicks > OPEN_TIMEOUT_TICKS) failRestore(client);
+            return;
         }
 
         if (!isExpectedRestoreShulker(menu, client.player.getInventory(), pendingRestore)) {
@@ -721,6 +838,9 @@ public final class QuickShulkerExtractionController {
         }
 
         int before = menu.getSlot(sourceSlot).getItem().getCount();
+        restoreMoveSyncVersion = containerSyncVersion;
+        restoreExpectedSourceCount = before - pendingRestore.amount();
+        restoreMoveSourceSlot = sourceSlot;
         moveExactAmount(client, menu, sourceSlot, destinationSlot, pendingRestore.amount());
         int moved = before - menu.getSlot(sourceSlot).getItem().getCount();
         if (moved != pendingRestore.amount()) {
@@ -728,6 +848,17 @@ public final class QuickShulkerExtractionController {
             return;
         }
         restoreCloseDelay = 0;
+        restoreWaitTicks = 0;
+    }
+
+    private static boolean isConfirmedRestoreSource(ShulkerBoxMenu menu) {
+        if (pendingRestore == null || restoreExpectedSourceCount < 0) return false;
+        int slot = restoreMoveSourceSlot;
+        if (slot < 0 || slot >= ShulkerContentsHelper.SHULKER_SIZE) return false;
+        ItemStack source = menu.getSlot(slot).getItem();
+        if (restoreExpectedSourceCount == 0) return source.isEmpty();
+        return ItemStack.isSameItemSameComponents(source, pendingRestore.prototype())
+                && source.getCount() == restoreExpectedSourceCount;
     }
 
     private static void tickExtraction(Minecraft client) {
@@ -737,7 +868,18 @@ public final class QuickShulkerExtractionController {
         }
 
         if (extractionCloseDelay >= 0) {
-            if (extractionCloseDelay-- == 0) closeAfterExtraction(client);
+            if (!hasContainerSyncAfter(extractionMenuId, extractionMoveSyncVersion)) {
+                if (++extractionWaitTicks > OPEN_TIMEOUT_TICKS) {
+                    failExtraction(client, "message.better-shulker-hud.open_failed");
+                }
+                return;
+            }
+            if (!(client.player.containerMenu instanceof ShulkerBoxMenu menu)
+                    || !isConfirmedExtractionSource(menu)) {
+                failExtraction(client, "message.better-shulker-hud.source_changed");
+                return;
+            }
+            closeAfterExtraction(client);
             return;
         }
 
@@ -752,6 +894,12 @@ public final class QuickShulkerExtractionController {
             extractionMenuId = menu.containerId;
             extractionWaitTicks = 0;
         }
+        if (!hasContainerSyncAfter(menu.containerId, extractionOpenSyncVersion)) {
+            if (++extractionWaitTicks > OPEN_TIMEOUT_TICKS) {
+                failExtraction(client, "message.better-shulker-hud.open_failed");
+            }
+            return;
+        }
 
         Slot source = menu.getSlot(pendingExtraction.shulkerSlot());
         ItemStack sourceStack = source.getItem();
@@ -762,11 +910,15 @@ public final class QuickShulkerExtractionController {
         }
 
         int before = sourceStack.getCount();
+        extractionMoveSyncVersion = containerSyncVersion;
         if (pendingExtraction.targetInventorySlot() >= 0) {
-            int destination = findTargetedHandDestination(
+            String targetError = pendingExtraction.cursorPickup()
+                    ? "message.better-shulker-hud.cursor_pickup_failed"
+                    : "message.better-shulker-hud.hand_unavailable";
+            int destination = findTargetedPlayerDestination(
                     menu, client.player.getInventory(), pendingExtraction);
             if (destination < 0) {
-                failExtraction(client, "message.better-shulker-hud.hand_unavailable");
+                failExtraction(client, targetError);
                 return;
             }
             ItemStack targetStack = menu.getSlot(destination).getItem();
@@ -776,13 +928,13 @@ public final class QuickShulkerExtractionController {
                             menu.getSlot(destination).getMaxStackSize(sourceStack)
                                     - targetStack.getCount()));
             if (amount <= 0) {
-                failExtraction(client, "message.better-shulker-hud.hand_unavailable");
+                failExtraction(client, targetError);
                 return;
             }
             moveExactAmount(client, menu, pendingExtraction.shulkerSlot(), destination, amount);
             int moved = before - menu.getSlot(pendingExtraction.shulkerSlot()).getItem().getCount();
             if (moved != amount) {
-                failExtraction(client, "message.better-shulker-hud.hand_unavailable");
+                failExtraction(client, targetError);
                 return;
             }
         } else if (pendingExtraction.takeOne()) {
@@ -800,16 +952,27 @@ public final class QuickShulkerExtractionController {
         }
 
         int moved = before - menu.getSlot(pendingExtraction.shulkerSlot()).getItem().getCount();
+        extractionExpectedSourceCount = before - moved;
+        if (pendingExtraction.cursorPickup()) extractionMovedItemCount = moved;
         if (moved > 0 && !pendingExtraction.handRestock()) {
             recordExtraction(pendingExtraction, moved);
         }
         extractionCloseDelay = 0;
+        extractionWaitTicks = 0;
     }
 
-    private static int findTargetedHandDestination(
+    private static boolean isConfirmedExtractionSource(ShulkerBoxMenu menu) {
+        if (pendingExtraction == null || extractionExpectedSourceCount < 0) return false;
+        ItemStack source = menu.getSlot(pendingExtraction.shulkerSlot()).getItem();
+        if (extractionExpectedSourceCount == 0) return source.isEmpty();
+        return ItemStack.isSameItemSameComponents(source, pendingExtraction.expectedStack())
+                && source.getCount() == extractionExpectedSourceCount;
+    }
+
+    private static int findTargetedPlayerDestination(
             ShulkerBoxMenu menu, Inventory inventory, PendingExtraction extraction) {
         if (extraction.targetInventorySlot() < 0
-                || extraction.targetInventorySlot() >= 9) return -1;
+                || extraction.targetInventorySlot() >= 36) return -1;
         for (int menuSlot = 0; menuSlot < menu.slots.size(); menuSlot++) {
             Slot slot = menu.slots.get(menuSlot);
             if (slot.container != inventory
@@ -826,6 +989,77 @@ public final class QuickShulkerExtractionController {
             return menuSlot;
         }
         return -1;
+    }
+
+    private static void tickCursorPickup(Minecraft client) {
+        if (client.player == null || client.gameMode == null) {
+            clearCursorPickup();
+            return;
+        }
+        if (!(client.screen instanceof InventoryScreen)
+                || client.player.containerMenu != client.player.inventoryMenu) {
+            if (++cursorPickupWaitTicks > 20) {
+                show(client, "message.better-shulker-hud.cursor_pickup_failed");
+                clearCursorPickup();
+            }
+            return;
+        }
+
+        AbstractContainerMenu menu = client.player.inventoryMenu;
+        if (!menu.getCarried().isEmpty()) {
+            show(client, "message.better-shulker-hud.cursor_pickup_failed");
+            clearCursorPickup();
+            return;
+        }
+        int menuSlot = findPlayerInventoryMenuSlot(
+                menu, client.player.getInventory(), pendingCursorPickup.inventorySlot());
+        if (menuSlot < 0) {
+            show(client, "message.better-shulker-hud.cursor_pickup_failed");
+            clearCursorPickup();
+            return;
+        }
+
+        ItemStack staged = menu.getSlot(menuSlot).getItem();
+        int expectedCount = pendingCursorPickup.baselineCount()
+                + pendingCursorPickup.extractedAmount();
+        if (!ItemStack.isSameItemSameComponents(
+                staged, pendingCursorPickup.prototype())
+                || staged.getCount() != expectedCount) {
+            if (++cursorPickupWaitTicks > 20) {
+                show(client, "message.better-shulker-hud.cursor_pickup_failed");
+                clearCursorPickup();
+            }
+            return;
+        }
+
+        client.gameMode.handleContainerInput(
+                menu.containerId, menuSlot, 0, ContainerInput.PICKUP, client.player);
+        for (int i = 0; i < pendingCursorPickup.baselineCount(); i++) {
+            client.gameMode.handleContainerInput(
+                    menu.containerId, menuSlot, 1, ContainerInput.PICKUP, client.player);
+        }
+
+        ItemStack carried = menu.getCarried();
+        ItemStack restored = menu.getSlot(menuSlot).getItem();
+        boolean restoredBaseline = pendingCursorPickup.baselineCount() == 0
+                ? restored.isEmpty()
+                : ItemStack.isSameItemSameComponents(
+                restored, pendingCursorPickup.prototype())
+                && restored.getCount() == pendingCursorPickup.baselineCount();
+        if (ItemStack.isSameItemSameComponents(
+                carried, pendingCursorPickup.prototype())
+                && carried.getCount() == pendingCursorPickup.extractedAmount()
+                && restoredBaseline) {
+            clearCursorPickup();
+            return;
+        }
+
+        if (!menu.getCarried().isEmpty()) {
+            client.gameMode.handleContainerInput(
+                    menu.containerId, menuSlot, 0, ContainerInput.PICKUP, client.player);
+        }
+        show(client, "message.better-shulker-hud.cursor_pickup_failed");
+        clearCursorPickup();
     }
 
     private static void tickReturn(Minecraft client) {
@@ -850,6 +1084,10 @@ public final class QuickShulkerExtractionController {
         if (returnMenuId != menu.containerId) {
             returnMenuId = menu.containerId;
             returnWaitTicks = 0;
+        }
+        if (!hasContainerSyncAfter(menu.containerId, returnOpenSyncVersion)) {
+            if (++returnWaitTicks > OPEN_TIMEOUT_TICKS) finishCurrentReturn(client);
+            return;
         }
 
         int targetSlot = findReturnTargetSlot(menu, activeReturn.shulkerSlot, activeReturn.prototype);
@@ -911,6 +1149,7 @@ public final class QuickShulkerExtractionController {
             returnWaitTicks = 0;
             returnMenuId = -1;
             nextReturnDelay = -1;
+            returnOpenSyncVersion = containerSyncVersion;
             OpenShulkerPacket.sendOpenPacket(menuSlot);
             return;
         }
@@ -986,6 +1225,32 @@ public final class QuickShulkerExtractionController {
             }
         }
         return emptyDestination;
+    }
+
+    private static CursorStaging findCursorStagingDestination(
+            AbstractContainerScreen<?> screen, Inventory inventory,
+            ItemStack source, int sourceShulkerInventorySlot) {
+        CursorStaging matching = null;
+        for (Slot slot : screen.getMenu().slots) {
+            if (slot.container != inventory
+                    || slot.getContainerSlot() < 0
+                    || slot.getContainerSlot() >= 36
+                    || slot.getContainerSlot() == sourceShulkerInventorySlot
+                    || !slot.mayPlace(source)) continue;
+
+            ItemStack current = slot.getItem();
+            int capacity = slot.getMaxStackSize(source) - current.getCount();
+            if (capacity <= 0) continue;
+            if (current.isEmpty()) {
+                return new CursorStaging(slot.getContainerSlot(), 0, capacity);
+            }
+            if (matching == null
+                    && ItemStack.isSameItemSameComponents(current, source)) {
+                matching = new CursorStaging(
+                        slot.getContainerSlot(), current.getCount(), capacity);
+            }
+        }
+        return matching;
     }
 
     private static int findExactPlayerItemSlot(
@@ -1278,6 +1543,23 @@ public final class QuickShulkerExtractionController {
                     source.inventorySlot(), source.shulkerSlot(), current.copy(), quickSlot,
                     shulker.getItem(), shulker.get(DataComponents.CUSTOM_NAME));
         }
+
+        ItemStack requested = item.stack().copyWithCount(1);
+        for (int inventorySlot = 0; inventorySlot < 36; inventorySlot++) {
+            ItemStack shulker = inventory.getItem(inventorySlot);
+            if (!ShulkerContentsHelper.isShulker(shulker)) continue;
+            List<ItemStack> contents = ShulkerContentsHelper.getStacks(shulker);
+            for (int shulkerSlot = 0; shulkerSlot < contents.size(); shulkerSlot++) {
+                ItemStack current = contents.get(shulkerSlot);
+                if (current.isEmpty()
+                        || !ItemStack.isSameItemSameComponents(current, requested)) continue;
+                int quickSlot = resolveQuickShulkerSlot(screen, inventory, inventorySlot);
+                if (quickSlot < 0) continue;
+                return new ResolvedSource(
+                        inventorySlot, shulkerSlot, current.copy(), quickSlot,
+                        shulker.getItem(), shulker.get(DataComponents.CUSTOM_NAME));
+            }
+        }
         return null;
     }
 
@@ -1305,18 +1587,31 @@ public final class QuickShulkerExtractionController {
             AbstractContainerScreen<?> screen, Inventory inventory, int inventorySlot) {
         int menuSlot = resolvePlayerMenuSlot(screen, inventory, inventorySlot);
         if (menuSlot < 0) return -1;
-        return ClientUtil.getSlotId(screen.getMenu(), screen.getMenu().slots.get(menuSlot));
+        return toQuickShulkerSlot(screen.getMenu(), menuSlot);
     }
 
     private static int resolveQuickShulkerSlot(
             AbstractContainerMenu menu, Inventory inventory, int inventorySlot) {
         if (menu == null || inventorySlot < 0 || inventorySlot >= 36) return -1;
-        for (Slot slot : menu.slots) {
-            if (slot.container == inventory && slot.getContainerSlot() == inventorySlot && slot.hasItem()) {
-                return ClientUtil.getSlotId(menu, slot);
+        for (int menuSlot = 0; menuSlot < menu.slots.size(); menuSlot++) {
+            Slot slot = menu.slots.get(menuSlot);
+            if (slot.container == inventory && slot.getContainerSlot() == inventorySlot) {
+                return toQuickShulkerSlot(menu, menuSlot);
             }
         }
         return -1;
+    }
+
+    private static int toQuickShulkerSlot(
+            AbstractContainerMenu menu, int menuSlot) {
+        if (menuSlot < 0 || menuSlot >= menu.slots.size()) return -1;
+        Minecraft client = Minecraft.getInstance();
+        if (client.player != null && ClientUtil.isCreativeScreen(client.player)) {
+            return ClientUtil.getSlotId(menu, menu.slots.get(menuSlot));
+        }
+        // QuickShulker indexes player.containerMenu.slots on the server. The list
+        // position is stable for hotbar slots; Slot.index is not guaranteed to be.
+        return menuSlot;
     }
 
     private static int resolvePlayerMenuSlot(
@@ -1329,31 +1624,53 @@ public final class QuickShulkerExtractionController {
         return -1;
     }
 
+    private static int findPlayerInventoryMenuSlot(
+            AbstractContainerMenu menu, Inventory inventory, int inventorySlot) {
+        if (menu == null || inventorySlot < 0 || inventorySlot >= 36) return -1;
+        for (int menuSlot = 0; menuSlot < menu.slots.size(); menuSlot++) {
+            Slot slot = menu.slots.get(menuSlot);
+            if (slot.container == inventory
+                    && slot.getContainerSlot() == inventorySlot) return menuSlot;
+        }
+        return -1;
+    }
+
     private static boolean isMatchingPlayerSlot(
             AbstractContainerScreen<?> screen, Inventory inventory,
             int menuSlot, int inventorySlot) {
         if (menuSlot < 0 || menuSlot >= screen.getMenu().slots.size()) return false;
         Slot slot = screen.getMenu().slots.get(menuSlot);
         return slot.container == inventory
-                && slot.getContainerSlot() == inventorySlot
-                && slot.hasItem();
+                && slot.getContainerSlot() == inventorySlot;
+    }
+
+    private static boolean hasContainerSyncAfter(int containerId, long baseline) {
+        return containerSyncVersions.getOrDefault(containerId, Long.MIN_VALUE) > baseline;
     }
 
     private static void failExtraction(Minecraft client, String messageKey) {
         boolean handRestock = pendingExtraction != null && pendingExtraction.handRestock();
+        boolean background = pendingExtraction != null
+                && (pendingExtraction.litematicaRestock() || handRestock);
         if (!handRestock) show(client, messageKey);
         if (client.player != null && client.player.containerMenu instanceof ShulkerBoxMenu) {
-            closeAfterExtraction(client);
-        } else {
-            clearExtraction();
+            closeContainerAndSetScreen(
+                    client,
+                    background ? null : new InventoryScreen(client.player),
+                    !background);
         }
+        clearExtraction();
     }
 
     private static void closeAfterExtraction(Minecraft client) {
-        boolean litematicaRestock = pendingExtraction != null
-                && pendingExtraction.litematicaRestock();
-        boolean handRestock = pendingExtraction != null
-                && pendingExtraction.handRestock();
+        PendingExtraction completedExtraction = pendingExtraction;
+        boolean litematicaRestock = completedExtraction != null
+                && completedExtraction.litematicaRestock();
+        boolean handRestock = completedExtraction != null
+                && completedExtraction.handRestock();
+        boolean cursorPickup = completedExtraction != null
+                && completedExtraction.cursorPickup()
+                && extractionMovedItemCount > 0;
         boolean background = litematicaRestock || handRestock;
         ItemStack selected = pendingLitematicaSelection;
         if (client.player != null) {
@@ -1361,6 +1678,14 @@ public final class QuickShulkerExtractionController {
                     client,
                     background ? null : new InventoryScreen(client.player),
                     !background);
+        }
+        if (cursorPickup) {
+            pendingCursorPickup = new PendingCursorPickup(
+                    completedExtraction.targetInventorySlot(),
+                    completedExtraction.expectedStack().copyWithCount(1),
+                    completedExtraction.targetBaselineCount(),
+                    extractionMovedItemCount);
+            cursorPickupWaitTicks = 0;
         }
         clearExtraction();
         if (litematicaRestock) selectLitematicaItem(client, selected);
@@ -1382,7 +1707,16 @@ public final class QuickShulkerExtractionController {
         extractionWaitTicks = 0;
         extractionMenuId = -1;
         extractionCloseDelay = -1;
+        extractionMovedItemCount = 0;
+        extractionOpenSyncVersion = 0;
+        extractionMoveSyncVersion = 0;
+        extractionExpectedSourceCount = -1;
         pendingLitematicaSelection = ItemStack.EMPTY;
+    }
+
+    private static void clearCursorPickup() {
+        pendingCursorPickup = null;
+        cursorPickupWaitTicks = 0;
     }
 
     private static void failStore(Minecraft client, String messageKey) {
@@ -1458,6 +1792,9 @@ public final class QuickShulkerExtractionController {
         storeMenuId = -1;
         storeCloseDelay = -1;
         storedItemCount = 0;
+        storeOpenSyncVersion = 0;
+        storeMoveSyncVersion = 0;
+        storeExpectedTargetCount = -1;
     }
 
     private static void failRestore(Minecraft client) {
@@ -1483,6 +1820,10 @@ public final class QuickShulkerExtractionController {
         restoreWaitTicks = 0;
         restoreMenuId = -1;
         restoreCloseDelay = -1;
+        restoreOpenSyncVersion = 0;
+        restoreMoveSyncVersion = 0;
+        restoreExpectedSourceCount = -1;
+        restoreMoveSourceSlot = -1;
     }
 
     private static void clearReturnProcess() {
@@ -1493,6 +1834,7 @@ public final class QuickShulkerExtractionController {
         returnMenuId = -1;
         nextReturnDelay = -1;
         returnedItemCount = 0;
+        returnOpenSyncVersion = 0;
     }
 
     private static void show(Minecraft client, String key, Object... args) {
@@ -1504,7 +1846,12 @@ public final class QuickShulkerExtractionController {
     private record PendingExtraction(
             int inventorySlot, int shulkerSlot, ItemStack expectedStack, boolean takeOne,
             Item shulkerItem, Component shulkerName, boolean litematicaRestock,
-            boolean handRestock, int targetInventorySlot, int requestedAmount) {}
+            boolean handRestock, boolean cursorPickup, int targetInventorySlot,
+            int requestedAmount, int targetBaselineCount) {}
+
+    private record PendingCursorPickup(
+            int inventorySlot, ItemStack prototype,
+            int baselineCount, int extractedAmount) {}
 
     private record ResolvedSource(
             int inventorySlot, int shulkerSlot, ItemStack expectedStack, int quickShulkerSlot,
@@ -1529,11 +1876,16 @@ public final class QuickShulkerExtractionController {
 
     private record PlayerDestination(int menuSlot, int inventorySlot) {}
 
+    private record CursorStaging(
+            int inventorySlot, int baselineCount, int capacity) {}
+
     private record AutoStoreCandidate(
             int inventorySlot, ItemStack stack, StoreTarget target) {}
 
     private record GroundItemRecord(
             int entityId, ItemStack prototype, int count) {}
+
+    private record PickupConfirmation(ItemStack prototype, int amount) {}
 
     private enum AutoStorePhase {
         PREPARE_SLOT,
@@ -1546,6 +1898,7 @@ public final class QuickShulkerExtractionController {
         private final StoreTarget originalTarget;
         private List<GroundItemRecord> groundSnapshot;
         private ItemStack confirmedPickup = ItemStack.EMPTY;
+        private final ArrayDeque<PickupConfirmation> pickupConfirmations = new ArrayDeque<>();
         private boolean storedPickup;
         private int retryDelay;
         private int waitTicks;

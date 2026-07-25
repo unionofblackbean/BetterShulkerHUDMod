@@ -6,6 +6,7 @@
   "message.better-shulker-hud.source_changed": "The shulker box contents changed",
   "message.better-shulker-hud.inventory_full": "The inventory is full",
   "message.better-shulker-hud.hand_unavailable": "The main hand has no room or contains an incompatible item",
+  "message.better-shulker-hud.cursor_pickup_failed": "Could not safely move the item to the cursor; keep the cursor empty and leave staging capacity in the inventory",
   "message.better-shulker-hud.open_failed": "QuickShulker failed to open the shulker box",
   "message.better-shulker-hud.return_button": "Sort inventory and return items to their original shulkers",
   "message.better-shulker-hud.nothing_to_return": "There are no tracked items to return",

@@ -67,7 +67,7 @@ public final class BundlePanelInteraction {
 
         boolean shift = (modifiers & GLFW.GLFW_MOD_SHIFT) != 0;
         if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
-            QuickShulkerExtractionController.requestToHand(clicked);
+            QuickShulkerExtractionController.requestToCursor(clicked);
         } else {
             QuickShulkerExtractionController.request(clicked, !shift);
         }
