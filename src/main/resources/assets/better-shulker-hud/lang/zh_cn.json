@@ -1,0 +1,21 @@
+{
+  "message.better-shulker-hud.preview_only": "当前只能预览",
+  "message.better-shulker-hud.quickshulker_required": "服务器未安装或未启用 QuickShulker",
+  "message.better-shulker-hud.busy": "上一项潜影盒操作尚未完成",
+  "message.better-shulker-hud.source_missing": "找不到对应的潜影盒",
+  "message.better-shulker-hud.source_changed": "潜影盒内容已经发生变化",
+  "message.better-shulker-hud.inventory_full": "背包没有空间",
+  "message.better-shulker-hud.open_failed": "QuickShulker 打开潜影盒失败，物品已保留在背包中",
+  "message.better-shulker-hud.return_button": "整理背包并归还到原潜影盒",
+  "message.better-shulker-hud.nothing_to_return": "没有可归还的物品记录",
+  "message.better-shulker-hud.return_complete": "已归还 %s 个物品",
+  "message.better-shulker-hud.nothing_returned": "没有找到可归还物品或原潜影盒已满",
+  "message.better-shulker-hud.cannot_nest_shulker": "潜影盒不能存入另一个潜影盒",
+  "message.better-shulker-hud.no_shulker_space": "背包中的潜影盒没有足够空间",
+  "message.better-shulker-hud.no_temporary_space": "背包没有可用于安全转移的槽位，物品仍在光标上",
+  "message.better-shulker-hud.store_target_changed": "目标潜影盒已变化，物品已保留在背包中",
+  "message.better-shulker-hud.store_failed": "存放未完成，物品已保留在背包中",
+  "message.better-shulker-hud.store_complete": "已将 %s 个物品存入潜影盒",
+  "message.better-shulker-hud.store_drop_target": "松开鼠标，将物品存入任意有空间的潜影盒",
+  "message.better-shulker-hud.minimize": "收起潜影盒 HUD"
+}

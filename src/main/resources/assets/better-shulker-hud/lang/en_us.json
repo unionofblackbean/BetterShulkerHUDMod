@@ -1,0 +1,21 @@
+{
+  "message.better-shulker-hud.preview_only": "Preview only",
+  "message.better-shulker-hud.quickshulker_required": "QuickShulker is not installed or enabled on the server",
+  "message.better-shulker-hud.busy": "The previous extraction is still running",
+  "message.better-shulker-hud.source_missing": "The source shulker box was not found",
+  "message.better-shulker-hud.source_changed": "The shulker box contents changed",
+  "message.better-shulker-hud.inventory_full": "The inventory is full",
+  "message.better-shulker-hud.open_failed": "QuickShulker failed to open the shulker box",
+  "message.better-shulker-hud.return_button": "Sort inventory and return items to their original shulkers",
+  "message.better-shulker-hud.nothing_to_return": "There are no tracked items to return",
+  "message.better-shulker-hud.return_complete": "Returned %s items",
+  "message.better-shulker-hud.nothing_returned": "No returnable items were found or the original shulkers are full",
+  "message.better-shulker-hud.cannot_nest_shulker": "A shulker box cannot be stored inside another shulker box",
+  "message.better-shulker-hud.no_shulker_space": "No carried shulker has enough space",
+  "message.better-shulker-hud.no_temporary_space": "No safe temporary inventory slot is available; the item remains on the cursor",
+  "message.better-shulker-hud.store_target_changed": "The target shulker changed; the item remains in your inventory",
+  "message.better-shulker-hud.store_failed": "Storage did not complete; the item remains in your inventory",
+  "message.better-shulker-hud.store_complete": "Stored %s items in a shulker box",
+  "message.better-shulker-hud.store_drop_target": "Release to store this item in any shulker with space",
+  "message.better-shulker-hud.minimize": "Minimize the shulker HUD"
+}

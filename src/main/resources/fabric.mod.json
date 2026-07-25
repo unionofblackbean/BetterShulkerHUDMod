@@ -1,0 +1,30 @@
+{
+    "schemaVersion": 1,
+    "id": "better-shulker-hud",
+    "version": "${version}",
+    "name": "Better Shulker HUD",
+    "description": "Client HUD for browsing and extracting items through QuickShulker",
+    "authors": ["zeroowo24 (original HUD design)", "Codex adaptation"],
+    "contact": {},
+    "license": "CC0-1.0",
+    "environment": "client",
+    "entrypoints": {
+        "client": [
+            "bettershulkerhud.BetterBundleMod"
+        ]
+    },
+    "accessWidener": "better-shulker-hud.accesswidener",
+    "mixins": [
+        {
+            "config": "better-shulker-hud.client.mixins.json",
+            "environment": "client"
+        }
+    ],
+    "depends": {
+        "fabricloader": ">=0.18.4",
+        "fabric-api": "*",
+        "quickshulker": ">=3.0.1-26.1",
+        "minecraft": ">=26.1 <=26.1.2",
+        "java": ">=25"
+    }
+}

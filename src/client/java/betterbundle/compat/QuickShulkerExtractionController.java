@@ -1,0 +1,816 @@
+package bettershulkerhud.compat;
+
+import bettershulkerhud.gui.BundlePanelRenderer;
+import bettershulkerhud.util.ShulkerContentsHelper;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.kyrptonaught.quickshulker.client.ClientUtil;
+import net.kyrptonaught.quickshulker.network.OpenShulkerPacket;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.inventory.ShulkerBoxMenu;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
+
+public final class QuickShulkerExtractionController {
+    private static final int OPEN_TIMEOUT_TICKS = 60;
+
+    private static PendingExtraction pendingExtraction;
+    private static int extractionWaitTicks;
+    private static int extractionMenuId = -1;
+    private static int extractionCloseDelay = -1;
+
+    private static PendingStore pendingStore;
+    private static int storeWaitTicks;
+    private static int storeMenuId = -1;
+    private static int storeCloseDelay = -1;
+    private static int storedItemCount;
+
+    private static final List<OriginRecord> originRecords = new ArrayList<>();
+    private static final ArrayDeque<OriginRecord> returnQueue = new ArrayDeque<>();
+    private static OriginRecord activeReturn;
+    private static int activeReturnShulkerSlot = -1;
+    private static int returnWaitTicks;
+    private static int returnMenuId = -1;
+    private static int nextReturnDelay = -1;
+    private static int returnedItemCount;
+
+    private QuickShulkerExtractionController() {}
+
+    public static void register() {
+        ClientTickEvents.END_CLIENT_TICK.register(QuickShulkerExtractionController::tick);
+    }
+
+    public static boolean hasReturnableHistory() {
+        return originRecords.stream().anyMatch(record -> record.remaining > 0);
+    }
+
+    public static void request(BundlePanelRenderer.FlatItem item, boolean takeOne) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null || !(client.screen instanceof AbstractContainerScreen<?> screen)) return;
+
+        if (isBusy()) {
+            show(client, "message.better-shulker-hud.busy");
+            return;
+        }
+        if (!canUseQuickShulker(client)) return;
+
+        ResolvedSource source = findValidatedSource(
+                screen, client.player.getInventory(), item);
+        if (source == null) {
+            show(client, "message.better-shulker-hud.source_missing");
+            return;
+        }
+
+        pendingExtraction = new PendingExtraction(
+                source.inventorySlot(), source.shulkerSlot(), source.expectedStack(), takeOne,
+                source.shulkerItem(), source.shulkerName());
+        extractionWaitTicks = 0;
+        extractionMenuId = -1;
+        extractionCloseDelay = -1;
+        OpenShulkerPacket.sendOpenPacket(source.quickShulkerSlot());
+    }
+
+    public static void requestReturnAll() {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null || !(client.screen instanceof AbstractContainerScreen<?>)) return;
+
+        if (isBusy()) {
+            show(client, "message.better-shulker-hud.busy");
+            return;
+        }
+        if (!hasReturnableHistory()) {
+            show(client, "message.better-shulker-hud.nothing_to_return");
+            return;
+        }
+        if (!canUseQuickShulker(client)) return;
+
+        returnQueue.clear();
+        originRecords.stream()
+                .filter(record -> record.remaining > 0)
+                .forEach(returnQueue::addLast);
+        returnedItemCount = 0;
+        startNextReturn(client);
+    }
+
+    public static void requestStoreCarried(AbstractContainerScreen<?> screen) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null || client.gameMode == null) return;
+
+        ItemStack carried = screen.getMenu().getCarried();
+        if (carried.isEmpty()) return;
+        if (isBusy()) {
+            show(client, "message.better-shulker-hud.busy");
+            return;
+        }
+        if (ShulkerContentsHelper.isShulker(carried)) {
+            show(client, "message.better-shulker-hud.cannot_nest_shulker");
+            return;
+        }
+        if (!canUseQuickShulker(client)) return;
+
+        ItemStack prototype = carried.copyWithCount(1);
+        StoreTarget target = findStoreTarget(client.player.getInventory(), prototype, carried.getCount());
+        if (target == null) {
+            show(client, "message.better-shulker-hud.no_shulker_space");
+            return;
+        }
+
+        PlayerDestination temporary = findTemporaryDestination(
+                screen, client.player.getInventory(), carried, target.inventorySlot());
+        if (temporary == null) {
+            show(client, "message.better-shulker-hud.no_temporary_space");
+            return;
+        }
+
+        int amount = carried.getCount();
+        client.gameMode.handleContainerInput(
+                screen.getMenu().containerId, temporary.menuSlot(), 0,
+                ContainerInput.PICKUP, client.player);
+        if (!screen.getMenu().getCarried().isEmpty()) {
+            show(client, "message.better-shulker-hud.no_temporary_space");
+            return;
+        }
+
+        int targetMenuSlot = resolveQuickShulkerSlot(
+                screen, client.player.getInventory(), target.inventorySlot());
+        if (targetMenuSlot < 0) {
+            show(client, "message.better-shulker-hud.store_target_changed");
+            return;
+        }
+
+        pendingStore = new PendingStore(
+                temporary.inventorySlot(), amount, target.inventorySlot(), target.shulkerSlot(),
+                prototype, target.shulkerItem(), target.shulkerName());
+        storeWaitTicks = 0;
+        storeMenuId = -1;
+        storeCloseDelay = -1;
+        storedItemCount = 0;
+        OpenShulkerPacket.sendOpenPacket(targetMenuSlot);
+    }
+
+    private static boolean isBusy() {
+        return pendingExtraction != null || pendingStore != null || activeReturn != null
+                || !returnQueue.isEmpty() || nextReturnDelay >= 0;
+    }
+
+    private static boolean canUseQuickShulker(Minecraft client) {
+        if (ClientPlayNetworking.canSend(OpenShulkerPacket.OPEN_SHULKER_PACKET_ID)) return true;
+        show(client, "message.better-shulker-hud.quickshulker_required");
+        return false;
+    }
+
+    private static void tick(Minecraft client) {
+        if (pendingStore != null) {
+            tickStore(client);
+        } else if (pendingExtraction != null) {
+            tickExtraction(client);
+        } else if (activeReturn != null || !returnQueue.isEmpty() || nextReturnDelay >= 0) {
+            tickReturn(client);
+        }
+    }
+
+    private static void tickStore(Minecraft client) {
+        if (client.player == null || client.gameMode == null) {
+            clearStore();
+            return;
+        }
+
+        if (storeCloseDelay >= 0) {
+            if (storeCloseDelay-- == 0) closeAfterStore(client);
+            return;
+        }
+
+        if (!(client.player.containerMenu instanceof ShulkerBoxMenu menu)) {
+            if (++storeWaitTicks > OPEN_TIMEOUT_TICKS) {
+                failStore(client, "message.better-shulker-hud.open_failed");
+            }
+            return;
+        }
+        if (storeMenuId != menu.containerId) {
+            storeMenuId = menu.containerId;
+            storeWaitTicks = 0;
+            return;
+        }
+
+        if (!isExpectedStoreShulker(menu, client.player.getInventory(), pendingStore)) {
+            failStore(client, "message.better-shulker-hud.store_target_changed");
+            return;
+        }
+
+        Slot target = menu.getSlot(pendingStore.shulkerSlot());
+        ItemStack targetStack = target.getItem();
+        if (!targetStack.isEmpty()
+                && !ItemStack.isSameItemSameComponents(targetStack, pendingStore.prototype())) {
+            failStore(client, "message.better-shulker-hud.store_target_changed");
+            return;
+        }
+        int capacity = target.getMaxStackSize(pendingStore.prototype()) - targetStack.getCount();
+        int sourceMenuSlot = findExactPlayerItemSlot(
+                menu, client.player.getInventory(), pendingStore.sourceInventorySlot(),
+                pendingStore.prototype(), pendingStore.targetInventorySlot());
+        if (capacity < pendingStore.amount() || sourceMenuSlot < 0) {
+            failStore(client, "message.better-shulker-hud.store_target_changed");
+            return;
+        }
+
+        int before = menu.getSlot(sourceMenuSlot).getItem().getCount();
+        moveExactAmount(client, menu, sourceMenuSlot, pendingStore.shulkerSlot(), pendingStore.amount());
+        int moved = before - menu.getSlot(sourceMenuSlot).getItem().getCount();
+        if (moved != pendingStore.amount()) {
+            failStore(client, "message.better-shulker-hud.store_failed");
+            return;
+        }
+
+        storedItemCount = moved;
+        consumeOriginRecords(pendingStore.prototype(), moved);
+        storeCloseDelay = 1;
+    }
+
+    private static void tickExtraction(Minecraft client) {
+        if (client.player == null || client.gameMode == null) {
+            clearExtraction();
+            return;
+        }
+
+        if (extractionCloseDelay >= 0) {
+            if (extractionCloseDelay-- == 0) closeAfterExtraction(client);
+            return;
+        }
+
+        if (!(client.player.containerMenu instanceof ShulkerBoxMenu menu)) {
+            if (++extractionWaitTicks > OPEN_TIMEOUT_TICKS) {
+                failExtraction(client, "message.better-shulker-hud.open_failed");
+            }
+            return;
+        }
+
+        if (extractionMenuId != menu.containerId) {
+            extractionMenuId = menu.containerId;
+            extractionWaitTicks = 0;
+            return;
+        }
+
+        Slot source = menu.getSlot(pendingExtraction.shulkerSlot());
+        ItemStack sourceStack = source.getItem();
+        if (sourceStack.isEmpty()
+                || !ItemStack.isSameItemSameComponents(sourceStack, pendingExtraction.expectedStack())) {
+            failExtraction(client, "message.better-shulker-hud.source_changed");
+            return;
+        }
+
+        int before = sourceStack.getCount();
+        if (pendingExtraction.takeOne()) {
+            int destination = findDestinationSlot(menu, client.player.getInventory(), sourceStack,
+                    pendingExtraction.inventorySlot());
+            if (destination < 0) {
+                failExtraction(client, "message.better-shulker-hud.inventory_full");
+                return;
+            }
+            takeOne(client, menu, pendingExtraction.shulkerSlot(), destination);
+        } else {
+            client.gameMode.handleContainerInput(
+                    menu.containerId, pendingExtraction.shulkerSlot(), 0,
+                    ContainerInput.QUICK_MOVE, client.player);
+        }
+
+        int moved = before - menu.getSlot(pendingExtraction.shulkerSlot()).getItem().getCount();
+        if (moved > 0) recordExtraction(pendingExtraction, moved);
+        extractionCloseDelay = 1;
+    }
+
+    private static void tickReturn(Minecraft client) {
+        if (client.player == null || client.gameMode == null) {
+            clearReturnProcess();
+            return;
+        }
+
+        if (nextReturnDelay >= 0) {
+            if (nextReturnDelay-- == 0) startNextReturn(client);
+            return;
+        }
+        if (activeReturn == null) {
+            startNextReturn(client);
+            return;
+        }
+
+        if (!(client.player.containerMenu instanceof ShulkerBoxMenu menu)) {
+            if (++returnWaitTicks > OPEN_TIMEOUT_TICKS) finishCurrentReturn(client);
+            return;
+        }
+        if (returnMenuId != menu.containerId) {
+            returnMenuId = menu.containerId;
+            returnWaitTicks = 0;
+            return;
+        }
+
+        int targetSlot = findReturnTargetSlot(menu, activeReturn.shulkerSlot, activeReturn.prototype);
+        if (targetSlot < 0) {
+            finishCurrentReturn(client);
+            return;
+        }
+        Slot target = menu.getSlot(targetSlot);
+        ItemStack targetStack = target.getItem();
+
+        int capacity = target.getMaxStackSize(activeReturn.prototype) - targetStack.getCount();
+        int sourceMenuSlot = findMatchingPlayerItemSlot(
+                menu, client.player.getInventory(), activeReturn.prototype, activeReturnShulkerSlot);
+        if (capacity <= 0 || activeReturn.remaining <= 0 || sourceMenuSlot < 0) {
+            finishCurrentReturn(client);
+            return;
+        }
+
+        ItemStack sourceStack = menu.getSlot(sourceMenuSlot).getItem();
+        int amount = Math.min(Math.min(sourceStack.getCount(), capacity), activeReturn.remaining);
+        moveExactAmount(client, menu, sourceMenuSlot, targetSlot, amount);
+        activeReturn.remaining -= amount;
+        returnedItemCount += amount;
+        if (activeReturn.remaining <= 0) originRecords.remove(activeReturn);
+    }
+
+    private static void startNextReturn(Minecraft client) {
+        if (client.player == null) {
+            clearReturnProcess();
+            return;
+        }
+        if (!(client.screen instanceof AbstractContainerScreen<?> screen)) {
+            client.setScreen(new InventoryScreen(client.player));
+            nextReturnDelay = 1;
+            return;
+        }
+
+        while (!returnQueue.isEmpty()) {
+            OriginRecord record = returnQueue.removeFirst();
+            if (record.remaining <= 0 || !hasMatchingPlayerItem(client.player.getInventory(), record.prototype)) {
+                continue;
+            }
+
+            int shulkerInventorySlot = findOriginShulker(client.player.getInventory(), record);
+            if (shulkerInventorySlot < 0) continue;
+            int menuSlot = resolveQuickShulkerSlot(
+                    screen, client.player.getInventory(), shulkerInventorySlot);
+            if (menuSlot < 0) continue;
+
+            activeReturn = record;
+            activeReturnShulkerSlot = shulkerInventorySlot;
+            returnWaitTicks = 0;
+            returnMenuId = -1;
+            nextReturnDelay = -1;
+            OpenShulkerPacket.sendOpenPacket(menuSlot);
+            return;
+        }
+
+        int completed = returnedItemCount;
+        clearReturnProcess();
+        if (completed > 0) {
+            show(client, "message.better-shulker-hud.return_complete", completed);
+        } else {
+            show(client, "message.better-shulker-hud.nothing_returned");
+        }
+    }
+
+    private static void finishCurrentReturn(Minecraft client) {
+        if (client.player != null && client.player.containerMenu instanceof ShulkerBoxMenu) {
+            client.player.closeContainer();
+            client.setScreen(new InventoryScreen(client.player));
+        }
+        activeReturn = null;
+        activeReturnShulkerSlot = -1;
+        returnWaitTicks = 0;
+        returnMenuId = -1;
+        nextReturnDelay = 2;
+    }
+
+    private static StoreTarget findStoreTarget(
+            Inventory inventory, ItemStack prototype, int amount) {
+        StoreTarget emptyTarget = null;
+        for (int inventorySlot = 0; inventorySlot < 36; inventorySlot++) {
+            ItemStack shulker = inventory.getItem(inventorySlot);
+            if (!ShulkerContentsHelper.isShulker(shulker)) continue;
+
+            List<ItemStack> contents = ShulkerContentsHelper.getStacks(shulker);
+            for (int shulkerSlot = 0; shulkerSlot < contents.size(); shulkerSlot++) {
+                ItemStack current = contents.get(shulkerSlot);
+                if (!current.isEmpty()
+                        && ItemStack.isSameItemSameComponents(current, prototype)
+                        && current.getMaxStackSize() - current.getCount() >= amount) {
+                    return new StoreTarget(
+                            inventorySlot, shulkerSlot, shulker.getItem(),
+                            shulker.get(DataComponents.CUSTOM_NAME));
+                }
+                if (current.isEmpty() && emptyTarget == null
+                        && prototype.getMaxStackSize() >= amount) {
+                    emptyTarget = new StoreTarget(
+                            inventorySlot, shulkerSlot, shulker.getItem(),
+                            shulker.get(DataComponents.CUSTOM_NAME));
+                }
+            }
+        }
+        return emptyTarget;
+    }
+
+    private static PlayerDestination findTemporaryDestination(
+            AbstractContainerScreen<?> screen, Inventory inventory,
+            ItemStack carried, int targetShulkerInventorySlot) {
+        PlayerDestination emptyDestination = null;
+        for (int menuSlot = 0; menuSlot < screen.getMenu().slots.size(); menuSlot++) {
+            Slot slot = screen.getMenu().slots.get(menuSlot);
+            if (slot.container != inventory
+                    || slot.getContainerSlot() == targetShulkerInventorySlot
+                    || !slot.mayPlace(carried)) continue;
+
+            ItemStack current = slot.getItem();
+            if (!current.isEmpty()
+                    && ItemStack.isSameItemSameComponents(current, carried)
+                    && slot.getMaxStackSize(carried) - current.getCount() >= carried.getCount()) {
+                return new PlayerDestination(menuSlot, slot.getContainerSlot());
+            }
+            if (current.isEmpty() && emptyDestination == null
+                    && slot.getMaxStackSize(carried) >= carried.getCount()) {
+                emptyDestination = new PlayerDestination(menuSlot, slot.getContainerSlot());
+            }
+        }
+        return emptyDestination;
+    }
+
+    private static int findExactPlayerItemSlot(
+            ShulkerBoxMenu menu, Inventory inventory, int inventorySlot,
+            ItemStack prototype, int targetShulkerInventorySlot) {
+        for (int menuSlot = 0; menuSlot < menu.slots.size(); menuSlot++) {
+            Slot slot = menu.slots.get(menuSlot);
+            if (slot.container == inventory
+                    && slot.getContainerSlot() == inventorySlot
+                    && slot.getContainerSlot() != targetShulkerInventorySlot
+                    && ItemStack.isSameItemSameComponents(slot.getItem(), prototype)) {
+                return menuSlot;
+            }
+        }
+        return -1;
+    }
+
+    private static boolean isExpectedStoreShulker(
+            ShulkerBoxMenu menu, Inventory inventory, PendingStore store) {
+        for (Slot slot : menu.slots) {
+            if (slot.container != inventory
+                    || slot.getContainerSlot() != store.targetInventorySlot()) continue;
+            ItemStack shulker = slot.getItem();
+            return ShulkerContentsHelper.isShulker(shulker)
+                    && shulker.getItem() == store.shulkerItem()
+                    && Objects.equals(shulker.get(DataComponents.CUSTOM_NAME), store.shulkerName());
+        }
+        return false;
+    }
+
+    private static void consumeOriginRecords(ItemStack prototype, int amount) {
+        Iterator<OriginRecord> iterator = originRecords.iterator();
+        while (iterator.hasNext() && amount > 0) {
+            OriginRecord record = iterator.next();
+            if (record.remaining <= 0
+                    || !ItemStack.isSameItemSameComponents(record.prototype, prototype)) continue;
+            int consumed = Math.min(record.remaining, amount);
+            record.remaining -= consumed;
+            amount -= consumed;
+            if (record.remaining <= 0) iterator.remove();
+        }
+    }
+
+    private static void recordExtraction(PendingExtraction extraction, int moved) {
+        if (isExcludedFromReturn(extraction.expectedStack())) return;
+        ItemStack prototype = extraction.expectedStack().copyWithCount(1);
+        for (OriginRecord record : originRecords) {
+            if (record.inventorySlot == extraction.inventorySlot()
+                    && record.shulkerSlot == extraction.shulkerSlot()
+                    && record.shulkerItem == extraction.shulkerItem()
+                    && Objects.equals(record.shulkerName, extraction.shulkerName())
+                    && ItemStack.isSameItemSameComponents(record.prototype, prototype)) {
+                record.remaining += moved;
+                return;
+            }
+        }
+        originRecords.add(new OriginRecord(
+                extraction.inventorySlot(), extraction.shulkerSlot(), prototype,
+                extraction.shulkerItem(), extraction.shulkerName(), moved));
+    }
+
+    private static boolean isExcludedFromReturn(ItemStack stack) {
+        return stack.has(DataComponents.TOOL)
+                || stack.has(DataComponents.WEAPON)
+                || stack.has(DataComponents.EQUIPPABLE)
+                || stack.has(DataComponents.BLOCKS_ATTACKS)
+                || stack.has(DataComponents.PIERCING_WEAPON)
+                || stack.has(DataComponents.KINETIC_WEAPON)
+                || stack.has(DataComponents.FOOD);
+    }
+
+    private static int findOriginShulker(Inventory inventory, OriginRecord record) {
+        ItemStack originalSlotStack = inventory.getItem(record.inventorySlot);
+        if (isOriginShulkerIdentity(originalSlotStack, record)) {
+            return isMatchingOriginShulker(originalSlotStack, record)
+                    ? record.inventorySlot : -1;
+        }
+        for (int slot = 0; slot < 36; slot++) {
+            if (slot != record.inventorySlot && isMatchingOriginShulker(inventory.getItem(slot), record)) {
+                return slot;
+            }
+        }
+        return -1;
+    }
+
+    private static boolean isMatchingOriginShulker(ItemStack shulker, OriginRecord record) {
+        if (!isOriginShulkerIdentity(shulker, record)) return false;
+        List<ItemStack> contents = ShulkerContentsHelper.getStacks(shulker);
+        return findReturnTargetSlot(contents, record.shulkerSlot, record.prototype) >= 0;
+    }
+
+    private static boolean isOriginShulkerIdentity(ItemStack shulker, OriginRecord record) {
+        return ShulkerContentsHelper.isShulker(shulker)
+                && shulker.getItem() == record.shulkerItem
+                && Objects.equals(shulker.get(DataComponents.CUSTOM_NAME), record.shulkerName);
+    }
+
+    private static int findReturnTargetSlot(
+            ShulkerBoxMenu menu, int preferredSlot, ItemStack prototype) {
+        if (preferredSlot >= 0 && preferredSlot < ShulkerContentsHelper.SHULKER_SIZE) {
+            Slot preferred = menu.getSlot(preferredSlot);
+            ItemStack stack = preferred.getItem();
+            if ((stack.isEmpty() || ItemStack.isSameItemSameComponents(stack, prototype))
+                    && preferred.getMaxStackSize(prototype) - stack.getCount() > 0) {
+                return preferredSlot;
+            }
+        }
+
+        int emptySlot = -1;
+        for (int slotIndex = 0; slotIndex < ShulkerContentsHelper.SHULKER_SIZE; slotIndex++) {
+            ItemStack stack = menu.getSlot(slotIndex).getItem();
+            if (!stack.isEmpty()
+                    && ItemStack.isSameItemSameComponents(stack, prototype)
+                    && menu.getSlot(slotIndex).getMaxStackSize(prototype) - stack.getCount() > 0) {
+                return slotIndex;
+            }
+            if (stack.isEmpty() && emptySlot < 0) emptySlot = slotIndex;
+        }
+        return emptySlot;
+    }
+
+    private static int findReturnTargetSlot(
+            List<ItemStack> contents, int preferredSlot, ItemStack prototype) {
+        if (preferredSlot >= 0 && preferredSlot < contents.size()) {
+            ItemStack preferred = contents.get(preferredSlot);
+            if ((preferred.isEmpty() || ItemStack.isSameItemSameComponents(preferred, prototype))
+                    && prototype.getMaxStackSize() - preferred.getCount() > 0) {
+                return preferredSlot;
+            }
+        }
+
+        int emptySlot = -1;
+        for (int slotIndex = 0; slotIndex < contents.size(); slotIndex++) {
+            ItemStack stack = contents.get(slotIndex);
+            if (!stack.isEmpty()
+                    && ItemStack.isSameItemSameComponents(stack, prototype)
+                    && prototype.getMaxStackSize() - stack.getCount() > 0) {
+                return slotIndex;
+            }
+            if (stack.isEmpty() && emptySlot < 0) emptySlot = slotIndex;
+        }
+        return emptySlot;
+    }
+
+    private static boolean hasMatchingPlayerItem(Inventory inventory, ItemStack prototype) {
+        for (int slot = 0; slot < 36; slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (ItemStack.isSameItemSameComponents(stack, prototype)) return true;
+        }
+        return false;
+    }
+
+    private static int findMatchingPlayerItemSlot(
+            ShulkerBoxMenu menu, Inventory inventory, ItemStack prototype, int shulkerInventorySlot) {
+        for (int menuSlot = 0; menuSlot < menu.slots.size(); menuSlot++) {
+            Slot slot = menu.slots.get(menuSlot);
+            if (slot.container == inventory
+                    && slot.getContainerSlot() != shulkerInventorySlot
+                    && ItemStack.isSameItemSameComponents(slot.getItem(), prototype)) {
+                return menuSlot;
+            }
+        }
+        return -1;
+    }
+
+    private static void moveExactAmount(
+            Minecraft client, ShulkerBoxMenu menu, int sourceSlot, int targetSlot, int amount) {
+        ItemStack source = menu.getSlot(sourceSlot).getItem();
+        int sourceCount = source.getCount();
+        client.gameMode.handleContainerInput(
+                menu.containerId, sourceSlot, 0, ContainerInput.PICKUP, client.player);
+        if (amount == sourceCount) {
+            client.gameMode.handleContainerInput(
+                    menu.containerId, targetSlot, 0, ContainerInput.PICKUP, client.player);
+        } else {
+            for (int i = 0; i < amount; i++) {
+                client.gameMode.handleContainerInput(
+                        menu.containerId, targetSlot, 1, ContainerInput.PICKUP, client.player);
+            }
+        }
+        if (!menu.getCarried().isEmpty()) {
+            client.gameMode.handleContainerInput(
+                    menu.containerId, sourceSlot, 0, ContainerInput.PICKUP, client.player);
+        }
+    }
+
+    private static void takeOne(Minecraft client, ShulkerBoxMenu menu, int sourceSlot, int destinationSlot) {
+        client.gameMode.handleContainerInput(
+                menu.containerId, sourceSlot, 0, ContainerInput.PICKUP, client.player);
+        client.gameMode.handleContainerInput(
+                menu.containerId, destinationSlot, 1, ContainerInput.PICKUP, client.player);
+        if (!menu.getCarried().isEmpty()) {
+            client.gameMode.handleContainerInput(
+                    menu.containerId, sourceSlot, 0, ContainerInput.PICKUP, client.player);
+        }
+    }
+
+    private static int findDestinationSlot(
+            ShulkerBoxMenu menu, Inventory inventory, ItemStack source, int shulkerInventorySlot) {
+        int emptySlot = -1;
+        for (int i = 0; i < menu.slots.size(); i++) {
+            Slot slot = menu.slots.get(i);
+            if (slot.container != inventory || slot.getContainerSlot() == shulkerInventorySlot
+                    || !slot.mayPlace(source)) continue;
+
+            ItemStack current = slot.getItem();
+            if (!current.isEmpty()
+                    && ItemStack.isSameItemSameComponents(current, source)
+                    && current.getCount() < slot.getMaxStackSize(source)) {
+                return i;
+            }
+            if (current.isEmpty() && emptySlot < 0) emptySlot = i;
+        }
+        return emptySlot;
+    }
+
+    private static ResolvedSource findValidatedSource(
+            AbstractContainerScreen<?> screen, Inventory inventory,
+            BundlePanelRenderer.FlatItem item) {
+        for (BundlePanelRenderer.ItemSource source : item.sources()) {
+            if (source.inventorySlot() < 0 || source.inventorySlot() >= 36) continue;
+            ItemStack shulker = inventory.getItem(source.inventorySlot());
+            if (!ShulkerContentsHelper.isShulker(shulker)) continue;
+
+            List<ItemStack> contents = ShulkerContentsHelper.getStacks(shulker);
+            if (source.shulkerSlot() < 0 || source.shulkerSlot() >= contents.size()) continue;
+            ItemStack current = contents.get(source.shulkerSlot());
+            if (current.isEmpty()
+                    || !ItemStack.isSameItemSameComponents(current, source.stack())) continue;
+
+            int quickSlot = resolveQuickShulkerSlot(
+                    screen, inventory, source.inventorySlot());
+            if (quickSlot < 0) continue;
+            return new ResolvedSource(
+                    source.inventorySlot(), source.shulkerSlot(), current.copy(), quickSlot,
+                    shulker.getItem(), shulker.get(DataComponents.CUSTOM_NAME));
+        }
+        return null;
+    }
+
+    private static int resolveQuickShulkerSlot(
+            AbstractContainerScreen<?> screen, Inventory inventory, int inventorySlot) {
+        int menuSlot = resolvePlayerMenuSlot(screen, inventory, inventorySlot);
+        if (menuSlot < 0) return -1;
+        return ClientUtil.getSlotId(screen.getMenu(), screen.getMenu().slots.get(menuSlot));
+    }
+
+    private static int resolvePlayerMenuSlot(
+            AbstractContainerScreen<?> screen, Inventory inventory, int inventorySlot) {
+        if (inventorySlot < 0 || inventorySlot >= 36) return -1;
+
+        for (int menuSlot = 0; menuSlot < screen.getMenu().slots.size(); menuSlot++) {
+            if (isMatchingPlayerSlot(screen, inventory, menuSlot, inventorySlot)) return menuSlot;
+        }
+        return -1;
+    }
+
+    private static boolean isMatchingPlayerSlot(
+            AbstractContainerScreen<?> screen, Inventory inventory,
+            int menuSlot, int inventorySlot) {
+        if (menuSlot < 0 || menuSlot >= screen.getMenu().slots.size()) return false;
+        Slot slot = screen.getMenu().slots.get(menuSlot);
+        return slot.container == inventory
+                && slot.getContainerSlot() == inventorySlot
+                && slot.hasItem();
+    }
+
+    private static void failExtraction(Minecraft client, String messageKey) {
+        show(client, messageKey);
+        if (client.player != null && client.player.containerMenu instanceof ShulkerBoxMenu) {
+            closeAfterExtraction(client);
+        } else {
+            clearExtraction();
+        }
+    }
+
+    private static void closeAfterExtraction(Minecraft client) {
+        if (client.player != null) {
+            client.player.closeContainer();
+            client.setScreen(new InventoryScreen(client.player));
+        }
+        clearExtraction();
+    }
+
+    private static void clearExtraction() {
+        pendingExtraction = null;
+        extractionWaitTicks = 0;
+        extractionMenuId = -1;
+        extractionCloseDelay = -1;
+    }
+
+    private static void failStore(Minecraft client, String messageKey) {
+        show(client, messageKey);
+        if (client.player != null && client.player.containerMenu instanceof ShulkerBoxMenu) {
+            client.player.closeContainer();
+            client.setScreen(new InventoryScreen(client.player));
+        }
+        clearStore();
+    }
+
+    private static void closeAfterStore(Minecraft client) {
+        if (client.player != null) {
+            client.player.closeContainer();
+            client.setScreen(new InventoryScreen(client.player));
+        }
+        int completed = storedItemCount;
+        clearStore();
+        if (completed > 0) show(client, "message.better-shulker-hud.store_complete", completed);
+    }
+
+    private static void clearStore() {
+        pendingStore = null;
+        storeWaitTicks = 0;
+        storeMenuId = -1;
+        storeCloseDelay = -1;
+        storedItemCount = 0;
+    }
+
+    private static void clearReturnProcess() {
+        returnQueue.clear();
+        activeReturn = null;
+        activeReturnShulkerSlot = -1;
+        returnWaitTicks = 0;
+        returnMenuId = -1;
+        nextReturnDelay = -1;
+        returnedItemCount = 0;
+    }
+
+    private static void show(Minecraft client, String key, Object... args) {
+        if (client.player != null) {
+            client.player.sendOverlayMessage(Component.translatable(key, args));
+        }
+    }
+
+    private record PendingExtraction(
+            int inventorySlot, int shulkerSlot, ItemStack expectedStack, boolean takeOne,
+            Item shulkerItem, Component shulkerName) {}
+
+    private record ResolvedSource(
+            int inventorySlot, int shulkerSlot, ItemStack expectedStack, int quickShulkerSlot,
+            Item shulkerItem, Component shulkerName) {}
+
+    private record PendingStore(
+            int sourceInventorySlot, int amount, int targetInventorySlot, int shulkerSlot,
+            ItemStack prototype, Item shulkerItem, Component shulkerName) {}
+
+    private record StoreTarget(
+            int inventorySlot, int shulkerSlot, Item shulkerItem, Component shulkerName) {}
+
+    private record PlayerDestination(int menuSlot, int inventorySlot) {}
+
+    private static final class OriginRecord {
+        private final int inventorySlot;
+        private final int shulkerSlot;
+        private final ItemStack prototype;
+        private final Item shulkerItem;
+        private final Component shulkerName;
+        private int remaining;
+
+        private OriginRecord(
+                int inventorySlot, int shulkerSlot, ItemStack prototype,
+                Item shulkerItem, Component shulkerName, int remaining) {
+            this.inventorySlot = inventorySlot;
+            this.shulkerSlot = shulkerSlot;
+            this.prototype = prototype;
+            this.shulkerItem = shulkerItem;
+            this.shulkerName = shulkerName;
+            this.remaining = remaining;
+        }
+    }
+}
