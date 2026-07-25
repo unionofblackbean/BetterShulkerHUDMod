@@ -1,5 +1,6 @@
 package bettershulkerhud.compat;
 
+import bettershulkerhud.config.Configs;
 import bettershulkerhud.gui.BundlePanelRenderer;
 import bettershulkerhud.util.ShulkerContentsHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -29,8 +30,6 @@ import java.util.Objects;
 
 public final class QuickShulkerExtractionController {
     private static final int OPEN_TIMEOUT_TICKS = 60;
-    private static final int AUTO_PICKUP_SCAN_INTERVAL = 4;
-    private static final int AUTO_PICKUP_WATCH_TIMEOUT = 40;
 
     private static PendingExtraction pendingExtraction;
     private static int extractionWaitTicks;
@@ -43,10 +42,13 @@ public final class QuickShulkerExtractionController {
     private static int storeCloseDelay = -1;
     private static int storedItemCount;
 
+    private static PendingRestore pendingRestore;
+    private static int restoreWaitTicks;
+    private static int restoreMenuId = -1;
+    private static int restoreCloseDelay = -1;
+
     private static int autoPickupCooldown;
-    private static ItemStack watchedPickup = ItemStack.EMPTY;
-    private static int watchedPickupBaseline;
-    private static int watchedPickupTicks;
+    private static AutoPickupCycle autoPickupCycle;
     private static boolean autoPickupProtocolWarningShown;
 
     private static final List<OriginRecord> originRecords = new ArrayList<>();
@@ -68,8 +70,9 @@ public final class QuickShulkerExtractionController {
     public static void clearWorldState() {
         clearExtraction();
         clearStore();
+        clearRestore();
         clearReturnProcess();
-        clearAutoPickupWatch();
+        clearAutoPickupCycle();
         autoPickupCooldown = 0;
         autoPickupProtocolWarningShown = false;
         originRecords.clear();
@@ -78,7 +81,8 @@ public final class QuickShulkerExtractionController {
     }
 
     public static boolean hasReturnableHistory() {
-        return originRecords.stream().anyMatch(record -> record.remaining > 0);
+        return Configs.Features.RETURN_HISTORY.getBooleanValue()
+                && originRecords.stream().anyMatch(record -> record.remaining > 0);
     }
 
     public static void request(BundlePanelRenderer.FlatItem item, boolean takeOne) {
@@ -109,7 +113,8 @@ public final class QuickShulkerExtractionController {
 
     public static void requestLitematicaRestock(ItemStack required) {
         Minecraft client = Minecraft.getInstance();
-        if (required == null || required.isEmpty() || client.player == null
+        if (!Configs.Features.LITEMATICA_RESTOCK.getBooleanValue()
+                || required == null || required.isEmpty() || client.player == null
                 || client.gameMode == null || isBusy()
                 || hasMatchingPlayerItem(client.player.getInventory(), required)
                 || !ClientPlayNetworking.canSend(OpenShulkerPacket.OPEN_SHULKER_PACKET_ID)) {
@@ -133,6 +138,7 @@ public final class QuickShulkerExtractionController {
     public static void requestReturnAll() {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null || !(client.screen instanceof AbstractContainerScreen<?>)) return;
+        if (!Configs.Features.RETURN_HISTORY.getBooleanValue()) return;
 
         if (isBusy()) {
             show(client, "message.better-shulker-hud.busy");
@@ -200,7 +206,7 @@ public final class QuickShulkerExtractionController {
 
         pendingStore = new PendingStore(
                 temporary.inventorySlot(), amount, target.inventorySlot(), target.shulkerSlot(),
-                prototype, target.shulkerItem(), target.shulkerName(), false);
+                prototype, target.shulkerItem(), target.shulkerName(), null);
         storeWaitTicks = 0;
         storeMenuId = -1;
         storeCloseDelay = -1;
@@ -209,12 +215,15 @@ public final class QuickShulkerExtractionController {
     }
 
     private static boolean isBusy() {
-        return pendingExtraction != null || pendingStore != null || activeReturn != null
+        return pendingExtraction != null || pendingStore != null || pendingRestore != null
+                || autoPickupCycle != null || activeReturn != null
                 || !returnQueue.isEmpty() || nextReturnDelay >= 0;
     }
 
     public static boolean shouldHideQuickShulkerScreen() {
-        return pendingExtraction != null || pendingStore != null || activeReturn != null;
+        return Configs.Features.HIDE_QUICK_SHULKER_SCREEN.getBooleanValue()
+                && (pendingExtraction != null || pendingStore != null
+                || pendingRestore != null || activeReturn != null);
     }
 
     private static boolean canUseQuickShulker(Minecraft client) {
@@ -224,7 +233,10 @@ public final class QuickShulkerExtractionController {
     }
 
     private static void tick(Minecraft client) {
-        if (pendingStore != null) {
+        if (pendingRestore != null) {
+            tickRestore(client);
+            return;
+        } else if (pendingStore != null) {
             tickStore(client);
             return;
         } else if (pendingExtraction != null) {
@@ -239,7 +251,7 @@ public final class QuickShulkerExtractionController {
 
     private static void tickAutoPickup(Minecraft client) {
         if (client.player == null || client.level == null || client.gameMode == null) {
-            clearAutoPickupWatch();
+            clearAutoPickupCycle();
             return;
         }
         if (client.screen != null
@@ -248,26 +260,32 @@ public final class QuickShulkerExtractionController {
             return;
         }
 
-        if (!watchedPickup.isEmpty()) {
-            tickWatchedPickup(client);
+        if (autoPickupCycle != null) {
+            tickAutoPickupCycle(client);
             return;
         }
+        if (!Configs.Features.AUTO_SHULKER_PICKUP.getBooleanValue()) return;
         if (autoPickupCooldown > 0) {
             autoPickupCooldown--;
             return;
         }
-        autoPickupCooldown = AUTO_PICKUP_SCAN_INTERVAL;
+        autoPickupCooldown = autoPickupScanInterval();
 
         Inventory inventory = client.player.getInventory();
+        double range = Configs.General.AUTO_PICKUP_RANGE.getDoubleValue();
         List<ItemEntity> nearbyItems = client.level.getEntitiesOfClass(
                 ItemEntity.class,
-                client.player.getBoundingBox().inflate(1.25D, 0.75D, 1.25D),
+                client.player.getBoundingBox().inflate(range),
                 entity -> entity.isAlive() && !entity.hasPickUpDelay()
                         && !entity.getItem().isEmpty());
 
         for (ItemEntity entity : nearbyItems) {
             ItemStack pickup = entity.getItem().copyWithCount(1);
             if (canInventoryAccept(inventory, pickup)) continue;
+
+            int pickupAmount = Math.min(
+                    entity.getItem().getCount(), entity.getItem().getMaxStackSize());
+            if (findStoreTarget(inventory, pickup, pickupAmount) == null) continue;
 
             if (!ClientPlayNetworking.canSend(OpenShulkerPacket.OPEN_SHULKER_PACKET_ID)) {
                 if (!autoPickupProtocolWarningShown) {
@@ -281,40 +299,53 @@ public final class QuickShulkerExtractionController {
             AutoStoreCandidate candidate = findAutoStoreCandidate(inventory, pickup, false);
             if (candidate == null) continue;
 
-            int baseline = countMatchingItems(inventory, pickup);
-            if (ItemStack.isSameItemSameComponents(candidate.stack(), pickup)) {
-                baseline = Math.max(0, baseline - candidate.stack().getCount());
-            }
-            if (startAutomaticStore(client, candidate)) {
-                watchedPickup = pickup;
-                watchedPickupBaseline = baseline;
-                watchedPickupTicks = 0;
+            if (startAutomaticPrepare(client, candidate)) {
                 return;
             }
         }
     }
 
-    private static void tickWatchedPickup(Minecraft client) {
-        if (++watchedPickupTicks > AUTO_PICKUP_WATCH_TIMEOUT) {
-            clearAutoPickupWatch();
-            autoPickupCooldown = AUTO_PICKUP_SCAN_INTERVAL;
+    private static void tickAutoPickupCycle(Minecraft client) {
+        if (client.player == null || client.gameMode == null) {
+            clearAutoPickupCycle();
             return;
         }
 
         Inventory inventory = client.player.getInventory();
-        if (countMatchingItems(inventory, watchedPickup) <= watchedPickupBaseline) return;
+        ItemStack pickedUp = inventory.getItem(autoPickupCycle.originalInventorySlot);
+        if (pickedUp.isEmpty()) {
+            autoPickupCycle.waitTicks++;
+            if (autoPickupCycle.waitTicks > pickupTrackingTimeout()) {
+                startAutomaticRestore(client);
+            }
+            return;
+        }
 
-        AutoStoreCandidate candidate = findAutoStoreCandidate(inventory, watchedPickup, true);
-        if (candidate == null) return;
+        StoreTarget target = findStoreTarget(
+                inventory, pickedUp.copyWithCount(1), pickedUp.getCount());
+        if (target == null) {
+            autoPickupCycle.waitTicks++;
+            return;
+        }
 
-        clearAutoPickupWatch();
-        if (!startAutomaticStore(client, candidate)) {
-            autoPickupCooldown = AUTO_PICKUP_SCAN_INTERVAL;
+        AutoStoreCandidate candidate = new AutoStoreCandidate(
+                autoPickupCycle.originalInventorySlot, pickedUp.copy(), target);
+        if (!startAutomaticStore(client, candidate, AutoStorePhase.STORE_PICKUP)) {
+            autoPickupCooldown = autoPickupScanInterval();
         }
     }
 
-    private static boolean startAutomaticStore(
+    private static boolean startAutomaticPrepare(
             Minecraft client, AutoStoreCandidate candidate) {
+        autoPickupCycle = new AutoPickupCycle(
+                candidate.inventorySlot(), candidate.stack().copy(), candidate.target());
+        if (startAutomaticStore(client, candidate, AutoStorePhase.PREPARE_SLOT)) return true;
+        clearAutoPickupCycle();
+        return false;
+    }
+
+    private static boolean startAutomaticStore(
+            Minecraft client, AutoStoreCandidate candidate, AutoStorePhase phase) {
         if (client.player == null) return false;
         Inventory inventory = client.player.getInventory();
         StoreTarget target = candidate.target();
@@ -326,13 +357,45 @@ public final class QuickShulkerExtractionController {
         pendingStore = new PendingStore(
                 candidate.inventorySlot(), source.getCount(),
                 target.inventorySlot(), target.shulkerSlot(),
-                source.copyWithCount(1), target.shulkerItem(), target.shulkerName(), true);
+                source.copyWithCount(1), target.shulkerItem(), target.shulkerName(), phase);
         storeWaitTicks = 0;
         storeMenuId = -1;
         storeCloseDelay = -1;
         storedItemCount = 0;
         OpenShulkerPacket.sendOpenPacket(targetMenuSlot);
         return true;
+    }
+
+    private static boolean startAutomaticRestore(Minecraft client) {
+        if (client.player == null || autoPickupCycle == null) return false;
+        Inventory inventory = client.player.getInventory();
+        StoreTarget source = autoPickupCycle.originalTarget;
+        int quickSlot = resolveQuickShulkerSlot(
+                client.player.containerMenu, inventory, source.inventorySlot());
+        if (quickSlot < 0) {
+            clearAutoPickupCycle();
+            return false;
+        }
+
+        pendingRestore = new PendingRestore(
+                source.inventorySlot(), source.shulkerSlot(),
+                autoPickupCycle.originalInventorySlot,
+                autoPickupCycle.originalStack.copyWithCount(1),
+                autoPickupCycle.originalStack.getCount(),
+                source.shulkerItem(), source.shulkerName());
+        restoreWaitTicks = 0;
+        restoreMenuId = -1;
+        restoreCloseDelay = -1;
+        OpenShulkerPacket.sendOpenPacket(quickSlot);
+        return true;
+    }
+
+    private static int autoPickupScanInterval() {
+        return Configs.General.AUTO_PICKUP_SCAN_INTERVAL.getIntegerValue();
+    }
+
+    private static int pickupTrackingTimeout() {
+        return Configs.General.PICKUP_TRACKING_TIMEOUT.getIntegerValue();
     }
 
     private static AutoStoreCandidate findAutoStoreCandidate(
@@ -387,21 +450,8 @@ public final class QuickShulkerExtractionController {
         return false;
     }
 
-    private static int countMatchingItems(Inventory inventory, ItemStack prototype) {
-        int count = 0;
-        for (int slot = 0; slot < 36; slot++) {
-            ItemStack current = inventory.getItem(slot);
-            if (ItemStack.isSameItemSameComponents(current, prototype)) {
-                count += current.getCount();
-            }
-        }
-        return count;
-    }
-
-    private static void clearAutoPickupWatch() {
-        watchedPickup = ItemStack.EMPTY;
-        watchedPickupBaseline = 0;
-        watchedPickupTicks = 0;
+    private static void clearAutoPickupCycle() {
+        autoPickupCycle = null;
     }
 
     private static void tickStore(Minecraft client) {
@@ -456,8 +506,55 @@ public final class QuickShulkerExtractionController {
         }
 
         storedItemCount = moved;
-        consumeOriginRecords(pendingStore.prototype(), moved);
+        if (!pendingStore.automatic()) {
+            consumeOriginRecords(pendingStore.prototype(), moved);
+        }
         storeCloseDelay = 0;
+    }
+
+    private static void tickRestore(Minecraft client) {
+        if (client.player == null || client.gameMode == null) {
+            clearRestore();
+            clearAutoPickupCycle();
+            return;
+        }
+
+        if (restoreCloseDelay >= 0) {
+            if (restoreCloseDelay-- == 0) closeAfterRestore(client);
+            return;
+        }
+
+        if (!(client.player.containerMenu instanceof ShulkerBoxMenu menu)) {
+            if (++restoreWaitTicks > OPEN_TIMEOUT_TICKS) failRestore(client);
+            return;
+        }
+        if (restoreMenuId != menu.containerId) {
+            restoreMenuId = menu.containerId;
+            restoreWaitTicks = 0;
+        }
+
+        if (!isExpectedRestoreShulker(menu, client.player.getInventory(), pendingRestore)) {
+            failRestore(client);
+            return;
+        }
+
+        int sourceSlot = findRestoreSourceSlot(menu, pendingRestore);
+        int destinationSlot = findExactPlayerDestinationSlot(
+                menu, client.player.getInventory(), pendingRestore.destinationInventorySlot(),
+                pendingRestore.prototype(), pendingRestore.sourceInventorySlot());
+        if (sourceSlot < 0 || destinationSlot < 0) {
+            failRestore(client);
+            return;
+        }
+
+        int before = menu.getSlot(sourceSlot).getItem().getCount();
+        moveExactAmount(client, menu, sourceSlot, destinationSlot, pendingRestore.amount());
+        int moved = before - menu.getSlot(sourceSlot).getItem().getCount();
+        if (moved != pendingRestore.amount()) {
+            failRestore(client);
+            return;
+        }
+        restoreCloseDelay = 0;
     }
 
     private static void tickExtraction(Minecraft client) {
@@ -699,6 +796,60 @@ public final class QuickShulkerExtractionController {
         return false;
     }
 
+    private static boolean isExpectedRestoreShulker(
+            ShulkerBoxMenu menu, Inventory inventory, PendingRestore restore) {
+        for (Slot slot : menu.slots) {
+            if (slot.container != inventory
+                    || slot.getContainerSlot() != restore.sourceInventorySlot()) continue;
+            ItemStack shulker = slot.getItem();
+            return ShulkerContentsHelper.isShulker(shulker)
+                    && shulker.getItem() == restore.shulkerItem()
+                    && Objects.equals(
+                    shulker.get(DataComponents.CUSTOM_NAME), restore.shulkerName());
+        }
+        return false;
+    }
+
+    private static int findRestoreSourceSlot(
+            ShulkerBoxMenu menu, PendingRestore restore) {
+        int preferred = restore.preferredShulkerSlot();
+        if (preferred >= 0 && preferred < ShulkerContentsHelper.SHULKER_SIZE) {
+            ItemStack stack = menu.getSlot(preferred).getItem();
+            if (ItemStack.isSameItemSameComponents(stack, restore.prototype())
+                    && stack.getCount() >= restore.amount()) {
+                return preferred;
+            }
+        }
+        for (int slot = 0; slot < ShulkerContentsHelper.SHULKER_SIZE; slot++) {
+            ItemStack stack = menu.getSlot(slot).getItem();
+            if (ItemStack.isSameItemSameComponents(stack, restore.prototype())
+                    && stack.getCount() >= restore.amount()) {
+                return slot;
+            }
+        }
+        return -1;
+    }
+
+    private static int findExactPlayerDestinationSlot(
+            ShulkerBoxMenu menu, Inventory inventory, int inventorySlot,
+            ItemStack prototype, int sourceShulkerInventorySlot) {
+        for (int menuSlot = 0; menuSlot < menu.slots.size(); menuSlot++) {
+            Slot slot = menu.slots.get(menuSlot);
+            if (slot.container != inventory
+                    || slot.getContainerSlot() != inventorySlot
+                    || slot.getContainerSlot() == sourceShulkerInventorySlot
+                    || !slot.mayPlace(prototype)) continue;
+            ItemStack current = slot.getItem();
+            if (current.isEmpty()
+                    || (ItemStack.isSameItemSameComponents(current, prototype)
+                    && slot.getMaxStackSize(prototype) - current.getCount()
+                    >= pendingRestore.amount())) {
+                return menuSlot;
+            }
+        }
+        return -1;
+    }
+
     private static void consumeOriginRecords(ItemStack prototype, int amount) {
         Iterator<OriginRecord> iterator = originRecords.iterator();
         while (iterator.hasNext() && amount > 0) {
@@ -713,7 +864,8 @@ public final class QuickShulkerExtractionController {
     }
 
     private static void recordExtraction(PendingExtraction extraction, int moved) {
-        if (isExcludedFromReturn(extraction.expectedStack())) return;
+        if (!Configs.Features.RETURN_HISTORY.getBooleanValue()
+                || isExcludedFromReturn(extraction.expectedStack())) return;
         ItemStack prototype = extraction.expectedStack().copyWithCount(1);
         for (OriginRecord record : originRecords) {
             if (record.inventorySlot == extraction.inventorySlot()
@@ -1020,13 +1172,15 @@ public final class QuickShulkerExtractionController {
         }
         clearStore();
         if (automatic) {
-            clearAutoPickupWatch();
+            clearAutoPickupCycle();
             autoPickupCooldown = 20;
         }
     }
 
     private static void closeAfterStore(Minecraft client) {
-        boolean automatic = pendingStore != null && pendingStore.automatic();
+        PendingStore completedStore = pendingStore;
+        boolean automatic = completedStore != null && completedStore.automatic();
+        AutoStorePhase autoPhase = automatic ? completedStore.autoPhase() : null;
         if (client.player != null) {
             closeContainerAndSetScreen(
                     client,
@@ -1036,7 +1190,12 @@ public final class QuickShulkerExtractionController {
         int completed = storedItemCount;
         clearStore();
         if (automatic) {
-            autoPickupCooldown = AUTO_PICKUP_SCAN_INTERVAL;
+            autoPickupCooldown = 0;
+            if (autoPhase == AutoStorePhase.STORE_PICKUP
+                    && !startAutomaticRestore(client)) {
+                clearAutoPickupCycle();
+                autoPickupCooldown = autoPickupScanInterval();
+            }
         } else if (completed > 0) {
             show(client, "message.better-shulker-hud.store_complete", completed);
         }
@@ -1067,6 +1226,31 @@ public final class QuickShulkerExtractionController {
         storedItemCount = 0;
     }
 
+    private static void failRestore(Minecraft client) {
+        if (client.player != null && client.player.containerMenu instanceof ShulkerBoxMenu) {
+            closeContainerAndSetScreen(client, null, false);
+        }
+        clearRestore();
+        clearAutoPickupCycle();
+        autoPickupCooldown = 20;
+    }
+
+    private static void closeAfterRestore(Minecraft client) {
+        if (client.player != null) {
+            closeContainerAndSetScreen(client, null, false);
+        }
+        clearRestore();
+        clearAutoPickupCycle();
+        autoPickupCooldown = 0;
+    }
+
+    private static void clearRestore() {
+        pendingRestore = null;
+        restoreWaitTicks = 0;
+        restoreMenuId = -1;
+        restoreCloseDelay = -1;
+    }
+
     private static void clearReturnProcess() {
         returnQueue.clear();
         activeReturn = null;
@@ -1093,7 +1277,17 @@ public final class QuickShulkerExtractionController {
 
     private record PendingStore(
             int sourceInventorySlot, int amount, int targetInventorySlot, int shulkerSlot,
-            ItemStack prototype, Item shulkerItem, Component shulkerName, boolean automatic) {}
+            ItemStack prototype, Item shulkerItem, Component shulkerName,
+            AutoStorePhase autoPhase) {
+        private boolean automatic() {
+            return autoPhase != null;
+        }
+    }
+
+    private record PendingRestore(
+            int sourceInventorySlot, int preferredShulkerSlot,
+            int destinationInventorySlot, ItemStack prototype, int amount,
+            Item shulkerItem, Component shulkerName) {}
 
     private record StoreTarget(
             int inventorySlot, int shulkerSlot, Item shulkerItem, Component shulkerName) {}
@@ -1102,6 +1296,26 @@ public final class QuickShulkerExtractionController {
 
     private record AutoStoreCandidate(
             int inventorySlot, ItemStack stack, StoreTarget target) {}
+
+    private enum AutoStorePhase {
+        PREPARE_SLOT,
+        STORE_PICKUP
+    }
+
+    private static final class AutoPickupCycle {
+        private final int originalInventorySlot;
+        private final ItemStack originalStack;
+        private final StoreTarget originalTarget;
+        private int waitTicks;
+
+        private AutoPickupCycle(
+                int originalInventorySlot, ItemStack originalStack,
+                StoreTarget originalTarget) {
+            this.originalInventorySlot = originalInventorySlot;
+            this.originalStack = originalStack;
+            this.originalTarget = originalTarget;
+        }
+    }
 
     private static final class OriginRecord {
         private final int inventorySlot;

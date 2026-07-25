@@ -59,7 +59,7 @@ public abstract class InventoryScreenMixin {
         graphics.fill(x, y, x + 1, y + 19, 0xFFFFFFFF);
         graphics.fill(x + 1, y + 19, x + 20, y + 20, 0xFF373737);
         graphics.fill(x + 19, y + 1, x + 20, y + 20, 0xFF373737);
-        if (BundlePanelRenderer.visible) {
+        if (BundlePanelRenderer.isEffectivelyVisible()) {
             graphics.fill(x + 3, y + 17, x + 17, y + 18, 0xFF404040);
         }
         ItemStack icon = new ItemStack(Items.SHULKER_BOX);

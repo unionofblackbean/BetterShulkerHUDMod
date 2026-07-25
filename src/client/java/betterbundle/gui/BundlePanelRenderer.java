@@ -1,5 +1,6 @@
 package bettershulkerhud.gui;
 
+import bettershulkerhud.config.Configs;
 import net.sourceforge.pinyin4j.PinyinHelper;
 import net.sourceforge.pinyin4j.format.HanyuPinyinOutputFormat;
 import net.sourceforge.pinyin4j.format.HanyuPinyinToneType;
@@ -34,12 +35,10 @@ import org.lwjgl.glfw.GLFW;
 public final class BundlePanelRenderer {
 
     public static final int SLOT_SIZE = 18;
-    public static final int MAX_COLUMNS = 6;
-    public static final int MAX_VISIBLE_ROWS = 8;
     public static final int SLOT_SPACING = 0;
     public static final int PADDING = 7;
     public static final int SCROLL_BAR_WIDTH = 12;
-    public static final int CAT_BUTTON_SIZE = 22;
+    public static final int CAT_BUTTON_SIZE = 20;
     public static final int CAT_BAR_WIDTH = CAT_BUTTON_SIZE;
     public static final int SEARCH_BAR_HEIGHT = 18;
     public static final int HEADER_HEIGHT = 24;
@@ -68,8 +67,6 @@ public final class BundlePanelRenderer {
             Identifier.withDefaultNamespace("container/creative_inventory/scroller_disabled");
 
     private static int scrollOffset = 0;
-    public static boolean visible = false;
-
     public static String searchQuery = "";
     public static boolean searchFocused = false;
     private static int searchCursorTick = 0;
@@ -85,7 +82,7 @@ public final class BundlePanelRenderer {
     private static String cachedSearchQuery = null;
     private static BundleCategory cachedCategory = null;
 
-    public static BundleCategory currentCategory = BundleCategory.ALL;
+    public static BundleCategory currentCategory = BundleCategory.BUILDING_BLOCKS;
 
     private BundlePanelRenderer() {}
 
@@ -103,7 +100,7 @@ public final class BundlePanelRenderer {
                 + SCROLL_BAR_WIDTH + 3 + PADDING;
         int columns = (available - fixedWidth + SLOT_SPACING)
                 / (SLOT_SIZE + SLOT_SPACING);
-        return Math.clamp(columns, 2, MAX_COLUMNS);
+        return Math.clamp(columns, 2, Configs.General.HUD_MAX_COLUMNS.getIntegerValue());
     }
 
     public static int visibleRowCount(int topPos, int imageHeight) {
@@ -111,7 +108,7 @@ public final class BundlePanelRenderer {
         int availableHeight = client.getWindow().getGuiScaledHeight() - topPos - 4;
         int contentHeight = availableHeight - HEADER_HEIGHT - PADDING * 2 - FOOTER_HEIGHT;
         int rows = (contentHeight + SLOT_SPACING) / (SLOT_SIZE + SLOT_SPACING);
-        return Math.clamp(rows, 3, MAX_VISIBLE_ROWS);
+        return Math.clamp(rows, 3, Configs.General.HUD_MAX_ROWS.getIntegerValue());
     }
 
     public static int panelWidth(int leftPos) {
@@ -239,8 +236,7 @@ public final class BundlePanelRenderer {
     public static List<FlatItem> filterItems(List<FlatItem> items, String query) {
         List<FlatItem> filtered = new ArrayList<>();
         for (FlatItem fi : items) {
-            String key = BuiltInRegistries.ITEM.getKey(fi.stack().getItem()).toString();
-            if (currentCategory.matches(key)) filtered.add(fi);
+            if (currentCategory.matches(fi.stack())) filtered.add(fi);
         }
         if (query.isEmpty()) return filtered;
         String q = query.toLowerCase(Locale.ROOT);
@@ -254,14 +250,14 @@ public final class BundlePanelRenderer {
     private static boolean matchesSearch(FlatItem fi, String q) {
         String name = fi.stack().getDisplayName().getString().toLowerCase(Locale.ROOT);
         if (name.contains(q)) return true;
-        if (PIN_IN != null) {
+        if (Configs.Features.PINYIN_SEARCH.getBooleanValue() && PIN_IN != null) {
             try {
                 if (PIN_IN.contains(name, q)) return true;
             } catch (RuntimeException ignored) {
                 // Fall through to the legacy conversion for unusual text components.
             }
         }
-        if (toPinyin(name).contains(q)) return true;
+        if (Configs.Features.PINYIN_SEARCH.getBooleanValue() && toPinyin(name).contains(q)) return true;
         var key = BuiltInRegistries.ITEM.getKey(fi.stack().getItem());
         String fullId = key.toString().toLowerCase(Locale.ROOT);
         String path = key.getPath().toLowerCase(Locale.ROOT);
@@ -385,10 +381,17 @@ public final class BundlePanelRenderer {
     }
 
     public static int getHoveredShulkerInventorySlot() {
-        return visible ? hoveredShulkerInventorySlot : -1;
+        return Configs.Features.HUD_ENABLED.getBooleanValue()
+                ? hoveredShulkerInventorySlot : -1;
     }
-    public static boolean isEffectivelyVisible() { return visible && !isRecipeBookOpen(); }
-    public static void toggleVisible() { visible = !visible; }
+    public static boolean isEffectivelyVisible() {
+        return Configs.Features.HUD_ENABLED.getBooleanValue() && !isRecipeBookOpen();
+    }
+    public static void toggleVisible() {
+        Configs.Features.HUD_ENABLED.setBooleanValue(
+                !Configs.Features.HUD_ENABLED.getBooleanValue());
+        Configs.saveToFile();
+    }
 
     // --- category button layout ---
 
@@ -421,7 +424,6 @@ public final class BundlePanelRenderer {
     // --- search ---
 
     public static boolean isInsideSearchBar(double mouseX, double mouseY, int leftPos, int topPos, int imageHeight) {
-        if (currentCategory != BundleCategory.ALL) return false; // Only ALL mode has interactive search
         int sbx = searchBarX(leftPos);
         int sby = topPos + 3;
         int sbw = searchBarWidth(leftPos);
@@ -460,7 +462,7 @@ public final class BundlePanelRenderer {
     }
 
     public static boolean onCharTyped(int codepoint) {
-        if (!searchFocused || currentCategory != BundleCategory.ALL) return false;
+        if (!searchFocused) return false;
         if (Character.isValidCodePoint(codepoint)
                 && !Character.isISOControl(codepoint)) {
             searchQuery += new String(Character.toChars(codepoint));
@@ -470,7 +472,7 @@ public final class BundlePanelRenderer {
     }
 
     public static boolean onSearchKeyPress(int key, int modifiers) {
-        if (!searchFocused || currentCategory != BundleCategory.ALL) return false;
+        if (!searchFocused) return false;
         if (key == GLFW.GLFW_KEY_BACKSPACE) {
             if (!searchQuery.isEmpty()) { searchQuery = searchQuery.substring(0, searchQuery.length() - 1); scrollOffset = 0; }
             return true;
@@ -526,7 +528,6 @@ public final class BundlePanelRenderer {
         int panelX = panelX(leftPos);
         int panelY = topPos;
 
-        boolean isAllMode = currentCategory == BundleCategory.ALL;
         int columns = columnCount(leftPos);
         int rows = visibleRowCount(topPos, imageHeight);
         int panelHeight = panelHeight(topPos, imageHeight);
@@ -645,23 +646,23 @@ public final class BundlePanelRenderer {
             int sbx = searchBarX(leftPos);
             int sby = panelY + 3;
             int sbw = searchBarWidth(leftPos);
-            boolean active = isAllMode && searchFocused;
+            boolean active = searchFocused;
             graphics.blitSprite(RenderPipelines.GUI_TEXTURED,
                     active ? TEXT_FIELD_HIGHLIGHTED_SPRITE : TEXT_FIELD_SPRITE,
                     sbx, sby, sbw, SEARCH_BAR_HEIGHT);
             int textY = sby + (SEARCH_BAR_HEIGHT - font.lineHeight) / 2;
-            if (isAllMode && searchQuery.isEmpty() && !searchFocused) {
+            if (searchQuery.isEmpty() && !searchFocused) {
                 String placeholder = Component.translatable(
                         "message.better-shulker-hud.search").getString();
                 graphics.text(font, fitTail(font, placeholder, sbw - 7),
                         sbx + 4, textY, COLOR_TEXT_MUTED, false);
-            } else if (isAllMode && searchQuery.isEmpty()) {
+            } else if (searchQuery.isEmpty()) {
                 searchCursorTick = (searchCursorTick + 1) % 40;
                 if (searchCursorTick < 20) {
                     graphics.fill(sbx + 4, textY, sbx + 5,
                             textY + font.lineHeight, COLOR_TEXT);
                 }
-            } else if (isAllMode && !searchQuery.isEmpty()) {
+            } else if (!searchQuery.isEmpty()) {
                 String shown = fitTail(font, searchQuery, sbw - 8);
                 graphics.text(font, shown, sbx + 4, textY, COLOR_TEXT, false);
                 searchCursorTick = (searchCursorTick + 1) % 40;
@@ -669,9 +670,6 @@ public final class BundlePanelRenderer {
                     int cursorX = sbx + 4 + font.width(shown);
                     graphics.fill(cursorX, textY, cursorX + 1, textY + font.lineHeight, COLOR_TEXT);
                 }
-            } else if (!isAllMode) {
-                graphics.text(font, fitTail(font, currentCategory.getDisplayName(), sbw - 7),
-                        sbx + 4, textY, COLOR_TEXT, false);
             }
         }
 
@@ -692,6 +690,16 @@ public final class BundlePanelRenderer {
                 returnHovered ? COLOR_PANEL_HOVER
                         : (canReturn ? COLOR_PANEL : COLOR_BORDER_MID));
         graphics.item(new ItemStack(Items.HOPPER), returnX + 1, returnY + 1);
+
+        int categoryX = returnX + 22;
+        int categoryWidth = Math.max(0, countX - categoryX - 6);
+        if (categoryWidth >= 18) {
+            drawInsetFrame(graphics, categoryX, returnY + 1, categoryWidth, 16, COLOR_PANEL);
+            String categoryName = fitTail(
+                    font, currentCategory.getDisplayName(), categoryWidth - 8);
+            graphics.text(font, categoryName, categoryX + 4,
+                    returnY + 1 + (16 - font.lineHeight) / 2, COLOR_TEXT, false);
+        }
         if (returnHovered) {
             graphics.setTooltipForNextFrame(client.font,
                     Component.translatable("message.better-shulker-hud.return_button"),
@@ -720,20 +728,52 @@ public final class BundlePanelRenderer {
 
     private static void drawFrame(
             GuiGraphicsExtractor graphics, int x, int y, int width, int height, int fill) {
-        graphics.fill(x, y, x + width, y + height, fill);
-        graphics.fill(x, y, x + width - 1, y + 1, COLOR_BORDER_LIGHT);
-        graphics.fill(x, y, x + 1, y + height - 1, COLOR_BORDER_LIGHT);
-        graphics.fill(x + 1, y + height - 1, x + width, y + height, COLOR_BORDER_DARK);
-        graphics.fill(x + width - 1, y + 1, x + width, y + height, COLOR_BORDER_DARK);
+        int radius = Math.min(Configs.General.HUD_CORNER_RADIUS.getIntegerValue(),
+                Math.max(0, Math.min(width, height) / 2));
+        fillRoundedRect(graphics, x, y, width, height, radius, fill);
+        if (radius == 0) {
+            graphics.fill(x, y, x + width - 1, y + 1, COLOR_BORDER_LIGHT);
+            graphics.fill(x, y, x + 1, y + height - 1, COLOR_BORDER_LIGHT);
+            graphics.fill(x + 1, y + height - 1, x + width, y + height, COLOR_BORDER_DARK);
+            graphics.fill(x + width - 1, y + 1, x + width, y + height, COLOR_BORDER_DARK);
+        } else {
+            graphics.fill(x + radius, y, x + width - radius, y + 1, COLOR_BORDER_LIGHT);
+            graphics.fill(x, y + radius, x + 1, y + height - radius, COLOR_BORDER_LIGHT);
+            graphics.fill(x + radius, y + height - 1, x + width - radius, y + height, COLOR_BORDER_DARK);
+            graphics.fill(x + width - 1, y + radius, x + width, y + height - radius, COLOR_BORDER_DARK);
+        }
     }
 
     private static void drawInsetFrame(
             GuiGraphicsExtractor graphics, int x, int y, int width, int height, int fill) {
-        graphics.fill(x, y, x + width, y + height, fill);
-        graphics.fill(x, y, x + width - 1, y + 1, COLOR_BORDER_DARK);
-        graphics.fill(x, y, x + 1, y + height - 1, COLOR_BORDER_DARK);
-        graphics.fill(x + 1, y + height - 1, x + width, y + height, COLOR_BORDER_LIGHT);
-        graphics.fill(x + width - 1, y + 1, x + width, y + height, COLOR_BORDER_LIGHT);
+        int radius = Math.min(Configs.General.HUD_CORNER_RADIUS.getIntegerValue(),
+                Math.max(0, Math.min(width, height) / 2));
+        fillRoundedRect(graphics, x, y, width, height, radius, fill);
+        if (radius == 0) {
+            graphics.fill(x, y, x + width - 1, y + 1, COLOR_BORDER_DARK);
+            graphics.fill(x, y, x + 1, y + height - 1, COLOR_BORDER_DARK);
+            graphics.fill(x + 1, y + height - 1, x + width, y + height, COLOR_BORDER_LIGHT);
+            graphics.fill(x + width - 1, y + 1, x + width, y + height, COLOR_BORDER_LIGHT);
+        } else {
+            graphics.fill(x + radius, y, x + width - radius, y + 1, COLOR_BORDER_DARK);
+            graphics.fill(x, y + radius, x + 1, y + height - radius, COLOR_BORDER_DARK);
+            graphics.fill(x + radius, y + height - 1, x + width - radius, y + height, COLOR_BORDER_LIGHT);
+            graphics.fill(x + width - 1, y + radius, x + width, y + height - radius, COLOR_BORDER_LIGHT);
+        }
+    }
+
+    private static void fillRoundedRect(
+            GuiGraphicsExtractor graphics, int x, int y, int width, int height,
+            int radius, int color) {
+        if (radius <= 0) {
+            graphics.fill(x, y, x + width, y + height, color);
+            return;
+        }
+        for (int row = 0; row < height; row++) {
+            int distance = Math.min(row, height - 1 - row);
+            int inset = distance >= radius ? 0 : radius - distance;
+            graphics.fill(x + inset, y + row, x + width - inset, y + row + 1, color);
+        }
     }
 
     private static void drawBorder(
