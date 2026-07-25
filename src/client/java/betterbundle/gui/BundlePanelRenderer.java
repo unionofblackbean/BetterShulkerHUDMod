@@ -17,8 +17,11 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import bettershulkerhud.util.ShulkerContentsHelper;
 import bettershulkerhud.compat.QuickShulkerExtractionController;
@@ -46,6 +49,15 @@ public final class BundlePanelRenderer {
     private static int searchCursorTick = 0;
     private static int hoveredShulkerInventorySlot = -1;
     private static final PinIn PIN_IN = createPinIn();
+
+    private static Player cachedPlayer;
+    private static long cachedInventoryFingerprint = Long.MIN_VALUE;
+    private static List<ShulkerSlotEntry> cachedAllShulkers = List.of();
+    private static List<ShulkerSlotEntry> cachedNonEmptyShulkers = List.of();
+    private static List<FlatItem> cachedFlatItems = List.of();
+    private static List<FlatItem> cachedVisibleItems = List.of();
+    private static String cachedSearchQuery = null;
+    private static BundleCategory cachedCategory = null;
 
     public static BundleCategory currentCategory = BundleCategory.ALL;
 
@@ -122,9 +134,8 @@ public final class BundlePanelRenderer {
     public static void scrollBy(int delta) {
         Minecraft client = Minecraft.getInstance();
         if (!(client.screen instanceof AbstractContainerScreen<?> screen)) return;
-        List<ShulkerSlotEntry> shulkers = getShulkers();
-        if (shulkers.isEmpty()) { scrollOffset = 0; return; }
-        List<FlatItem> items = buildFlatItemList(shulkers);
+        List<FlatItem> items = getVisibleItems();
+        if (items.isEmpty()) { scrollOffset = 0; return; }
         int columns = columnCount(screen.leftPos);
         int rows = visibleRowCount(screen.topPos, screen.imageHeight);
         int totalRows = (items.size() + columns - 1) / columns;
@@ -140,7 +151,7 @@ public final class BundlePanelRenderer {
     }
 
     public static List<FlatItem> buildFlatItemList(List<ShulkerSlotEntry> shulkers) {
-        List<FlatItem> result = new ArrayList<>();
+        Map<StackKey, MutableFlatItem> aggregated = new LinkedHashMap<>();
         for (ShulkerSlotEntry entry : shulkers) {
             List<ItemStack> items = entry.contents();
             for (int i = 0; i < items.size(); i++) {
@@ -148,27 +159,35 @@ public final class BundlePanelRenderer {
                 if (stack.isEmpty()) continue;
 
                 ItemSource source = new ItemSource(entry.inventorySlot(), i, stack.copy());
-                int matchingIndex = -1;
-                for (int resultIndex = 0; resultIndex < result.size(); resultIndex++) {
-                    if (ItemStack.isSameItemSameComponents(result.get(resultIndex).stack(), stack)) {
-                        matchingIndex = resultIndex;
-                        break;
-                    }
-                }
-                if (matchingIndex < 0) {
-                    result.add(new FlatItem(stack.copy(), List.of(source)));
-                    continue;
-                }
-
-                FlatItem existing = result.get(matchingIndex);
-                List<ItemSource> sources = new ArrayList<>(existing.sources());
-                sources.add(source);
-                int total = existing.stack().getCount() + stack.getCount();
-                result.set(matchingIndex, new FlatItem(
-                        existing.stack().copyWithCount(total), List.copyOf(sources)));
+                StackKey key = new StackKey(stack);
+                MutableFlatItem item = aggregated.computeIfAbsent(
+                        key, ignored -> new MutableFlatItem(stack.copyWithCount(1)));
+                item.total += stack.getCount();
+                item.sources.add(source);
             }
         }
+        List<FlatItem> result = new ArrayList<>(aggregated.size());
+        for (MutableFlatItem item : aggregated.values()) {
+            result.add(new FlatItem(
+                    item.prototype.copyWithCount(item.total), List.copyOf(item.sources)));
+        }
+        result.sort(Comparator
+                .comparingInt((FlatItem item) -> item.stack().getCount())
+                .reversed()
+                .thenComparing(item -> BuiltInRegistries.ITEM
+                        .getKey(item.stack().getItem()).toString()));
         return result;
+    }
+
+    public static List<FlatItem> getVisibleItems() {
+        ensureCache();
+        if (cachedCategory != currentCategory
+                || !java.util.Objects.equals(cachedSearchQuery, searchQuery)) {
+            cachedVisibleItems = List.copyOf(filterItems(cachedFlatItems, searchQuery));
+            cachedCategory = currentCategory;
+            cachedSearchQuery = searchQuery;
+        }
+        return cachedVisibleItems;
     }
 
     public static List<FlatItem> filterItems(List<FlatItem> items, String query) {
@@ -226,25 +245,91 @@ public final class BundlePanelRenderer {
         }
     }
 
-    public static List<ShulkerSlotEntry> getShulkers() { return findShulkers(false); }
-    public static List<ShulkerSlotEntry> getAllShulkers() { return findShulkers(true); }
+    public static List<ShulkerSlotEntry> getShulkers() {
+        ensureCache();
+        return cachedNonEmptyShulkers;
+    }
 
-    private static List<ShulkerSlotEntry> findShulkers(boolean includeEmpty) {
+    public static List<ShulkerSlotEntry> getAllShulkers() {
+        ensureCache();
+        return cachedAllShulkers;
+    }
+
+    public static void invalidateCache() {
+        cachedPlayer = null;
+        cachedInventoryFingerprint = Long.MIN_VALUE;
+        cachedAllShulkers = List.of();
+        cachedNonEmptyShulkers = List.of();
+        cachedFlatItems = List.of();
+        cachedVisibleItems = List.of();
+        cachedSearchQuery = null;
+        cachedCategory = null;
+        hoveredShulkerInventorySlot = -1;
+    }
+
+    private static void ensureCache() {
         Minecraft client = Minecraft.getInstance();
         Player player = client.player;
-        if (player == null) return List.of();
-        List<ShulkerSlotEntry> result = new ArrayList<>();
+        if (player == null) {
+            invalidateCache();
+            return;
+        }
         Inventory inv = player.getInventory();
+        long fingerprint = 1;
         for (int i = 0; i < 36; i++) {
             ItemStack stack = inv.getItem(i);
-            boolean matches = includeEmpty
-                    ? ShulkerContentsHelper.isShulker(stack)
-                    : ShulkerContentsHelper.isNonEmptyShulker(stack);
-            if (matches) {
-                result.add(new ShulkerSlotEntry(i, stack, ShulkerContentsHelper.getStacks(stack)));
-            }
+            fingerprint = 31 * fingerprint + ItemStack.hashItemAndComponents(stack);
+            fingerprint = 31 * fingerprint + stack.getCount();
         }
-        return result;
+        if (cachedPlayer == player && cachedInventoryFingerprint == fingerprint) return;
+
+        List<ShulkerSlotEntry> all = new ArrayList<>();
+        List<ShulkerSlotEntry> nonEmpty = new ArrayList<>();
+        for (int i = 0; i < 36; i++) {
+            ItemStack stack = inv.getItem(i);
+            if (!ShulkerContentsHelper.isShulker(stack)) continue;
+            List<ItemStack> contents = List.copyOf(ShulkerContentsHelper.getStacks(stack));
+            ShulkerSlotEntry entry = new ShulkerSlotEntry(i, stack.copy(), contents);
+            all.add(entry);
+            if (contents.stream().anyMatch(item -> !item.isEmpty())) nonEmpty.add(entry);
+        }
+        cachedPlayer = player;
+        cachedInventoryFingerprint = fingerprint;
+        cachedAllShulkers = List.copyOf(all);
+        cachedNonEmptyShulkers = List.copyOf(nonEmpty);
+        cachedFlatItems = List.copyOf(buildFlatItemList(cachedNonEmptyShulkers));
+        cachedVisibleItems = List.of();
+        cachedSearchQuery = null;
+        cachedCategory = null;
+    }
+
+    private static final class StackKey {
+        private final ItemStack prototype;
+        private final int hash;
+
+        private StackKey(ItemStack stack) {
+            this.prototype = stack.copyWithCount(1);
+            this.hash = ItemStack.hashItemAndComponents(stack);
+        }
+
+        @Override
+        public int hashCode() { return hash; }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof StackKey other
+                    && ItemStack.isSameItemSameComponents(prototype, other.prototype);
+        }
+    }
+
+    private static final class MutableFlatItem {
+        private final ItemStack prototype;
+        private final List<ItemSource> sources = new ArrayList<>();
+        private int total;
+
+        private MutableFlatItem(ItemStack prototype) {
+            this.prototype = prototype;
+        }
     }
 
     public static boolean isRecipeBookOpen() {
@@ -383,9 +468,7 @@ public final class BundlePanelRenderer {
         if (!isEffectivelyVisible()) return;
         List<ShulkerSlotEntry> allShulkers = getAllShulkers();
         if (allShulkers.isEmpty()) { scrollOffset = 0; return; }
-        List<FlatItem> allItems = buildFlatItemList(getShulkers());
-
-        List<FlatItem> items = filterItems(allItems, searchQuery);
+        List<FlatItem> items = getVisibleItems();
         if (items.isEmpty()) scrollOffset = 0;
 
         int pw = panelWidth(leftPos);
@@ -479,7 +562,7 @@ public final class BundlePanelRenderer {
 
                 FlatItem fi = items.get(flatIndex);
                 graphics.item(fi.stack(), sx + 1, sy + 1);
-                graphics.itemDecorations(client.font, fi.stack(), sx + 1, sy + 1);
+                renderItemDecorations(graphics, client.font, fi.stack(), sx + 1, sy + 1);
 
                 if (mouseX >= sx && mouseX < sx + SLOT_SIZE && mouseY >= sy && mouseY < sy + SLOT_SIZE) {
                     hoveredFlatIndex = flatIndex;
@@ -567,6 +650,28 @@ public final class BundlePanelRenderer {
                     mouseX, mouseY);
         }
 
+    }
+
+    private static void renderItemDecorations(
+            GuiGraphicsExtractor graphics, Font font, ItemStack stack, int x, int y) {
+        ItemStack vanillaDecorations = stack.getCount() > 1
+                ? stack.copyWithCount(1)
+                : stack;
+        graphics.itemDecorations(font, vanillaDecorations, x, y);
+        if (stack.getCount() <= 1) return;
+
+        String countText = Integer.toString(stack.getCount());
+        int textWidth = Math.max(1, font.width(countText));
+        float scale = Math.min(1.0F, 14.0F / textWidth);
+        float drawX = x + 16.0F - textWidth * scale;
+        float drawY = y + 16.0F - font.lineHeight * scale;
+
+        var pose = graphics.pose();
+        pose.pushMatrix();
+        pose.translate(drawX, drawY);
+        pose.scale(scale, scale);
+        graphics.text(font, countText, 0, 0, 0xFFFFFFFF, true);
+        pose.popMatrix();
     }
 
     public static int returnButtonX(int leftPos) {

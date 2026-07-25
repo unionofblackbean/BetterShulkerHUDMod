@@ -6,7 +6,9 @@
         "InventoryScreenMixin",
         "AbstractContainerScreenMixin",
         "AbstractRecipeBookScreenMixin",
-        "ContainerEventHandlerMixin"
+        "ContainerEventHandlerMixin",
+        "MinecraftScreenMixin",
+        "LitematicaInventoryUtilsMixin"
     ],
     "injectors": {
         "defaultRequire": 1
