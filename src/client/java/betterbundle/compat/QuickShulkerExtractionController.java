@@ -77,6 +77,13 @@ public final class QuickShulkerExtractionController {
     private static boolean enderChestPreviewPending;
     private static boolean enderChestPreviewActive;
     private static int enderChestPreviewWaitTicks;
+    private static PendingEnderChestAction pendingEnderChestAction;
+    private static int enderChestMenuId = -1;
+    private static long enderChestOpenSyncVersion;
+    private static long enderChestMoveSyncVersion;
+    private static boolean enderChestMoveIssued;
+    private static int enderChestMovedItemCount;
+    private static List<ItemStack> enderChestSnapshot = List.of();
 
     private static int autoRestockCooldown;
 
@@ -130,86 +137,100 @@ public final class QuickShulkerExtractionController {
         return enderChestPreviewActive;
     }
 
+    public static List<ItemStack> getEnderChestSnapshot() {
+        return enderChestSnapshot;
+    }
+
+    public static boolean shouldHideEnderChestScreen(Screen screen) {
+        return pendingEnderChestAction != null
+                && screen instanceof ContainerScreen
+                && screen.getTitle().getString().equals(
+                Component.translatable("container.enderchest").getString());
+    }
+
     public static void requestEnderChestPreview(AbstractContainerScreen<?> screen) {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null || client.gameMode == null) return;
+        if (enderChestPreviewActive && pendingEnderChestAction == null) {
+            clearEnderChestPreview();
+            return;
+        }
         if (isBusy()) {
             show(client, "message.better-shulker-hud.busy");
             return;
         }
         if (!canUseQuickShulker(client)) return;
-
-        Inventory inventory = client.player.getInventory();
-        for (int inventorySlot = 0; inventorySlot < 36; inventorySlot++) {
-            if (inventory.getItem(inventorySlot).getItem() != Items.ENDER_CHEST) continue;
-            int quickSlot = resolveQuickShulkerSlot(screen, inventory, inventorySlot);
-            if (quickSlot < 0) continue;
-            enderChestPreviewPending = true;
-            enderChestPreviewActive = false;
-            enderChestPreviewWaitTicks = 0;
-            OpenShulkerPacket.sendOpenPacket(quickSlot);
-            return;
-        }
-        show(client, "message.better-shulker-hud.ender_chest_item_required");
+        startEnderChestAction(client, screen, PendingEnderChestAction.refresh());
     }
 
     public static boolean requestEnderChestItem(
             BundlePanelRenderer.FlatItem item, boolean takeOne, boolean toCursor) {
         Minecraft client = Minecraft.getInstance();
         if (!enderChestPreviewActive || client.player == null || client.gameMode == null
-                || !(client.player.containerMenu instanceof ChestMenu menu)
-                || !menu.getCarried().isEmpty()) return false;
-
-        int sourceSlot = findEnderChestSource(menu, item);
-        if (sourceSlot < 0) {
-            show(client, "message.better-shulker-hud.source_changed");
+                || !(client.screen instanceof AbstractContainerScreen<?> screen)
+                || !screen.getMenu().getCarried().isEmpty()) return false;
+        if (isBusy()) {
+            show(client, "message.better-shulker-hud.busy");
             return true;
         }
+        if (!canUseQuickShulker(client)) return true;
+
+        EnderChestActionType type = toCursor
+                ? EnderChestActionType.TAKE_CURSOR
+                : (takeOne ? EnderChestActionType.TAKE_ONE
+                : EnderChestActionType.TAKE_STACK);
+        int targetInventorySlot = -1;
+        int targetBaselineCount = 0;
+        int requestedAmount = 0;
         if (toCursor) {
-            client.gameMode.handleContainerInput(
-                    menu.containerId, sourceSlot, 0, ContainerInput.PICKUP, client.player);
-            return true;
+            CursorStaging staging = findCursorStagingDestination(
+                    screen, client.player.getInventory(), item.stack(), -1);
+            if (staging == null) {
+                show(client, "message.better-shulker-hud.inventory_full");
+                return true;
+            }
+            targetInventorySlot = staging.inventorySlot();
+            targetBaselineCount = staging.baselineCount();
+            requestedAmount = staging.capacity();
         }
-        if (!takeOne) {
-            client.gameMode.handleContainerInput(
-                    menu.containerId, sourceSlot, 0, ContainerInput.QUICK_MOVE, client.player);
-            return true;
-        }
-
-        ItemStack source = menu.getSlot(sourceSlot).getItem();
-        int destination = findPlayerDestination(menu, client.player.getInventory(), source);
-        if (destination < 0) {
-            show(client, "message.better-shulker-hud.inventory_full");
-            return true;
-        }
-        client.gameMode.handleContainerInput(
-                menu.containerId, sourceSlot, 0, ContainerInput.PICKUP, client.player);
-        client.gameMode.handleContainerInput(
-                menu.containerId, destination, 1, ContainerInput.PICKUP, client.player);
-        if (!menu.getCarried().isEmpty()) {
-            client.gameMode.handleContainerInput(
-                    menu.containerId, sourceSlot, 0, ContainerInput.PICKUP, client.player);
-        }
+        startEnderChestAction(client, screen, new PendingEnderChestAction(
+                type, item, targetInventorySlot, targetBaselineCount,
+                requestedAmount, ItemStack.EMPTY));
         return true;
     }
 
     public static boolean requestStoreCarriedToEnderChest(AbstractContainerScreen<?> screen) {
         Minecraft client = Minecraft.getInstance();
         if (!enderChestPreviewActive || client.player == null || client.gameMode == null
-                || !(screen.getMenu() instanceof ChestMenu menu)) return false;
-        ItemStack carried = menu.getCarried();
+                || client.player.containerMenu != client.player.inventoryMenu) return false;
+        ItemStack carried = screen.getMenu().getCarried();
         if (carried.isEmpty()) return false;
-
-        int targetSlot = findEnderChestTarget(menu, carried);
-        if (targetSlot < 0) {
-            show(client, "message.better-shulker-hud.ender_chest_full");
+        if (isBusy()) {
+            show(client, "message.better-shulker-hud.busy");
             return true;
         }
-        client.gameMode.handleContainerInput(
-                menu.containerId, targetSlot, 0, ContainerInput.PICKUP, client.player);
-        if (!menu.getCarried().isEmpty()) {
-            show(client, "message.better-shulker-hud.ender_chest_full");
+        if (!canUseQuickShulker(client)) return true;
+
+        Inventory inventory = client.player.getInventory();
+        PlayerDestination temporary = findTemporaryDestination(
+                screen, inventory, carried, -1);
+        if (temporary == null) {
+            show(client, "message.better-shulker-hud.no_temporary_space");
+            return true;
         }
+        ItemStack prototype = carried.copyWithCount(1);
+        int amount = carried.getCount();
+        int baselineCount = inventory.getItem(temporary.inventorySlot()).getCount();
+        client.gameMode.handleContainerInput(
+                screen.getMenu().containerId, temporary.menuSlot(), 0,
+                ContainerInput.PICKUP, client.player);
+        if (!screen.getMenu().getCarried().isEmpty()) {
+            show(client, "message.better-shulker-hud.no_temporary_space");
+            return true;
+        }
+        startEnderChestAction(client, screen, new PendingEnderChestAction(
+                EnderChestActionType.STORE, null, temporary.inventorySlot(),
+                baselineCount, amount, prototype));
         return true;
     }
 
@@ -459,6 +480,34 @@ public final class QuickShulkerExtractionController {
                 || organizeActive || enderChestPreviewPending;
     }
 
+    private static boolean startEnderChestAction(
+            Minecraft client, AbstractContainerScreen<?> screen,
+            PendingEnderChestAction action) {
+        if (client.player == null) return false;
+        Inventory inventory = client.player.getInventory();
+        for (int inventorySlot = 0; inventorySlot < 36; inventorySlot++) {
+            if (inventory.getItem(inventorySlot).getItem() != Items.ENDER_CHEST) continue;
+            int quickSlot = resolveQuickShulkerSlot(screen, inventory, inventorySlot);
+            if (quickSlot < 0) continue;
+
+            pendingEnderChestAction = action;
+            enderChestPreviewPending = true;
+            if (action.type() == EnderChestActionType.REFRESH) {
+                enderChestPreviewActive = false;
+            }
+            enderChestPreviewWaitTicks = 0;
+            enderChestMenuId = -1;
+            enderChestOpenSyncVersion = containerSyncVersion;
+            enderChestMoveSyncVersion = 0;
+            enderChestMoveIssued = false;
+            enderChestMovedItemCount = 0;
+            OpenShulkerPacket.sendOpenPacket(quickSlot);
+            return true;
+        }
+        show(client, "message.better-shulker-hud.ender_chest_item_required");
+        return false;
+    }
+
     public static boolean shouldHideQuickShulkerScreen() {
         return Configs.Features.HIDE_QUICK_SHULKER_SCREEN.getBooleanValue()
                 && (pendingExtraction != null || pendingStore != null
@@ -472,7 +521,7 @@ public final class QuickShulkerExtractionController {
     }
 
     private static void tick(Minecraft client) {
-        tickEnderChestPreviewState(client);
+        if (tickEnderChestPreviewState(client)) return;
         if (pendingStore != null) {
             tickStore(client);
             return;
@@ -495,34 +544,60 @@ public final class QuickShulkerExtractionController {
         tickAutoRestock(client);
     }
 
-    private static void tickEnderChestPreviewState(Minecraft client) {
-        boolean enderChestScreen = isEnderChestScreen(client);
-        if (enderChestPreviewPending) {
-            if (enderChestScreen) {
-                enderChestPreviewPending = false;
-                enderChestPreviewActive = true;
-                enderChestPreviewWaitTicks = 0;
-                BundlePanelRenderer.invalidateCache();
-            } else if (++enderChestPreviewWaitTicks > OPEN_TIMEOUT_TICKS) {
+    private static boolean tickEnderChestPreviewState(Minecraft client) {
+        if (pendingEnderChestAction == null) {
+            if (enderChestPreviewActive
+                    && !(client.screen instanceof InventoryScreen)) {
                 clearEnderChestPreview();
-                show(client, "message.better-shulker-hud.ender_chest_open_failed");
             }
-        } else if (enderChestPreviewActive && !enderChestScreen) {
-            clearEnderChestPreview();
-        } else if (!enderChestPreviewActive && enderChestScreen) {
-            enderChestPreviewActive = true;
+            return false;
+        }
+        if (client.player == null || client.gameMode == null) {
+            failEnderChestAction(client, "message.better-shulker-hud.ender_chest_open_failed");
+            return true;
+        }
+        if (!(client.player.containerMenu instanceof ChestMenu menu)) {
+            if (++enderChestPreviewWaitTicks > OPEN_TIMEOUT_TICKS) {
+                failEnderChestAction(client, "message.better-shulker-hud.ender_chest_open_failed");
+            }
+            return true;
+        }
+        if (enderChestMenuId != menu.containerId) {
+            enderChestMenuId = menu.containerId;
             enderChestPreviewWaitTicks = 0;
-            BundlePanelRenderer.invalidateCache();
         }
 
-    }
+        if (!enderChestMoveIssued) {
+            if (!hasContainerSyncAfter(menu.containerId, enderChestOpenSyncVersion)) {
+                if (++enderChestPreviewWaitTicks > OPEN_TIMEOUT_TICKS) {
+                    failEnderChestAction(client, "message.better-shulker-hud.ender_chest_open_failed");
+                }
+                return true;
+            }
+            captureEnderChestSnapshot(menu);
+            if (pendingEnderChestAction.type() == EnderChestActionType.REFRESH) {
+                finishEnderChestAction(client);
+                return true;
+            }
 
-    private static boolean isEnderChestScreen(Minecraft client) {
-        return client.player != null
-                && client.player.containerMenu instanceof ChestMenu
-                && client.screen instanceof ContainerScreen
-                && client.screen.getTitle().getString().equals(
-                Component.translatable("container.enderchest").getString());
+            int moved = executeEnderChestAction(client, menu, pendingEnderChestAction);
+            if (moved <= 0) return true;
+            enderChestMovedItemCount = moved;
+            enderChestMoveIssued = true;
+            enderChestMoveSyncVersion = containerSyncVersion;
+            enderChestPreviewWaitTicks = 0;
+            return true;
+        }
+
+        if (!hasContainerSyncAfter(menu.containerId, enderChestMoveSyncVersion)) {
+            if (++enderChestPreviewWaitTicks > OPEN_TIMEOUT_TICKS) {
+                failEnderChestAction(client, "message.better-shulker-hud.source_changed");
+            }
+            return true;
+        }
+        captureEnderChestSnapshot(menu);
+        finishEnderChestAction(client);
+        return true;
     }
 
     private static void tickDeferredExtraction(Minecraft client) {
@@ -1476,7 +1551,8 @@ public final class QuickShulkerExtractionController {
     }
 
     private static void moveExactAmount(
-            Minecraft client, ShulkerBoxMenu menu, int sourceSlot, int targetSlot, int amount) {
+            Minecraft client, AbstractContainerMenu menu,
+            int sourceSlot, int targetSlot, int amount) {
         ItemStack source = menu.getSlot(sourceSlot).getItem();
         int sourceCount = source.getCount();
         client.gameMode.handleContainerInput(
@@ -1575,6 +1651,162 @@ public final class QuickShulkerExtractionController {
             }
         }
         return emptySlot;
+    }
+
+    private static int executeEnderChestAction(
+            Minecraft client, ChestMenu menu, PendingEnderChestAction action) {
+        Inventory inventory = client.player.getInventory();
+        if (action.type() == EnderChestActionType.STORE) {
+            int sourceSlot = findPlayerInventoryMenuSlot(
+                    menu, inventory, action.inventorySlot());
+            if (sourceSlot < 0) {
+                failEnderChestAction(client, "message.better-shulker-hud.store_failed");
+                return -1;
+            }
+            ItemStack source = menu.getSlot(sourceSlot).getItem();
+            int expectedCount = action.baselineCount() + action.amount();
+            if (!ItemStack.isSameItemSameComponents(source, action.prototype())
+                    || source.getCount() < expectedCount) {
+                failEnderChestAction(client, "message.better-shulker-hud.store_failed");
+                return -1;
+            }
+            ItemStack transfer = action.prototype().copyWithCount(action.amount());
+            int targetSlot = findEnderChestTarget(menu, transfer);
+            if (targetSlot < 0) {
+                failEnderChestAction(client, "message.better-shulker-hud.ender_chest_full");
+                return -1;
+            }
+            int before = source.getCount();
+            moveExactAmount(client, menu, sourceSlot, targetSlot, action.amount());
+            int moved = before - menu.getSlot(sourceSlot).getItem().getCount();
+            if (moved <= 0) {
+                failEnderChestAction(client, "message.better-shulker-hud.store_failed");
+                return -1;
+            }
+            return moved;
+        }
+
+        int sourceSlot = findEnderChestSource(menu, action.item());
+        if (sourceSlot < 0) {
+            failEnderChestAction(client, "message.better-shulker-hud.source_changed");
+            return -1;
+        }
+        ItemStack source = menu.getSlot(sourceSlot).getItem();
+        int before = source.getCount();
+
+        if (action.type() == EnderChestActionType.TAKE_STACK) {
+            client.gameMode.handleContainerInput(
+                    menu.containerId, sourceSlot, 0,
+                    ContainerInput.QUICK_MOVE, client.player);
+        } else if (action.type() == EnderChestActionType.TAKE_ONE) {
+            int destination = findPlayerDestination(menu, inventory, source);
+            if (destination < 0) {
+                failEnderChestAction(client, "message.better-shulker-hud.inventory_full");
+                return -1;
+            }
+            client.gameMode.handleContainerInput(
+                    menu.containerId, sourceSlot, 0,
+                    ContainerInput.PICKUP, client.player);
+            client.gameMode.handleContainerInput(
+                    menu.containerId, destination, 1,
+                    ContainerInput.PICKUP, client.player);
+            if (!menu.getCarried().isEmpty()) {
+                client.gameMode.handleContainerInput(
+                        menu.containerId, sourceSlot, 0,
+                        ContainerInput.PICKUP, client.player);
+            }
+        } else if (action.type() == EnderChestActionType.TAKE_CURSOR) {
+            int destination = findPlayerInventoryMenuSlot(
+                    menu, inventory, action.inventorySlot());
+            if (destination < 0) {
+                failEnderChestAction(client, "message.better-shulker-hud.cursor_pickup_failed");
+                return -1;
+            }
+            Slot target = menu.getSlot(destination);
+            ItemStack current = target.getItem();
+            boolean validBaseline = action.baselineCount() == 0
+                    ? current.isEmpty()
+                    : ItemStack.isSameItemSameComponents(current, source)
+                    && current.getCount() == action.baselineCount();
+            int capacity = target.getMaxStackSize(source) - current.getCount();
+            int amount = Math.min(
+                    Math.min(action.amount(), source.getCount()), capacity);
+            if (!validBaseline || amount <= 0) {
+                failEnderChestAction(client, "message.better-shulker-hud.cursor_pickup_failed");
+                return -1;
+            }
+            moveExactAmount(client, menu, sourceSlot, destination, amount);
+        }
+
+        int moved = before - menu.getSlot(sourceSlot).getItem().getCount();
+        if (moved <= 0) {
+            failEnderChestAction(client, "message.better-shulker-hud.source_changed");
+            return -1;
+        }
+        return moved;
+    }
+
+    private static void captureEnderChestSnapshot(ChestMenu menu) {
+        List<ItemStack> snapshot = new ArrayList<>(27);
+        int size = Math.min(27, menu.slots.size());
+        for (int slot = 0; slot < size; slot++) {
+            snapshot.add(menu.getSlot(slot).getItem().copy());
+        }
+        while (snapshot.size() < 27) snapshot.add(ItemStack.EMPTY);
+        enderChestSnapshot = List.copyOf(snapshot);
+        BundlePanelRenderer.invalidateCache();
+    }
+
+    private static void finishEnderChestAction(Minecraft client) {
+        PendingEnderChestAction completed = pendingEnderChestAction;
+        int moved = enderChestMovedItemCount;
+        if (client.player != null && client.player.containerMenu instanceof ChestMenu) {
+            closeContainerAndSetScreen(
+                    client, new InventoryScreen(client.player), true);
+        }
+        clearEnderChestAction();
+        enderChestPreviewActive = true;
+        if (completed != null
+                && completed.type() == EnderChestActionType.TAKE_CURSOR
+                && moved > 0) {
+            pendingCursorPickup = new PendingCursorPickup(
+                    completed.inventorySlot(), completed.item().stack().copyWithCount(1),
+                    completed.baselineCount(), moved);
+            cursorPickupWaitTicks = 0;
+        } else if (completed != null
+                && completed.type() == EnderChestActionType.STORE
+                && moved > 0) {
+            show(client, "message.better-shulker-hud.store_complete", moved);
+        }
+        BundlePanelRenderer.invalidateCache();
+    }
+
+    private static void failEnderChestAction(Minecraft client, String messageKey) {
+        boolean keepPreview = enderChestPreviewActive
+                && pendingEnderChestAction != null
+                && pendingEnderChestAction.type() != EnderChestActionType.REFRESH;
+        if (client.player != null && client.player.containerMenu instanceof ChestMenu) {
+            closeContainerAndSetScreen(
+                    client, new InventoryScreen(client.player), true);
+        }
+        clearEnderChestAction();
+        if (!keepPreview) {
+            enderChestPreviewActive = false;
+            enderChestSnapshot = List.of();
+        }
+        show(client, messageKey);
+        BundlePanelRenderer.invalidateCache();
+    }
+
+    private static void clearEnderChestAction() {
+        pendingEnderChestAction = null;
+        enderChestPreviewPending = false;
+        enderChestPreviewWaitTicks = 0;
+        enderChestMenuId = -1;
+        enderChestOpenSyncVersion = 0;
+        enderChestMoveSyncVersion = 0;
+        enderChestMoveIssued = false;
+        enderChestMovedItemCount = 0;
     }
 
     private static ResolvedSource findValidatedSource(
@@ -1880,10 +2112,11 @@ public final class QuickShulkerExtractionController {
     }
 
     private static void clearEnderChestPreview() {
-        boolean changed = enderChestPreviewPending || enderChestPreviewActive;
-        enderChestPreviewPending = false;
+        boolean changed = pendingEnderChestAction != null || enderChestPreviewActive
+                || !enderChestSnapshot.isEmpty();
+        clearEnderChestAction();
         enderChestPreviewActive = false;
-        enderChestPreviewWaitTicks = 0;
+        enderChestSnapshot = List.of();
         if (changed) BundlePanelRenderer.invalidateCache();
     }
 
@@ -1913,6 +2146,25 @@ public final class QuickShulkerExtractionController {
     private record PendingCursorPickup(
             int inventorySlot, ItemStack prototype,
             int baselineCount, int extractedAmount) {}
+
+    private record PendingEnderChestAction(
+            EnderChestActionType type, BundlePanelRenderer.FlatItem item,
+            int inventorySlot, int baselineCount, int amount,
+            ItemStack prototype) {
+        private static PendingEnderChestAction refresh() {
+            return new PendingEnderChestAction(
+                    EnderChestActionType.REFRESH, null,
+                    -1, 0, 0, ItemStack.EMPTY);
+        }
+    }
+
+    private enum EnderChestActionType {
+        REFRESH,
+        TAKE_ONE,
+        TAKE_STACK,
+        TAKE_CURSOR,
+        STORE
+    }
 
     private record ResolvedSource(
             int inventorySlot, int shulkerSlot, ItemStack expectedStack, int quickShulkerSlot,

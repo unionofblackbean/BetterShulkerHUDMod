@@ -46,7 +46,6 @@ public final class BundlePanelRenderer {
 
     private static final int SCREEN_MARGIN = 4;
     private static final int PANEL_GAP = 4;
-    private static final int ENDER_CHEST_MAX_COLUMNS = 3;
     private static final int CATEGORY_GAP = 2;
     private static final int SCROLL_GAP = 2;
     private static final int BODY_INSET = 12;
@@ -111,9 +110,7 @@ public final class BundlePanelRenderer {
                 + SCROLL_BAR_WIDTH + SCROLL_GAP + PADDING;
         int columns = (available - fixedWidth + SLOT_SPACING)
                 / (SLOT_SIZE + SLOT_SPACING);
-        int maximum = Configs.General.HUD_MAX_COLUMNS.getIntegerValue();
-        if (enderChestPreview) maximum = Math.min(maximum, ENDER_CHEST_MAX_COLUMNS);
-        return Math.clamp(columns, 1, maximum);
+        return Math.clamp(columns, 1, Configs.General.HUD_MAX_COLUMNS.getIntegerValue());
     }
 
     public static int visibleRowCount(int topPos, int imageHeight) {
@@ -398,12 +395,13 @@ public final class BundlePanelRenderer {
         boolean enderChestPreview =
                 QuickShulkerExtractionController.isEnderChestPreviewActive();
         Inventory inv = player.getInventory();
+        List<ItemStack> enderChestContents = enderChestPreview
+                ? QuickShulkerExtractionController.getEnderChestSnapshot() : List.of();
         long fingerprint = 1;
-        int sourceSize = enderChestPreview
-                ? player.getEnderChestInventory().getContainerSize() : 36;
+        int sourceSize = enderChestPreview ? enderChestContents.size() : 36;
         for (int i = 0; i < sourceSize; i++) {
             ItemStack stack = enderChestPreview
-                    ? player.getEnderChestInventory().getItem(i) : inv.getItem(i);
+                    ? enderChestContents.get(i) : inv.getItem(i);
             fingerprint = 31L * fingerprint + ItemStack.hashItemAndComponents(stack);
             fingerprint = 31L * fingerprint + stack.getCount();
         }
@@ -416,7 +414,7 @@ public final class BundlePanelRenderer {
         if (enderChestPreview) {
             List<ItemStack> contents = new ArrayList<>(sourceSize);
             for (int i = 0; i < sourceSize; i++) {
-                contents.add(player.getEnderChestInventory().getItem(i).copy());
+                contents.add(enderChestContents.get(i).copy());
             }
             ShulkerSlotEntry entry = new ShulkerSlotEntry(
                     -1, new ItemStack(Items.ENDER_CHEST), List.copyOf(contents));
