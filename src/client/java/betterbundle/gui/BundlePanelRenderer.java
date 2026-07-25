@@ -36,15 +36,19 @@ public final class BundlePanelRenderer {
 
     public static final int SLOT_SIZE = 18;
     public static final int SLOT_SPACING = 0;
-    public static final int PADDING = 7;
-    public static final int SCROLL_BAR_WIDTH = 12;
-    public static final int CAT_BUTTON_SIZE = 20;
+    public static final int PADDING = 5;
+    public static final int SCROLL_BAR_WIDTH = 10;
+    public static final int CAT_BUTTON_SIZE = 18;
     public static final int CAT_BAR_WIDTH = CAT_BUTTON_SIZE;
     public static final int SEARCH_BAR_HEIGHT = 18;
     public static final int HEADER_HEIGHT = 24;
     public static final int FOOTER_HEIGHT = 24;
 
-    private static final int BODY_INSET = 14;
+    private static final int SCREEN_MARGIN = 4;
+    private static final int PANEL_GAP = 4;
+    private static final int CATEGORY_GAP = 2;
+    private static final int SCROLL_GAP = 2;
+    private static final int BODY_INSET = 12;
     private static final int CONTROL_SIZE = 14;
     private static final int COLOR_PANEL = 0xFFC6C6C6;
     private static final int COLOR_PANEL_HOVER = 0xFFD6D6D6;
@@ -95,27 +99,28 @@ public final class BundlePanelRenderer {
         int screenWidth = client.getWindow().getGuiScaledWidth();
         int imageWidth = client.screen instanceof AbstractContainerScreen<?> screen
                 ? screen.imageWidth : 176;
-        int leftSpace = leftPos - 4;
-        int rightSpace = screenWidth - (leftPos + imageWidth + 28);
+        int leftSpace = leftPos - SCREEN_MARGIN - PANEL_GAP;
+        int rightSpace = screenWidth - (leftPos + imageWidth)
+                - SCREEN_MARGIN - PANEL_GAP;
         int available = Math.max(leftSpace, rightSpace);
-        int fixedWidth = PADDING + CAT_BAR_WIDTH + 3
-                + SCROLL_BAR_WIDTH + 3 + PADDING;
+        int fixedWidth = PADDING + CAT_BAR_WIDTH + CATEGORY_GAP
+                + SCROLL_BAR_WIDTH + SCROLL_GAP + PADDING;
         int columns = (available - fixedWidth + SLOT_SPACING)
                 / (SLOT_SIZE + SLOT_SPACING);
-        return Math.clamp(columns, 2, Configs.General.HUD_MAX_COLUMNS.getIntegerValue());
+        return Math.clamp(columns, 1, Configs.General.HUD_MAX_COLUMNS.getIntegerValue());
     }
 
     public static int visibleRowCount(int topPos, int imageHeight) {
         Minecraft client = Minecraft.getInstance();
-        int availableHeight = client.getWindow().getGuiScaledHeight() - topPos - 4;
+        int availableHeight = client.getWindow().getGuiScaledHeight() - SCREEN_MARGIN * 2;
         int contentHeight = availableHeight - HEADER_HEIGHT - PADDING * 2 - FOOTER_HEIGHT;
         int rows = (contentHeight + SLOT_SPACING) / (SLOT_SIZE + SLOT_SPACING);
-        return Math.clamp(rows, 3, Configs.General.HUD_MAX_ROWS.getIntegerValue());
+        return Math.clamp(rows, 1, Configs.General.HUD_MAX_ROWS.getIntegerValue());
     }
 
     public static int panelWidth(int leftPos) {
         int columns = columnCount(leftPos);
-        return PADDING + CAT_BAR_WIDTH + 3 + SCROLL_BAR_WIDTH + 3
+        return PADDING + CAT_BAR_WIDTH + CATEGORY_GAP + SCROLL_BAR_WIDTH + SCROLL_GAP
                 + columns * (SLOT_SIZE + SLOT_SPACING) - SLOT_SPACING + PADDING;
     }
 
@@ -132,35 +137,52 @@ public final class BundlePanelRenderer {
                 ? screen.imageWidth
                 : 176;
         int width = panelWidth(leftPos);
-        int right = leftPos + imageWidth + 24;
-        int immediateLeft = leftPos - width - 4;
+        int right = leftPos + imageWidth + PANEL_GAP;
+        int immediateLeft = leftPos - width - PANEL_GAP;
+        int leftSpace = leftPos - SCREEN_MARGIN;
+        int rightSpace = screenWidth - (leftPos + imageWidth) - SCREEN_MARGIN;
 
-        if (immediateLeft >= 4) return immediateLeft;
-        if (right + width <= screenWidth - 4) return right;
-        return Math.clamp(immediateLeft, 4, Math.max(4, screenWidth - width - 4));
+        if (leftSpace >= rightSpace && immediateLeft >= SCREEN_MARGIN) return immediateLeft;
+        if (right + width <= screenWidth - SCREEN_MARGIN) return right;
+        if (immediateLeft >= SCREEN_MARGIN) return immediateLeft;
+        return Math.clamp(immediateLeft, SCREEN_MARGIN,
+                Math.max(SCREEN_MARGIN, screenWidth - width - SCREEN_MARGIN));
+    }
+
+    public static int panelY(int topPos, int imageHeight) {
+        Minecraft client = Minecraft.getInstance();
+        int screenHeight = client.getWindow().getGuiScaledHeight();
+        int height = panelHeight(topPos, imageHeight);
+        return Math.clamp(topPos, SCREEN_MARGIN,
+                Math.max(SCREEN_MARGIN, screenHeight - height - SCREEN_MARGIN));
     }
 
     public static int toggleX(int leftPos, int imageWidth) {
-        if (Minecraft.getInstance().screen instanceof InventoryScreen) {
-            return leftPos + 130;
-        }
-        return Math.max(4, leftPos - 22);
+        Minecraft client = Minecraft.getInstance();
+        int desired = client.screen instanceof InventoryScreen
+                ? leftPos + 130 : leftPos + imageWidth - 24;
+        return Math.clamp(desired, SCREEN_MARGIN,
+                Math.max(SCREEN_MARGIN,
+                        client.getWindow().getGuiScaledWidth() - 20 - SCREEN_MARGIN));
     }
 
     public static int toggleY(int topPos) {
-        if (Minecraft.getInstance().screen instanceof InventoryScreen) {
-            return topPos + 60;
-        }
-        return topPos + (FabricLoader.getInstance().isModLoaded("better-bundle") ? 27 : 5);
+        Minecraft client = Minecraft.getInstance();
+        int desired = client.screen instanceof InventoryScreen
+                ? topPos + 60
+                : topPos + (FabricLoader.getInstance().isModLoaded("better-bundle") ? 27 : 5);
+        return Math.clamp(desired, SCREEN_MARGIN,
+                Math.max(SCREEN_MARGIN,
+                        client.getWindow().getGuiScaledHeight() - 20 - SCREEN_MARGIN));
     }
 
     public static int gridX(int leftPos) {
-        return panelX(leftPos) + PADDING + CAT_BAR_WIDTH + 3
-                + SCROLL_BAR_WIDTH + 3;
+        return panelX(leftPos) + PADDING + CAT_BAR_WIDTH + CATEGORY_GAP
+                + SCROLL_BAR_WIDTH + SCROLL_GAP;
     }
 
-    public static int gridY(int topPos) {
-        return topPos + HEADER_HEIGHT + PADDING;
+    public static int gridY(int topPos, int imageHeight) {
+        return panelY(topPos, imageHeight) + HEADER_HEIGHT + PADDING;
     }
 
     private static int gridWidth(int leftPos) {
@@ -402,7 +424,8 @@ public final class BundlePanelRenderer {
 
     private static int catButtonHeight(int panelHeight) {
         int available = Math.max(0, panelHeight - 4);
-        return Math.clamp(available / BundleCategory.values().length, 16, CAT_BUTTON_SIZE);
+        return Math.max(1, Math.min(
+                CAT_BUTTON_SIZE, available / BundleCategory.values().length));
     }
 
     /** Shared button layout: returns Y position of category button i. */
@@ -414,7 +437,7 @@ public final class BundlePanelRenderer {
         int panelHeight = panelHeight(topPos, imageHeight);
         int panelX = panelX(leftPos);
         int baseCatX = panelX;
-        int panelY = topPos;
+        int panelY = panelY(topPos, imageHeight);
 
         BundleCategory[] cats = BundleCategory.values();
         int buttonHeight = catButtonHeight(panelHeight);
@@ -436,7 +459,7 @@ public final class BundlePanelRenderer {
 
     public static boolean isInsideSearchBar(double mouseX, double mouseY, int leftPos, int topPos, int imageHeight) {
         int sbx = searchBarX(leftPos);
-        int sby = topPos + 3;
+        int sby = panelY(topPos, imageHeight) + 3;
         int sbw = searchBarWidth(leftPos);
         return mouseX >= sbx && mouseX <= sbx + sbw && mouseY >= sby && mouseY <= sby + SEARCH_BAR_HEIGHT;
     }
@@ -445,7 +468,7 @@ public final class BundlePanelRenderer {
             double mouseX, double mouseY, int leftPos, int topPos, int imageHeight) {
         if (!isEffectivelyVisible()) return false;
         int x = panelX(leftPos) + BODY_INSET;
-        int y = topPos;
+        int y = panelY(topPos, imageHeight);
         return mouseX >= x && mouseX < panelX(leftPos) + panelWidth(leftPos)
                 && mouseY >= y && mouseY < y + panelHeight(topPos, imageHeight);
     }
@@ -453,7 +476,7 @@ public final class BundlePanelRenderer {
     public static boolean isMinimizeButtonHovered(
             double mouseX, double mouseY, int leftPos, int topPos, int imageHeight) {
         int x = minimizeButtonX(leftPos);
-        int y = topPos + 4;
+        int y = panelY(topPos, imageHeight) + 4;
         return isEffectivelyVisible()
                 && mouseX >= x && mouseX < x + CONTROL_SIZE
                 && mouseY >= y && mouseY < y + CONTROL_SIZE;
@@ -464,12 +487,12 @@ public final class BundlePanelRenderer {
     }
 
     private static int searchBarX(int leftPos) {
-        return gridX(leftPos);
+        return panelX(leftPos) + BODY_INSET + 4;
     }
 
     private static int searchBarWidth(int leftPos) {
         int right = minimizeButtonX(leftPos) - 4;
-        return Math.max(24, right - searchBarX(leftPos));
+        return Math.max(1, right - searchBarX(leftPos));
     }
 
     public static boolean onCharTyped(int codepoint) {
@@ -537,7 +560,7 @@ public final class BundlePanelRenderer {
 
         int pw = panelWidth(leftPos);
         int panelX = panelX(leftPos);
-        int panelY = topPos;
+        int panelY = panelY(topPos, imageHeight);
 
         int columns = columnCount(leftPos);
         int rows = visibleRowCount(topPos, imageHeight);
@@ -545,7 +568,7 @@ public final class BundlePanelRenderer {
         int bodyX = panelX + BODY_INSET;
         int bodyWidth = pw - BODY_INSET;
         int gridX = gridX(leftPos);
-        int gridY = gridY(topPos);
+        int gridY = gridY(topPos, imageHeight);
         int gridWidth = gridWidth(leftPos);
         int gridHeight = gridHeight(topPos, imageHeight);
 
@@ -593,13 +616,12 @@ public final class BundlePanelRenderer {
             } else {
                 drawFrame(graphics, bx, by, bw, catHeight, bg);
             }
-            int iconX = bx + (CAT_BAR_WIDTH - 16) / 2;
-            int iconY = by + (catHeight - 16) / 2;
-            graphics.item(cats[i].getIcon(), iconX, iconY);
+            renderScaledCategoryIcon(
+                    graphics, cats[i].getIcon(), bx, by, CAT_BAR_WIDTH, catHeight);
         }
 
         // Scroll bar
-        int sbX = gridX - SCROLL_BAR_WIDTH - 3;
+        int sbX = gridX - SCROLL_BAR_WIDTH - SCROLL_GAP;
         int sbY = gridY;
         int sbH = gridHeight;
 
@@ -699,7 +721,7 @@ public final class BundlePanelRenderer {
         int returnY = panelY + panelHeight - 21;
         boolean returnHovered = isReturnButtonHovered(
                 mouseX, mouseY, leftPos, topPos, imageHeight);
-        boolean canReturn = QuickShulkerExtractionController.hasReturnableHistory();
+        boolean canReturn = QuickShulkerExtractionController.canOrganizeInventory();
         drawFrame(graphics, returnX, returnY, 18, 18,
                 returnHovered ? COLOR_PANEL_HOVER
                         : (canReturn ? COLOR_PANEL : COLOR_BORDER_MID));
@@ -738,6 +760,21 @@ public final class BundlePanelRenderer {
                     mouseX, mouseY);
         }
 
+    }
+
+    private static void renderScaledCategoryIcon(
+            GuiGraphicsExtractor graphics, ItemStack icon,
+            int x, int y, int width, int height) {
+        int iconSize = Math.max(1, Math.min(16, Math.min(width - 2, height - 2)));
+        float scale = iconSize / 16.0F;
+        float drawX = x + (width - iconSize) / 2.0F;
+        float drawY = y + (height - iconSize) / 2.0F;
+        var pose = graphics.pose();
+        pose.pushMatrix();
+        pose.translate(drawX, drawY);
+        pose.scale(scale, scale);
+        graphics.item(icon, 0, 0);
+        pose.popMatrix();
     }
 
     private static void drawFrame(
@@ -848,7 +885,7 @@ public final class BundlePanelRenderer {
     }
 
     public static int returnButtonY(int topPos, int imageHeight) {
-        return topPos + panelHeight(topPos, imageHeight) - 21;
+        return panelY(topPos, imageHeight) + panelHeight(topPos, imageHeight) - 21;
     }
 
     public static boolean isReturnButtonHovered(

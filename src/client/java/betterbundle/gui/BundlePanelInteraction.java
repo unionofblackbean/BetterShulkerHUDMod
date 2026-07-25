@@ -13,8 +13,8 @@ public final class BundlePanelInteraction {
         return BundlePanelRenderer.gridX(leftPos);
     }
 
-    private static int gridY(int topPos) {
-        return BundlePanelRenderer.gridY(topPos);
+    private static int gridY(int topPos, int imageHeight) {
+        return BundlePanelRenderer.gridY(topPos, imageHeight);
     }
 
     private static BundlePanelRenderer.FlatItem getClickedItem(
@@ -23,7 +23,7 @@ public final class BundlePanelInteraction {
         if (items.isEmpty()) return null;
 
         int relX = (int) mouseX - gridX(leftPos);
-        int relY = (int) mouseY - gridY(topPos);
+        int relY = (int) mouseY - gridY(topPos, imageHeight);
         if (relX < 0 || relY < 0) return null;
 
         int stride = BundlePanelRenderer.SLOT_SIZE + BundlePanelRenderer.SLOT_SPACING;
@@ -94,7 +94,7 @@ public final class BundlePanelInteraction {
             return false;
         }
 
-        int gridTop = gridY(topPos);
+        int gridTop = gridY(topPos, imageHeight);
         int rows = BundlePanelRenderer.visibleRowCount(topPos, imageHeight);
         int gridHeight = rows * BundlePanelRenderer.SLOT_SIZE
                 + (rows - 1) * BundlePanelRenderer.SLOT_SPACING;
