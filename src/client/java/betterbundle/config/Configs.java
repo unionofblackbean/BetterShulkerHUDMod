@@ -8,7 +8,6 @@ import fi.dy.masa.malilib.config.ConfigUtils;
 import fi.dy.masa.malilib.config.IConfigBase;
 import fi.dy.masa.malilib.config.IConfigHandler;
 import fi.dy.masa.malilib.config.options.ConfigBooleanHotkeyed;
-import fi.dy.masa.malilib.config.options.ConfigDouble;
 import fi.dy.masa.malilib.config.options.ConfigInteger;
 import fi.dy.masa.malilib.util.FileUtils;
 import fi.dy.masa.malilib.util.data.json.JsonUtils;
@@ -31,12 +30,6 @@ public final class Configs implements IConfigHandler {
                 new ConfigInteger("hudMaxRows", 8, 3, 16).apply(PREFIX);
         public static final ConfigInteger HUD_CORNER_RADIUS =
                 new ConfigInteger("hudCornerRadius", 3, 0, 6).apply(PREFIX);
-        public static final ConfigDouble AUTO_PICKUP_RANGE =
-                new ConfigDouble("autoPickupRange", 1.25D, 0.5D, 6.0D).apply(PREFIX);
-        public static final ConfigInteger AUTO_PICKUP_SCAN_INTERVAL =
-                new ConfigInteger("autoPickupScanInterval", 2, 1, 20).apply(PREFIX);
-        public static final ConfigInteger PICKUP_TRACKING_TIMEOUT =
-                new ConfigInteger("pickupTrackingTimeout", 40, 10, 200).apply(PREFIX);
         public static final ConfigInteger AUTO_RESTOCK_THRESHOLD =
                 new ConfigInteger("autoRestockThreshold", 6, 1, 64).apply(PREFIX);
         public static final ConfigInteger AUTO_RESTOCK_AMOUNT =
@@ -48,9 +41,6 @@ public final class Configs implements IConfigHandler {
                 HUD_MAX_COLUMNS,
                 HUD_MAX_ROWS,
                 HUD_CORNER_RADIUS,
-                AUTO_PICKUP_RANGE,
-                AUTO_PICKUP_SCAN_INTERVAL,
-                PICKUP_TRACKING_TIMEOUT,
                 AUTO_RESTOCK_THRESHOLD,
                 AUTO_RESTOCK_AMOUNT,
                 AUTO_RESTOCK_SCAN_INTERVAL
@@ -64,8 +54,6 @@ public final class Configs implements IConfigHandler {
 
         public static final ConfigBooleanHotkeyed HUD_ENABLED =
                 new ConfigBooleanHotkeyed("hudEnabled", false, "").apply(PREFIX);
-        public static final ConfigBooleanHotkeyed AUTO_SHULKER_PICKUP =
-                new ConfigBooleanHotkeyed("autoShulkerPickup", true, "").apply(PREFIX);
         public static final ConfigBooleanHotkeyed LITEMATICA_RESTOCK =
                 new ConfigBooleanHotkeyed("litematicaRestock", true, "").apply(PREFIX);
         public static final ConfigBooleanHotkeyed HIDE_QUICK_SHULKER_SCREEN =
@@ -79,7 +67,6 @@ public final class Configs implements IConfigHandler {
 
         public static final List<ConfigBooleanHotkeyed> OPTIONS = List.of(
                 HUD_ENABLED,
-                AUTO_SHULKER_PICKUP,
                 LITEMATICA_RESTOCK,
                 HIDE_QUICK_SHULKER_SCREEN,
                 PINYIN_SEARCH,
