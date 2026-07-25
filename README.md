@@ -1,10 +1,10 @@
-# Better Shulker HUD 1.5.1
+# Better Shulker HUD 1.6.0
 
 [简体中文](#简体中文) | [English](#english)
 
 ## 简体中文
 
-Better Shulker HUD 是 Minecraft 26.1.x Fabric 客户端物品管理模组。1.5.1 以 MaLiLib 的初始化、客户端 tick 和世界加载生命周期为基础，并通过服务器端 QuickShulker 完成真实物品转移。
+Better Shulker HUD 是 Minecraft 26.1.x Fabric 客户端物品管理模组。1.6.0 以 MaLiLib 的初始化、客户端 tick 和世界加载生命周期为基础，并通过服务器端 QuickShulker 完成真实物品转移。
 
 作者：`BF_skt`
 
@@ -21,6 +21,7 @@ HUD 设计与交互方式参考了 zeroowo24 的 BetterBundleHUD；本项目针�
 - 归还后读取来源槽前后差值，只按服务器实际接受的数量扣减记录。
 - 切换维度、世界或服务器时清空操作队列、归还记录和 HUD 缓存。
 - HUD 使用背包指纹、哈希聚合和搜索结果缓存，背包未变化时不重复解析潜影盒。
+- 普通背包没有剩余容量时，自动将合适的可堆叠物品转入随身潜影盒，为附近的掉落物腾出空间并继续完成收纳。
 - 安装 Litematica 后，轻松放置缺少目标方块时会从随身潜影盒取出一组，并自动选中该方块。第一次操作补充方块，下一次操作放置。
 
 ### 依赖
@@ -36,7 +37,7 @@ $env:JAVA_HOME='Java 25 路径'
 
 ## English
 
-Better Shulker HUD is a client-side inventory manager for every Minecraft 26.1.x patch release on Fabric. Version 1.5.1 uses MaLiLib for initialization, client ticks, and world lifecycle handling while QuickShulker performs server-authoritative item transfers.
+Better Shulker HUD is a client-side inventory manager for every Minecraft 26.1.x patch release on Fabric. Version 1.6.0 uses MaLiLib for initialization, client ticks, and world lifecycle handling while QuickShulker performs server-authoritative item transfers.
 
 Author: `BF_skt`
 
@@ -53,6 +54,7 @@ The HUD design and interaction model reference BetterBundleHUD by zeroowo24. Thi
 - Reconciles each return against the actual source-slot count change before updating tracked quantities.
 - Clears pending operations, return history, and HUD caches when changing dimensions, worlds, or servers.
 - Caches shulker scans, hash-based aggregation, and filtered search results using an inventory fingerprint.
+- When the regular inventory has no remaining capacity, automatically moves a suitable stack into a carried shulker so nearby dropped items can be collected and stored.
 - With Litematica installed, an easy-place pick that lacks its target block extracts one stack from a carried shulker and selects it. The first action restocks; the next places the block.
 
 ### Requirements

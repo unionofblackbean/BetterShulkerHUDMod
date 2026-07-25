@@ -11,6 +11,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -28,6 +29,8 @@ import java.util.Objects;
 
 public final class QuickShulkerExtractionController {
     private static final int OPEN_TIMEOUT_TICKS = 60;
+    private static final int AUTO_PICKUP_SCAN_INTERVAL = 4;
+    private static final int AUTO_PICKUP_WATCH_TIMEOUT = 40;
 
     private static PendingExtraction pendingExtraction;
     private static int extractionWaitTicks;
@@ -39,6 +42,12 @@ public final class QuickShulkerExtractionController {
     private static int storeMenuId = -1;
     private static int storeCloseDelay = -1;
     private static int storedItemCount;
+
+    private static int autoPickupCooldown;
+    private static ItemStack watchedPickup = ItemStack.EMPTY;
+    private static int watchedPickupBaseline;
+    private static int watchedPickupTicks;
+    private static boolean autoPickupProtocolWarningShown;
 
     private static final List<OriginRecord> originRecords = new ArrayList<>();
     private static final ArrayDeque<OriginRecord> returnQueue = new ArrayDeque<>();
@@ -60,6 +69,9 @@ public final class QuickShulkerExtractionController {
         clearExtraction();
         clearStore();
         clearReturnProcess();
+        clearAutoPickupWatch();
+        autoPickupCooldown = 0;
+        autoPickupProtocolWarningShown = false;
         originRecords.clear();
         pendingLitematicaSelection = ItemStack.EMPTY;
         BundlePanelRenderer.invalidateCache();
@@ -188,7 +200,7 @@ public final class QuickShulkerExtractionController {
 
         pendingStore = new PendingStore(
                 temporary.inventorySlot(), amount, target.inventorySlot(), target.shulkerSlot(),
-                prototype, target.shulkerItem(), target.shulkerName());
+                prototype, target.shulkerItem(), target.shulkerName(), false);
         storeWaitTicks = 0;
         storeMenuId = -1;
         storeCloseDelay = -1;
@@ -214,11 +226,182 @@ public final class QuickShulkerExtractionController {
     private static void tick(Minecraft client) {
         if (pendingStore != null) {
             tickStore(client);
+            return;
         } else if (pendingExtraction != null) {
             tickExtraction(client);
+            return;
         } else if (activeReturn != null || !returnQueue.isEmpty() || nextReturnDelay >= 0) {
             tickReturn(client);
+            return;
         }
+        tickAutoPickup(client);
+    }
+
+    private static void tickAutoPickup(Minecraft client) {
+        if (client.player == null || client.level == null || client.gameMode == null) {
+            clearAutoPickupWatch();
+            return;
+        }
+        if (client.screen != null
+                || client.player.containerMenu != client.player.inventoryMenu
+                || client.player.isCreative() || client.player.isSpectator()) {
+            return;
+        }
+
+        if (!watchedPickup.isEmpty()) {
+            tickWatchedPickup(client);
+            return;
+        }
+        if (autoPickupCooldown > 0) {
+            autoPickupCooldown--;
+            return;
+        }
+        autoPickupCooldown = AUTO_PICKUP_SCAN_INTERVAL;
+
+        Inventory inventory = client.player.getInventory();
+        List<ItemEntity> nearbyItems = client.level.getEntitiesOfClass(
+                ItemEntity.class,
+                client.player.getBoundingBox().inflate(1.25D, 0.75D, 1.25D),
+                entity -> entity.isAlive() && !entity.hasPickUpDelay()
+                        && !entity.getItem().isEmpty());
+
+        for (ItemEntity entity : nearbyItems) {
+            ItemStack pickup = entity.getItem().copyWithCount(1);
+            if (canInventoryAccept(inventory, pickup)) continue;
+
+            if (!ClientPlayNetworking.canSend(OpenShulkerPacket.OPEN_SHULKER_PACKET_ID)) {
+                if (!autoPickupProtocolWarningShown) {
+                    show(client, "message.better-shulker-hud.auto_pickup_requires_quickshulker");
+                    autoPickupProtocolWarningShown = true;
+                }
+                autoPickupCooldown = 20;
+                return;
+            }
+
+            AutoStoreCandidate candidate = findAutoStoreCandidate(inventory, pickup, false);
+            if (candidate == null) continue;
+
+            int baseline = countMatchingItems(inventory, pickup);
+            if (ItemStack.isSameItemSameComponents(candidate.stack(), pickup)) {
+                baseline = Math.max(0, baseline - candidate.stack().getCount());
+            }
+            if (startAutomaticStore(client, candidate)) {
+                watchedPickup = pickup;
+                watchedPickupBaseline = baseline;
+                watchedPickupTicks = 0;
+                return;
+            }
+        }
+    }
+
+    private static void tickWatchedPickup(Minecraft client) {
+        if (++watchedPickupTicks > AUTO_PICKUP_WATCH_TIMEOUT) {
+            clearAutoPickupWatch();
+            autoPickupCooldown = AUTO_PICKUP_SCAN_INTERVAL;
+            return;
+        }
+
+        Inventory inventory = client.player.getInventory();
+        if (countMatchingItems(inventory, watchedPickup) <= watchedPickupBaseline) return;
+
+        AutoStoreCandidate candidate = findAutoStoreCandidate(inventory, watchedPickup, true);
+        if (candidate == null) return;
+
+        clearAutoPickupWatch();
+        if (!startAutomaticStore(client, candidate)) {
+            autoPickupCooldown = AUTO_PICKUP_SCAN_INTERVAL;
+        }
+    }
+
+    private static boolean startAutomaticStore(
+            Minecraft client, AutoStoreCandidate candidate) {
+        if (client.player == null) return false;
+        Inventory inventory = client.player.getInventory();
+        StoreTarget target = candidate.target();
+        int targetMenuSlot = resolveQuickShulkerSlot(
+                client.player.containerMenu, inventory, target.inventorySlot());
+        if (targetMenuSlot < 0) return false;
+
+        ItemStack source = candidate.stack();
+        pendingStore = new PendingStore(
+                candidate.inventorySlot(), source.getCount(),
+                target.inventorySlot(), target.shulkerSlot(),
+                source.copyWithCount(1), target.shulkerItem(), target.shulkerName(), true);
+        storeWaitTicks = 0;
+        storeMenuId = -1;
+        storeCloseDelay = -1;
+        storedItemCount = 0;
+        OpenShulkerPacket.sendOpenPacket(targetMenuSlot);
+        return true;
+    }
+
+    private static AutoStoreCandidate findAutoStoreCandidate(
+            Inventory inventory, ItemStack pickup, boolean matchingOnly) {
+        int selectedSlot = inventory.getSelectedSlot();
+        AutoStoreCandidate candidate = findAutoStoreCandidate(
+                inventory, pickup, 9, 36, selectedSlot, true);
+        if (candidate != null) return candidate;
+        candidate = findAutoStoreCandidate(
+                inventory, pickup, 0, 9, selectedSlot, true);
+        if (candidate != null || matchingOnly) return candidate;
+
+        candidate = findAutoStoreCandidate(
+                inventory, pickup, 9, 36, selectedSlot, false);
+        if (candidate != null) return candidate;
+        return findAutoStoreCandidate(
+                inventory, pickup, 0, 9, selectedSlot, false);
+    }
+
+    private static AutoStoreCandidate findAutoStoreCandidate(
+            Inventory inventory, ItemStack pickup, int startSlot, int endSlot,
+            int selectedSlot, boolean requireMatch) {
+        for (int inventorySlot = startSlot; inventorySlot < endSlot; inventorySlot++) {
+            if (inventorySlot == selectedSlot) continue;
+            ItemStack stack = inventory.getItem(inventorySlot);
+            if (stack.isEmpty() || ShulkerContentsHelper.isShulker(stack)
+                    || stack.getMaxStackSize() <= 1) continue;
+
+            boolean matchesPickup = ItemStack.isSameItemSameComponents(stack, pickup);
+            if (requireMatch != matchesPickup) continue;
+            if (!matchesPickup && isExcludedFromReturn(stack)) continue;
+
+            StoreTarget target = findStoreTarget(
+                    inventory, stack.copyWithCount(1), stack.getCount());
+            if (target != null) {
+                return new AutoStoreCandidate(inventorySlot, stack.copy(), target);
+            }
+        }
+        return null;
+    }
+
+    private static boolean canInventoryAccept(Inventory inventory, ItemStack pickup) {
+        if (inventory.getFreeSlot() >= 0) return true;
+        for (int slot = 0; slot < 36; slot++) {
+            ItemStack current = inventory.getItem(slot);
+            if (!current.isEmpty()
+                    && ItemStack.isSameItemSameComponents(current, pickup)
+                    && current.getCount() < current.getMaxStackSize()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int countMatchingItems(Inventory inventory, ItemStack prototype) {
+        int count = 0;
+        for (int slot = 0; slot < 36; slot++) {
+            ItemStack current = inventory.getItem(slot);
+            if (ItemStack.isSameItemSameComponents(current, prototype)) {
+                count += current.getCount();
+            }
+        }
+        return count;
+    }
+
+    private static void clearAutoPickupWatch() {
+        watchedPickup = ItemStack.EMPTY;
+        watchedPickupBaseline = 0;
+        watchedPickupTicks = 0;
     }
 
     private static void tickStore(Minecraft client) {
@@ -827,22 +1010,36 @@ public final class QuickShulkerExtractionController {
     }
 
     private static void failStore(Minecraft client, String messageKey) {
-        show(client, messageKey);
+        boolean automatic = pendingStore != null && pendingStore.automatic();
+        if (!automatic) show(client, messageKey);
         if (client.player != null && client.player.containerMenu instanceof ShulkerBoxMenu) {
             closeContainerAndSetScreen(
-                    client, new InventoryScreen(client.player), true);
+                    client,
+                    automatic ? null : new InventoryScreen(client.player),
+                    !automatic);
         }
         clearStore();
+        if (automatic) {
+            clearAutoPickupWatch();
+            autoPickupCooldown = 20;
+        }
     }
 
     private static void closeAfterStore(Minecraft client) {
+        boolean automatic = pendingStore != null && pendingStore.automatic();
         if (client.player != null) {
             closeContainerAndSetScreen(
-                    client, new InventoryScreen(client.player), true);
+                    client,
+                    automatic ? null : new InventoryScreen(client.player),
+                    !automatic);
         }
         int completed = storedItemCount;
         clearStore();
-        if (completed > 0) show(client, "message.better-shulker-hud.store_complete", completed);
+        if (automatic) {
+            autoPickupCooldown = AUTO_PICKUP_SCAN_INTERVAL;
+        } else if (completed > 0) {
+            show(client, "message.better-shulker-hud.store_complete", completed);
+        }
     }
 
     private static void closeContainerAndSetScreen(
@@ -896,12 +1093,15 @@ public final class QuickShulkerExtractionController {
 
     private record PendingStore(
             int sourceInventorySlot, int amount, int targetInventorySlot, int shulkerSlot,
-            ItemStack prototype, Item shulkerItem, Component shulkerName) {}
+            ItemStack prototype, Item shulkerItem, Component shulkerName, boolean automatic) {}
 
     private record StoreTarget(
             int inventorySlot, int shulkerSlot, Item shulkerItem, Component shulkerName) {}
 
     private record PlayerDestination(int menuSlot, int inventorySlot) {}
+
+    private record AutoStoreCandidate(
+            int inventorySlot, ItemStack stack, StoreTarget target) {}
 
     private static final class OriginRecord {
         private final int inventorySlot;

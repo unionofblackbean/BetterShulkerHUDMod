@@ -18,5 +18,6 @@
   "message.better-shulker-hud.store_complete": "Stored %s items in a shulker box",
   "message.better-shulker-hud.store_drop_target": "Release to store this item in any shulker with space",
   "message.better-shulker-hud.minimize": "Minimize the shulker HUD",
-  "message.better-shulker-hud.search": "Search items..."
+  "message.better-shulker-hud.search": "Search items...",
+  "message.better-shulker-hud.auto_pickup_requires_quickshulker": "Automatic shulker pickup requires QuickShulker on the server"
 }
