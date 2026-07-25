@@ -43,7 +43,7 @@ dependencies {
 
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
-    compileOnly('com.github.MoRanpcy:quickshulker:3.0.1-26.1') {
+    compileOnly('com.github.MoRanpcy:quickshulker:3.0.0-26.1') {
         transitive = false
     }
 

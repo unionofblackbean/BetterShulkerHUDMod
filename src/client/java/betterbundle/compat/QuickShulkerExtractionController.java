@@ -6,6 +6,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.kyrptonaught.quickshulker.client.ClientUtil;
 import net.kyrptonaught.quickshulker.network.OpenShulkerPacket;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.core.component.DataComponents;
@@ -17,6 +18,7 @@ import net.minecraft.world.inventory.ShulkerBoxMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -424,8 +426,8 @@ public final class QuickShulkerExtractionController {
 
     private static void finishCurrentReturn(Minecraft client) {
         if (client.player != null && client.player.containerMenu instanceof ShulkerBoxMenu) {
-            client.player.closeContainer();
-            client.setScreen(new InventoryScreen(client.player));
+            closeContainerAndSetScreen(
+                    client, new InventoryScreen(client.player), true);
         }
         activeReturn = null;
         activeReturnShulkerSlot = -1;
@@ -796,8 +798,10 @@ public final class QuickShulkerExtractionController {
                 && pendingExtraction.litematicaRestock();
         ItemStack selected = pendingLitematicaSelection;
         if (client.player != null) {
-            client.player.closeContainer();
-            client.setScreen(litematicaRestock ? null : new InventoryScreen(client.player));
+            closeContainerAndSetScreen(
+                    client,
+                    litematicaRestock ? null : new InventoryScreen(client.player),
+                    !litematicaRestock);
         }
         clearExtraction();
         if (litematicaRestock) selectLitematicaItem(client, selected);
@@ -825,20 +829,37 @@ public final class QuickShulkerExtractionController {
     private static void failStore(Minecraft client, String messageKey) {
         show(client, messageKey);
         if (client.player != null && client.player.containerMenu instanceof ShulkerBoxMenu) {
-            client.player.closeContainer();
-            client.setScreen(new InventoryScreen(client.player));
+            closeContainerAndSetScreen(
+                    client, new InventoryScreen(client.player), true);
         }
         clearStore();
     }
 
     private static void closeAfterStore(Minecraft client) {
         if (client.player != null) {
-            client.player.closeContainer();
-            client.setScreen(new InventoryScreen(client.player));
+            closeContainerAndSetScreen(
+                    client, new InventoryScreen(client.player), true);
         }
         int completed = storedItemCount;
         clearStore();
         if (completed > 0) show(client, "message.better-shulker-hud.store_complete", completed);
+    }
+
+    private static void closeContainerAndSetScreen(
+            Minecraft client, Screen nextScreen, boolean preserveCursor) {
+        long window = client.getWindow().handle();
+        double[] cursorX = new double[1];
+        double[] cursorY = new double[1];
+        if (preserveCursor) {
+            GLFW.glfwGetCursorPos(window, cursorX, cursorY);
+        }
+
+        if (client.player != null) client.player.closeContainer();
+        client.setScreen(nextScreen);
+
+        if (preserveCursor && nextScreen != null) {
+            GLFW.glfwSetCursorPos(window, cursorX[0], cursorY[0]);
+        }
     }
 
     private static void clearStore() {

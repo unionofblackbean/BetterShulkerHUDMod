@@ -4,7 +4,7 @@
 
 ## 简体中文
 
-Better Shulker HUD 是 Minecraft 26.1-26.1.2 Fabric 客户端物品管理模组。1.5.0 以 MaLiLib 的初始化、客户端 tick 和世界加载生命周期为基础，并通过服务器端 QuickShulker 完成真实物品转移。
+Better Shulker HUD 是 Minecraft 26.1.x Fabric 客户端物品管理模组。1.5.0 以 MaLiLib 的初始化、客户端 tick 和世界加载生命周期为基础，并通过服务器端 QuickShulker 完成真实物品转移。
 
 作者：`BF_skt`
 
@@ -25,9 +25,9 @@ HUD 设计与交互方式参考了 zeroowo24 的 BetterBundleHUD；本项目针�
 
 ### 依赖
 
-客户端：Fabric Loader、Fabric API、MaLiLib 0.28.2、QuickShulker 3.0.1-26.1、Better Shulker HUD。
+客户端：Minecraft 26.1.x、Fabric Loader、Fabric API、MaLiLib 0.28.2、QuickShulker 3.0.0-26.1 或更高版本、Better Shulker HUD。
 
-服务端：Fabric Loader、Fabric API、QuickShulker 3.0.1-26.1。Litematica 为可选客户端依赖。
+服务端：Fabric Loader、Fabric API、QuickShulker 3.0.0-26.1 或更高版本。Litematica 为可选客户端依赖。
 
 ```powershell
 $env:JAVA_HOME='Java 25 路径'
@@ -36,7 +36,7 @@ $env:JAVA_HOME='Java 25 路径'
 
 ## English
 
-Better Shulker HUD is a client-side inventory manager for Minecraft 26.1-26.1.2 on Fabric. Version 1.5.0 uses MaLiLib for initialization, client ticks, and world lifecycle handling while QuickShulker performs server-authoritative item transfers.
+Better Shulker HUD is a client-side inventory manager for every Minecraft 26.1.x patch release on Fabric. Version 1.5.0 uses MaLiLib for initialization, client ticks, and world lifecycle handling while QuickShulker performs server-authoritative item transfers.
 
 Author: `BF_skt`
 
@@ -57,9 +57,9 @@ The HUD design and interaction model reference BetterBundleHUD by zeroowo24. Thi
 
 ### Requirements
 
-Client: Fabric Loader, Fabric API, MaLiLib 0.28.2, QuickShulker 3.0.1-26.1, and Better Shulker HUD.
+Client: Minecraft 26.1.x, Fabric Loader, Fabric API, MaLiLib 0.28.2, QuickShulker 3.0.0-26.1 or newer, and Better Shulker HUD.
 
-Server: Fabric Loader, Fabric API, and QuickShulker 3.0.1-26.1. Litematica is an optional client dependency.
+Server: Fabric Loader, Fabric API, and QuickShulker 3.0.0-26.1 or newer. Litematica is an optional client dependency.
 
 ```powershell
 $env:JAVA_HOME='path to Java 25'
