@@ -11,7 +11,9 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -31,28 +33,39 @@ import org.lwjgl.glfw.GLFW;
 
 public final class BundlePanelRenderer {
 
-    public static final int SLOT_SIZE = 20;
+    public static final int SLOT_SIZE = 18;
     public static final int MAX_COLUMNS = 6;
     public static final int MAX_VISIBLE_ROWS = 8;
-    public static final int SLOT_SPACING = 2;
-    public static final int PADDING = 4;
-    public static final int SCROLL_BAR_WIDTH = 3;
+    public static final int SLOT_SPACING = 0;
+    public static final int PADDING = 7;
+    public static final int SCROLL_BAR_WIDTH = 12;
     public static final int CAT_BUTTON_SIZE = 22;
     public static final int CAT_BAR_WIDTH = CAT_BUTTON_SIZE;
-    public static final int SEARCH_BAR_HEIGHT = 16;
-    public static final int HEADER_HEIGHT = 22;
+    public static final int SEARCH_BAR_HEIGHT = 18;
+    public static final int HEADER_HEIGHT = 24;
     public static final int FOOTER_HEIGHT = 24;
 
     private static final int BODY_INSET = 14;
     private static final int CONTROL_SIZE = 14;
-    private static final int COLOR_PANEL = 0xE6AEB3C5;
-    private static final int COLOR_PANEL_INNER = 0xD99BA1B6;
-    private static final int COLOR_SLOT = 0xD982889F;
-    private static final int COLOR_SLOT_HOVER = 0xEAA1A7BB;
-    private static final int COLOR_BORDER = 0xFFF1F2F7;
-    private static final int COLOR_BORDER_SHADOW = 0xFF71778F;
-    private static final int COLOR_TEXT = 0xFFF8F8FC;
-    private static final int COLOR_TEXT_MUTED = 0xFFC9CDDA;
+    private static final int COLOR_PANEL = 0xFFC6C6C6;
+    private static final int COLOR_PANEL_HOVER = 0xFFD6D6D6;
+    private static final int COLOR_PANEL_SELECTED = 0xFF9A9A9A;
+    private static final int COLOR_BORDER_LIGHT = 0xFFFFFFFF;
+    private static final int COLOR_BORDER_MID = 0xFF8B8B8B;
+    private static final int COLOR_BORDER_DARK = 0xFF373737;
+    private static final int COLOR_TEXT = 0xFF404040;
+    private static final int COLOR_TEXT_MUTED = 0xFF707070;
+
+    private static final Identifier SLOT_SPRITE =
+            Identifier.withDefaultNamespace("container/slot");
+    private static final Identifier TEXT_FIELD_SPRITE =
+            Identifier.withDefaultNamespace("widget/text_field");
+    private static final Identifier TEXT_FIELD_HIGHLIGHTED_SPRITE =
+            Identifier.withDefaultNamespace("widget/text_field_highlighted");
+    private static final Identifier SCROLLER_SPRITE =
+            Identifier.withDefaultNamespace("container/creative_inventory/scroller");
+    private static final Identifier SCROLLER_DISABLED_SPRITE =
+            Identifier.withDefaultNamespace("container/creative_inventory/scroller_disabled");
 
     private static int scrollOffset = 0;
     public static boolean visible = false;
@@ -525,8 +538,8 @@ public final class BundlePanelRenderer {
         int gridHeight = gridHeight(topPos, imageHeight);
 
         drawFrame(graphics, bodyX, panelY, bodyWidth, panelHeight, COLOR_PANEL);
-        drawFrame(graphics, gridX - 2, gridY - 2,
-                gridWidth + 4, gridHeight + 4, COLOR_PANEL_INNER);
+        drawInsetFrame(graphics, gridX - 2, gridY - 2,
+                gridWidth + 4, gridHeight + 4, COLOR_PANEL);
 
         Minecraft client = Minecraft.getInstance();
         Font font = client.font;
@@ -560,8 +573,13 @@ public final class BundlePanelRenderer {
             if (selected) { bx -= 3; bw += 4; }
             boolean hovered = mouseX >= bx && mouseX < bx + bw
                     && mouseY >= by && mouseY < by + CAT_BAR_WIDTH;
-            int bg = selected ? 0xEE9298AE : (hovered ? 0xECA4AABD : 0xD883899F);
-            drawFrame(graphics, bx, by, bw, CAT_BAR_WIDTH, bg);
+            int bg = selected ? COLOR_PANEL_SELECTED
+                    : (hovered ? COLOR_PANEL_HOVER : COLOR_PANEL);
+            if (selected) {
+                drawInsetFrame(graphics, bx, by, bw, CAT_BAR_WIDTH, bg);
+            } else {
+                drawFrame(graphics, bx, by, bw, CAT_BAR_WIDTH, bg);
+            }
             int iconOff = (CAT_BAR_WIDTH - 16) / 2;
             graphics.item(cats[i].getIcon(), bx + Math.max(2, iconOff), by + iconOff);
         }
@@ -571,13 +589,15 @@ public final class BundlePanelRenderer {
         int sbY = gridY;
         int sbH = gridHeight;
 
-        graphics.fill(sbX, sbY, sbX + SCROLL_BAR_WIDTH, sbY + sbH, COLOR_BORDER_SHADOW);
+        drawInsetFrame(graphics, sbX, sbY, SCROLL_BAR_WIDTH, sbH, COLOR_BORDER_MID);
+        int thumbH = Math.min(15, sbH);
         if (maxScroll > 0) {
-            int thumbH = Math.max(12, sbH * rows / totalRows);
             int thumbY = sbY + (sbH - thumbH) * scrollOffset / maxScroll;
-            graphics.fill(sbX, thumbY, sbX + SCROLL_BAR_WIDTH, thumbY + thumbH, COLOR_BORDER);
+            graphics.blitSprite(RenderPipelines.GUI_TEXTURED, SCROLLER_SPRITE,
+                    sbX, thumbY, SCROLL_BAR_WIDTH, thumbH);
         } else {
-            graphics.fill(sbX, sbY, sbX + SCROLL_BAR_WIDTH, sbY + sbH, 0x80F1F2F7);
+            graphics.blitSprite(RenderPipelines.GUI_TEXTURED, SCROLLER_DISABLED_SPRITE,
+                    sbX, sbY, SCROLL_BAR_WIDTH, thumbH);
         }
 
         int startRow = scrollOffset;
@@ -591,13 +611,17 @@ public final class BundlePanelRenderer {
 
                 boolean hovered = mouseX >= sx && mouseX < sx + SLOT_SIZE
                         && mouseY >= sy && mouseY < sy + SLOT_SIZE;
-                drawFrame(graphics, sx, sy, SLOT_SIZE, SLOT_SIZE,
-                        hovered ? COLOR_SLOT_HOVER : COLOR_SLOT);
+                graphics.blitSprite(RenderPipelines.GUI_TEXTURED, SLOT_SPRITE,
+                        sx, sy, SLOT_SIZE, SLOT_SIZE);
+                if (hovered) {
+                    graphics.fill(sx + 1, sy + 1,
+                            sx + SLOT_SIZE - 1, sy + SLOT_SIZE - 1, 0x80FFFFFF);
+                }
 
                 if (flatIndex >= items.size()) continue;
                 FlatItem fi = items.get(flatIndex);
-                graphics.item(fi.stack(), sx + 2, sy + 2);
-                renderItemDecorations(graphics, client.font, fi.stack(), sx + 2, sy + 2);
+                graphics.item(fi.stack(), sx + 1, sy + 1);
+                renderItemDecorations(graphics, client.font, fi.stack(), sx + 1, sy + 1);
 
                 if (hovered) {
                     hoveredFlatIndex = flatIndex;
@@ -610,7 +634,6 @@ public final class BundlePanelRenderer {
             int hCol = hoveredFlatIndex % columns;
             int hx = gridX + hCol * (SLOT_SIZE + SLOT_SPACING);
             int hy = gridY + hRow * (SLOT_SIZE + SLOT_SPACING);
-            graphics.fill(hx + 1, hy + 1, hx + SLOT_SIZE - 1, hy + SLOT_SIZE - 1, 0x28FFFFFF);
             graphics.setTooltipForNextFrame(client.font, items.get(hoveredFlatIndex).stack(), mouseX, mouseY);
             hoveredShulkerInventorySlot = items.get(hoveredFlatIndex).inventorySlot();
         } else {
@@ -623,8 +646,9 @@ public final class BundlePanelRenderer {
             int sby = panelY + 3;
             int sbw = searchBarWidth(leftPos);
             boolean active = isAllMode && searchFocused;
-            int bg = active ? 0xE7767D95 : 0xD88C92A8;
-            drawFrame(graphics, sbx, sby, sbw, SEARCH_BAR_HEIGHT, bg);
+            graphics.blitSprite(RenderPipelines.GUI_TEXTURED,
+                    active ? TEXT_FIELD_HIGHLIGHTED_SPRITE : TEXT_FIELD_SPRITE,
+                    sbx, sby, sbw, SEARCH_BAR_HEIGHT);
             int textY = sby + (SEARCH_BAR_HEIGHT - font.lineHeight) / 2;
             if (isAllMode && searchQuery.isEmpty() && !searchFocused) {
                 String placeholder = Component.translatable(
@@ -665,7 +689,8 @@ public final class BundlePanelRenderer {
                 mouseX, mouseY, leftPos, topPos, imageHeight);
         boolean canReturn = QuickShulkerExtractionController.hasReturnableHistory();
         drawFrame(graphics, returnX, returnY, 18, 18,
-                returnHovered ? COLOR_SLOT_HOVER : (canReturn ? COLOR_SLOT : 0xB9787E93));
+                returnHovered ? COLOR_PANEL_HOVER
+                        : (canReturn ? COLOR_PANEL : COLOR_BORDER_MID));
         graphics.item(new ItemStack(Items.HOPPER), returnX + 1, returnY + 1);
         if (returnHovered) {
             graphics.setTooltipForNextFrame(client.font,
@@ -678,7 +703,7 @@ public final class BundlePanelRenderer {
         boolean minimizeHovered = isMinimizeButtonHovered(
                 mouseX, mouseY, leftPos, topPos, imageHeight);
         drawFrame(graphics, minimizeX, minimizeY, CONTROL_SIZE, CONTROL_SIZE,
-                minimizeHovered ? COLOR_SLOT_HOVER : COLOR_SLOT);
+                minimizeHovered ? COLOR_PANEL_HOVER : COLOR_PANEL);
         graphics.fill(minimizeX + 4, minimizeY + 7,
                 minimizeX + CONTROL_SIZE - 4, minimizeY + 8, COLOR_TEXT);
         if (minimizeHovered) {
@@ -695,9 +720,20 @@ public final class BundlePanelRenderer {
 
     private static void drawFrame(
             GuiGraphicsExtractor graphics, int x, int y, int width, int height, int fill) {
-        graphics.fill(x + 1, y + 1, x + width + 1, y + height + 1, COLOR_BORDER_SHADOW);
-        graphics.fill(x, y, x + width, y + height, COLOR_BORDER);
-        graphics.fill(x + 1, y + 1, x + width - 1, y + height - 1, fill);
+        graphics.fill(x, y, x + width, y + height, fill);
+        graphics.fill(x, y, x + width - 1, y + 1, COLOR_BORDER_LIGHT);
+        graphics.fill(x, y, x + 1, y + height - 1, COLOR_BORDER_LIGHT);
+        graphics.fill(x + 1, y + height - 1, x + width, y + height, COLOR_BORDER_DARK);
+        graphics.fill(x + width - 1, y + 1, x + width, y + height, COLOR_BORDER_DARK);
+    }
+
+    private static void drawInsetFrame(
+            GuiGraphicsExtractor graphics, int x, int y, int width, int height, int fill) {
+        graphics.fill(x, y, x + width, y + height, fill);
+        graphics.fill(x, y, x + width - 1, y + 1, COLOR_BORDER_DARK);
+        graphics.fill(x, y, x + 1, y + height - 1, COLOR_BORDER_DARK);
+        graphics.fill(x + 1, y + height - 1, x + width, y + height, COLOR_BORDER_LIGHT);
+        graphics.fill(x + width - 1, y + 1, x + width, y + height, COLOR_BORDER_LIGHT);
     }
 
     private static void drawBorder(

@@ -54,12 +54,13 @@ public abstract class InventoryScreenMixin {
     private static void betterShulkerHud$renderToggleButton(
             GuiGraphicsExtractor graphics, int x, int y, int mouseX, int mouseY) {
         boolean hovered = mouseX >= x && mouseX < x + 20 && mouseY >= y && mouseY < y + 20;
-        graphics.fill(x + 1, y + 1, x + 21, y + 21, 0xFF71778F);
-        graphics.fill(x, y, x + 20, y + 20, 0xFFF1F2F7);
-        graphics.fill(x + 1, y + 1, x + 19, y + 19,
-                hovered ? 0xEAA1A7BB : 0xE6AEB3C5);
+        graphics.fill(x, y, x + 20, y + 20, hovered ? 0xFFD6D6D6 : 0xFFC6C6C6);
+        graphics.fill(x, y, x + 19, y + 1, 0xFFFFFFFF);
+        graphics.fill(x, y, x + 1, y + 19, 0xFFFFFFFF);
+        graphics.fill(x + 1, y + 19, x + 20, y + 20, 0xFF373737);
+        graphics.fill(x + 19, y + 1, x + 20, y + 20, 0xFF373737);
         if (BundlePanelRenderer.visible) {
-            graphics.fill(x + 3, y + 17, x + 17, y + 18, 0xFFF8F8FC);
+            graphics.fill(x + 3, y + 17, x + 17, y + 18, 0xFF404040);
         }
         ItemStack icon = new ItemStack(Items.SHULKER_BOX);
         graphics.item(icon, x + 2, y + 2);
