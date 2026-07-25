@@ -46,6 +46,14 @@ public final class BundlePanelInteraction {
         if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT
                 && button != GLFW.GLFW_MOUSE_BUTTON_RIGHT) return false;
 
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null) return true;
+        if (!client.player.containerMenu.getCarried().isEmpty()) {
+            // The release handler owns carried-stack storage. Do not also extract
+            // an item from the HUD during the same click.
+            return true;
+        }
+
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT
                 && BundlePanelRenderer.isReturnButtonHovered(
                 mouseX, mouseY, leftPos, topPos, imageHeight)) {
@@ -57,8 +65,6 @@ public final class BundlePanelInteraction {
                 mouseX, mouseY, leftPos, topPos, imageHeight);
         if (clicked == null) return false;
 
-        Minecraft client = Minecraft.getInstance();
-        if (client.player == null) return true;
         boolean shift = (modifiers & GLFW.GLFW_MOD_SHIFT) != 0;
         if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
             QuickShulkerExtractionController.requestToHand(clicked);

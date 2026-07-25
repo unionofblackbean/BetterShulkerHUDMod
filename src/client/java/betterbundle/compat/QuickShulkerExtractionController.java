@@ -119,6 +119,7 @@ public final class QuickShulkerExtractionController {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null
                 || !(client.screen instanceof AbstractContainerScreen<?> screen)) return;
+        if (!screen.getMenu().getCarried().isEmpty()) return;
 
         if (isBusy()) {
             show(client, "message.better-shulker-hud.busy");
