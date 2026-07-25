@@ -46,6 +46,7 @@ public final class BundlePanelRenderer {
 
     private static final int SCREEN_MARGIN = 4;
     private static final int PANEL_GAP = 4;
+    private static final int ENDER_CHEST_MAX_COLUMNS = 3;
     private static final int CATEGORY_GAP = 2;
     private static final int SCROLL_GAP = 2;
     private static final int BODY_INSET = 12;
@@ -103,12 +104,16 @@ public final class BundlePanelRenderer {
         int leftSpace = leftPos - SCREEN_MARGIN - PANEL_GAP;
         int rightSpace = screenWidth - (leftPos + imageWidth)
                 - SCREEN_MARGIN - PANEL_GAP;
-        int available = Math.max(leftSpace, rightSpace);
+        boolean enderChestPreview =
+                QuickShulkerExtractionController.isEnderChestPreviewActive();
+        int available = enderChestPreview ? leftSpace : Math.max(leftSpace, rightSpace);
         int fixedWidth = PADDING + CAT_BAR_WIDTH + CATEGORY_GAP
                 + SCROLL_BAR_WIDTH + SCROLL_GAP + PADDING;
         int columns = (available - fixedWidth + SLOT_SPACING)
                 / (SLOT_SIZE + SLOT_SPACING);
-        return Math.clamp(columns, 1, Configs.General.HUD_MAX_COLUMNS.getIntegerValue());
+        int maximum = Configs.General.HUD_MAX_COLUMNS.getIntegerValue();
+        if (enderChestPreview) maximum = Math.min(maximum, ENDER_CHEST_MAX_COLUMNS);
+        return Math.clamp(columns, 1, maximum);
     }
 
     public static int visibleRowCount(int topPos, int imageHeight) {
@@ -143,6 +148,11 @@ public final class BundlePanelRenderer {
         int leftSpace = leftPos - SCREEN_MARGIN;
         int rightSpace = screenWidth - (leftPos + imageWidth) - SCREEN_MARGIN;
 
+        // Keep the Ender Chest panel on the left. REI and similar item lists
+        // normally reserve the right side of container screens.
+        if (QuickShulkerExtractionController.isEnderChestPreviewActive()) {
+            return immediateLeft;
+        }
         if (leftSpace >= rightSpace && immediateLeft >= SCREEN_MARGIN) return immediateLeft;
         if (right + width <= screenWidth - SCREEN_MARGIN) return right;
         if (immediateLeft >= SCREEN_MARGIN) return immediateLeft;
@@ -207,26 +217,14 @@ public final class BundlePanelRenderer {
         Minecraft client = Minecraft.getInstance();
         if (!QuickShulkerExtractionController.isEnderChestPreviewActive()) return true;
         return client.screen instanceof AbstractContainerScreen<?> screen
-                && canFitEnderChestPreview(screen.imageWidth);
+                && canFitEnderChestPreview(screen);
     }
 
-    public static void ensureEnderChestLayout(AbstractContainerScreen<?> screen) {
-        if (!QuickShulkerExtractionController.isEnderChestPreviewActive()) return;
-        if (Configs.Features.HUD_ENABLED.getBooleanValue()
-                && canFitEnderChestPreview(screen.imageWidth)) {
-            screen.leftPos = SCREEN_MARGIN;
-        } else {
-            screen.leftPos = (Minecraft.getInstance().getWindow().getGuiScaledWidth()
-                    - screen.imageWidth) / 2;
-        }
-    }
-
-    private static boolean canFitEnderChestPreview(int imageWidth) {
-        Minecraft client = Minecraft.getInstance();
+    private static boolean canFitEnderChestPreview(AbstractContainerScreen<?> screen) {
         int minimumPanelWidth = PADDING + CAT_BAR_WIDTH + CATEGORY_GAP
                 + SCROLL_BAR_WIDTH + SCROLL_GAP + SLOT_SIZE + PADDING;
-        return client.getWindow().getGuiScaledWidth()
-                >= SCREEN_MARGIN * 2 + imageWidth + PANEL_GAP + minimumPanelWidth;
+        int availableLeft = screen.leftPos - SCREEN_MARGIN - PANEL_GAP;
+        return availableLeft >= minimumPanelWidth;
     }
 
     public static int gridX(int leftPos) {
@@ -490,7 +488,7 @@ public final class BundlePanelRenderer {
         Minecraft client = Minecraft.getInstance();
         return !QuickShulkerExtractionController.isEnderChestPreviewActive()
                 || (client.screen instanceof AbstractContainerScreen<?> screen
-                && canFitEnderChestPreview(screen.imageWidth));
+                && canFitEnderChestPreview(screen));
     }
     public static void toggleVisible() {
         Configs.Features.HUD_ENABLED.setBooleanValue(

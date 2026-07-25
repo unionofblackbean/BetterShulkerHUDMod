@@ -45,7 +45,7 @@
   "better-shulker-hud.config.general.name.hudCornerRadius": "HUD 圆角半径",
   "better-shulker-hud.config.general.comment.hudCornerRadius": "设置 HUD 面板、分类按钮和控件的像素圆角半径；设为 0 恢复直角。",
   "better-shulker-hud.config.general.name.clearSlotWhitelist": "满背包腾位白名单",
-  "better-shulker-hud.config.general.comment.clearSlotWhitelist": "填写优先用于腾位的物品 ID。可用逗号、空格或换行分隔，例如 minecraft:bread。黑名单优先级更高。",
+  "better-shulker-hud.config.general.comment.clearSlotWhitelist": "填写优先用于腾位的物品 ID。可用逗号、空格或换行分隔，例如 minecraft:bread。同一物品同时存在于黑白名单时，以黑名单为准。",
   "better-shulker-hud.config.general.name.clearSlotBlacklist": "满背包腾位黑名单",
   "better-shulker-hud.config.general.comment.clearSlotBlacklist": "填写禁止自动移入潜影盒的物品 ID。可用逗号、空格或换行分隔；黑名单物品绝不会用于腾位。",
   "better-shulker-hud.config.general.name.autoRestockThreshold": "补货触发阈值",

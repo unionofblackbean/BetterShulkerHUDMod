@@ -45,7 +45,7 @@
   "better-shulker-hud.config.general.name.hudCornerRadius": "HUD corner radius",
   "better-shulker-hud.config.general.comment.hudCornerRadius": "Sets the pixel corner radius for HUD panels, category tabs, and controls. Set to 0 for square corners.",
   "better-shulker-hud.config.general.name.clearSlotWhitelist": "Full-inventory clearance whitelist",
-  "better-shulker-hud.config.general.comment.clearSlotWhitelist": "Item IDs preferred when freeing a slot. Separate IDs with commas, spaces, or new lines, for example minecraft:bread. The blacklist takes precedence.",
+  "better-shulker-hud.config.general.comment.clearSlotWhitelist": "Item IDs preferred when freeing a slot. Separate IDs with commas, spaces, or new lines, for example minecraft:bread. If an ID is in both lists, the blacklist applies.",
   "better-shulker-hud.config.general.name.clearSlotBlacklist": "Full-inventory clearance blacklist",
   "better-shulker-hud.config.general.comment.clearSlotBlacklist": "Item IDs that may never be moved automatically into a shulker to free a slot. Separate IDs with commas, spaces, or new lines.",
   "better-shulker-hud.config.general.name.autoRestockThreshold": "Restock trigger threshold",

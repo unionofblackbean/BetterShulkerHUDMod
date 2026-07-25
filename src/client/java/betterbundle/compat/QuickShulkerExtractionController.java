@@ -515,10 +515,6 @@ public final class QuickShulkerExtractionController {
             BundlePanelRenderer.invalidateCache();
         }
 
-        if (enderChestPreviewActive
-                && client.screen instanceof AbstractContainerScreen<?> screen) {
-            BundlePanelRenderer.ensureEnderChestLayout(screen);
-        }
     }
 
     private static boolean isEnderChestScreen(Minecraft client) {
