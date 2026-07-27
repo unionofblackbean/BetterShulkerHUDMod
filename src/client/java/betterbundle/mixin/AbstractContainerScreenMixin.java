@@ -24,16 +24,9 @@ public abstract class AbstractContainerScreenMixin {
 
         // Recipe-book screens receive these controls in their more specific mixin.
         if (!(((Object) this) instanceof AbstractRecipeBookScreen)) {
-            if (BundlePanelRenderer.isEnderChestButtonHovered(
+            if (BundlePanelRenderer.isToggleButtonHovered(
                     mouseX, mouseY, screen.leftPos, screen.topPos, screen.imageWidth)) {
-                QuickShulkerExtractionController.requestEnderChestPreview(screen);
-                cir.setReturnValue(true);
-                return;
-            }
-            int toggleX = BundlePanelRenderer.toggleX(screen.leftPos, screen.imageWidth);
-            int toggleY = BundlePanelRenderer.toggleY(screen.topPos);
-            if (mouseX >= toggleX && mouseX < toggleX + 20
-                    && mouseY >= toggleY && mouseY < toggleY + 20) {
+                BundlePanelRenderer.playButtonClick();
                 BundlePanelRenderer.toggleVisible();
                 cir.setReturnValue(true);
                 return;
@@ -41,7 +34,8 @@ public abstract class AbstractContainerScreenMixin {
 
             if (BundlePanelRenderer.isMinimizeButtonHovered(
                     mouseX, mouseY, screen.leftPos, screen.topPos, screen.imageHeight)) {
-                BundlePanelRenderer.toggleVisible();
+                BundlePanelRenderer.playButtonClick();
+                BundlePanelRenderer.minimizeCurrentPreview();
                 cir.setReturnValue(true);
                 return;
             }
@@ -50,6 +44,7 @@ public abstract class AbstractContainerScreenMixin {
                 BundleCategory category = BundlePanelRenderer.getCategoryAt(
                         mouseX, mouseY, screen.leftPos, screen.topPos, screen.imageHeight);
                 if (category != null) {
+                    BundlePanelRenderer.playButtonClick();
                     BundlePanelRenderer.currentCategory = category;
                     BundlePanelRenderer.searchQuery = "";
                     BundlePanelRenderer.scrollToTop();
@@ -85,11 +80,7 @@ public abstract class AbstractContainerScreenMixin {
         if (!screen.getMenu().getCarried().isEmpty()
                 && BundlePanelRenderer.isInsidePanelBounds(
                 event.x(), event.y(), screen.leftPos, screen.topPos, screen.imageHeight)) {
-            if (QuickShulkerExtractionController.isEnderChestPreviewActive()) {
-                QuickShulkerExtractionController.requestStoreCarriedToEnderChest(screen);
-            } else {
-                QuickShulkerExtractionController.requestStoreCarried(screen);
-            }
+            QuickShulkerExtractionController.requestStoreCarried(screen);
             cir.setReturnValue(true);
             return;
         }

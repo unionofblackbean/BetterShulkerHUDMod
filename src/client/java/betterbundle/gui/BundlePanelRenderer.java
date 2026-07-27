@@ -11,20 +11,25 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
+import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import bettershulkerhud.util.ShulkerContentsHelper;
 import bettershulkerhud.compat.QuickShulkerExtractionController;
@@ -37,12 +42,14 @@ public final class BundlePanelRenderer {
     public static final int SLOT_SIZE = 18;
     public static final int SLOT_SPACING = 0;
     public static final int PADDING = 5;
-    public static final int SCROLL_BAR_WIDTH = 10;
+    public static final int SCROLL_BAR_WIDTH = 12;
     public static final int CAT_BUTTON_SIZE = 18;
     public static final int CAT_BAR_WIDTH = CAT_BUTTON_SIZE;
     public static final int SEARCH_BAR_HEIGHT = 18;
     public static final int HEADER_HEIGHT = 24;
     public static final int FOOTER_HEIGHT = 24;
+    public static final int TOGGLE_WIDTH = 20;
+    public static final int TOGGLE_HEIGHT = 18;
 
     private static final int SCREEN_MARGIN = 4;
     private static final int PANEL_GAP = 4;
@@ -51,15 +58,11 @@ public final class BundlePanelRenderer {
     private static final int BODY_INSET = 12;
     private static final int CONTROL_SIZE = 14;
     private static final int COLOR_PANEL = 0xFFC6C6C6;
-    private static final int COLOR_PANEL_HOVER = 0xFFD6D6D6;
-    private static final int COLOR_PANEL_SELECTED = 0xFF9A9A9A;
     private static final int COLOR_BORDER_LIGHT = 0xFFFFFFFF;
     private static final int COLOR_BORDER_MID = 0xFF8B8B8B;
     private static final int COLOR_BORDER_DARK = 0xFF373737;
     private static final int COLOR_TEXT = 0xFF404040;
     private static final int COLOR_TEXT_MUTED = 0xFF707070;
-    private static final int COLOR_SHADOW_SOFT = 0x38000000;
-    private static final int COLOR_SHADOW_DEEP = 0x68000000;
 
     private static final Identifier SLOT_SPRITE =
             Identifier.withDefaultNamespace("container/slot");
@@ -71,6 +74,18 @@ public final class BundlePanelRenderer {
             Identifier.withDefaultNamespace("container/creative_inventory/scroller");
     private static final Identifier SCROLLER_DISABLED_SPRITE =
             Identifier.withDefaultNamespace("container/creative_inventory/scroller_disabled");
+    private static final Identifier SCROLLER_BACKGROUND_SPRITE =
+            Identifier.withDefaultNamespace("widget/scroller_background");
+    private static final Identifier BUTTON_SPRITE =
+            Identifier.withDefaultNamespace("widget/button");
+    private static final Identifier BUTTON_HIGHLIGHTED_SPRITE =
+            Identifier.withDefaultNamespace("widget/button_highlighted");
+    private static final Identifier BUTTON_DISABLED_SPRITE =
+            Identifier.withDefaultNamespace("widget/button_disabled");
+    public static final Identifier RECIPE_BUTTON_SPRITE =
+            Identifier.withDefaultNamespace("recipe_book/button");
+    public static final Identifier RECIPE_BUTTON_HIGHLIGHTED_SPRITE =
+            Identifier.withDefaultNamespace("recipe_book/button_highlighted");
 
     private static int scrollOffset = 0;
     public static String searchQuery = "";
@@ -80,6 +95,8 @@ public final class BundlePanelRenderer {
     private static final PinIn PIN_IN = createPinIn();
 
     private static Player cachedPlayer;
+    private static Object cachedScreen;
+    private static boolean sortPreparedAfterClose;
     private static long cachedInventoryFingerprint = Long.MIN_VALUE;
     private static List<ShulkerSlotEntry> cachedAllShulkers = List.of();
     private static List<ShulkerSlotEntry> cachedNonEmptyShulkers = List.of();
@@ -87,8 +104,6 @@ public final class BundlePanelRenderer {
     private static List<FlatItem> cachedVisibleItems = List.of();
     private static String cachedSearchQuery = null;
     private static BundleCategory cachedCategory = null;
-    private static boolean cachedEnderChestPreview;
-
     public static BundleCategory currentCategory = BundleCategory.OVERVIEW;
 
     private BundlePanelRenderer() {}
@@ -103,9 +118,7 @@ public final class BundlePanelRenderer {
         int leftSpace = leftPos - SCREEN_MARGIN - PANEL_GAP;
         int rightSpace = screenWidth - (leftPos + imageWidth)
                 - SCREEN_MARGIN - PANEL_GAP;
-        boolean enderChestPreview =
-                QuickShulkerExtractionController.isEnderChestPreviewActive();
-        int available = enderChestPreview ? leftSpace : Math.max(leftSpace, rightSpace);
+        int available = Math.max(leftSpace, rightSpace);
         int fixedWidth = PADDING + CAT_BAR_WIDTH + CATEGORY_GAP
                 + SCROLL_BAR_WIDTH + SCROLL_GAP + PADDING;
         int columns = (available - fixedWidth + SLOT_SPACING)
@@ -133,6 +146,22 @@ public final class BundlePanelRenderer {
                 + rows * SLOT_SIZE + (rows - 1) * SLOT_SPACING + FOOTER_HEIGHT;
     }
 
+    public static int exclusionX(int leftPos) {
+        return panelX(leftPos) - 4;
+    }
+
+    public static int exclusionY(int topPos, int imageHeight) {
+        return panelY(topPos, imageHeight) - 1;
+    }
+
+    public static int exclusionWidth(int leftPos) {
+        return panelWidth(leftPos) + 8;
+    }
+
+    public static int exclusionHeight(int topPos, int imageHeight) {
+        return panelHeight(topPos, imageHeight) + 5;
+    }
+
     public static int panelX(int leftPos) {
         Minecraft client = Minecraft.getInstance();
         int screenWidth = client.getWindow().getGuiScaledWidth();
@@ -145,11 +174,6 @@ public final class BundlePanelRenderer {
         int leftSpace = leftPos - SCREEN_MARGIN;
         int rightSpace = screenWidth - (leftPos + imageWidth) - SCREEN_MARGIN;
 
-        // Keep the Ender Chest panel on the left. REI and similar item lists
-        // normally reserve the right side of container screens.
-        if (QuickShulkerExtractionController.isEnderChestPreviewActive()) {
-            return immediateLeft;
-        }
         if (leftSpace >= rightSpace && immediateLeft >= SCREEN_MARGIN) return immediateLeft;
         if (right + width <= screenWidth - SCREEN_MARGIN) return right;
         if (immediateLeft >= SCREEN_MARGIN) return immediateLeft;
@@ -167,11 +191,19 @@ public final class BundlePanelRenderer {
 
     public static int toggleX(int leftPos, int imageWidth) {
         Minecraft client = Minecraft.getInstance();
-        int desired = client.screen instanceof InventoryScreen
-                ? leftPos + 130 : leftPos + imageWidth - 24;
+        int desired;
+        if (client.screen instanceof InventoryScreen) {
+            desired = leftPos + 130;
+        } else if (client.screen instanceof CreativeModeInventoryScreen) {
+            int outsideLeft = leftPos - 24;
+            desired = outsideLeft >= SCREEN_MARGIN
+                    ? outsideLeft : leftPos + imageWidth + 4;
+        } else {
+            desired = leftPos + imageWidth - 24;
+        }
         return Math.clamp(desired, SCREEN_MARGIN,
                 Math.max(SCREEN_MARGIN,
-                        client.getWindow().getGuiScaledWidth() - 20 - SCREEN_MARGIN));
+                        client.getWindow().getGuiScaledWidth() - TOGGLE_WIDTH - SCREEN_MARGIN));
     }
 
     public static int toggleY(int topPos) {
@@ -181,47 +213,7 @@ public final class BundlePanelRenderer {
                 : topPos + (FabricLoader.getInstance().isModLoaded("better-bundle") ? 27 : 5);
         return Math.clamp(desired, SCREEN_MARGIN,
                 Math.max(SCREEN_MARGIN,
-                        client.getWindow().getGuiScaledHeight() - 20 - SCREEN_MARGIN));
-    }
-
-    public static boolean shouldShowEnderChestButton() {
-        Minecraft client = Minecraft.getInstance();
-        return Configs.Features.SHOW_ENDER_CHEST_BUTTON.getBooleanValue()
-                && client.screen instanceof InventoryScreen;
-    }
-
-    public static int enderChestButtonX(int leftPos, int imageWidth) {
-        Minecraft client = Minecraft.getInstance();
-        int toggle = toggleX(leftPos, imageWidth);
-        int desired = toggle + 24;
-        int maximum = client.getWindow().getGuiScaledWidth() - 20 - SCREEN_MARGIN;
-        return desired <= maximum ? desired : Math.max(SCREEN_MARGIN, toggle - 24);
-    }
-
-    public static int enderChestButtonY(int topPos) {
-        return toggleY(topPos);
-    }
-
-    public static boolean isEnderChestButtonHovered(
-            double mouseX, double mouseY, int leftPos, int topPos, int imageWidth) {
-        if (!shouldShowEnderChestButton()) return false;
-        int x = enderChestButtonX(leftPos, imageWidth);
-        int y = enderChestButtonY(topPos);
-        return mouseX >= x && mouseX < x + 20 && mouseY >= y && mouseY < y + 20;
-    }
-
-    public static boolean shouldRenderHudToggleButton() {
-        Minecraft client = Minecraft.getInstance();
-        if (!QuickShulkerExtractionController.isEnderChestPreviewActive()) return true;
-        return client.screen instanceof AbstractContainerScreen<?> screen
-                && canFitEnderChestPreview(screen);
-    }
-
-    private static boolean canFitEnderChestPreview(AbstractContainerScreen<?> screen) {
-        int minimumPanelWidth = PADDING + CAT_BAR_WIDTH + CATEGORY_GAP
-                + SCROLL_BAR_WIDTH + SCROLL_GAP + SLOT_SIZE + PADDING;
-        int availableLeft = screen.leftPos - SCREEN_MARGIN - PANEL_GAP;
-        return availableLeft >= minimumPanelWidth;
+                        client.getWindow().getGuiScaledHeight() - TOGGLE_HEIGHT - SCREEN_MARGIN));
     }
 
     public static int gridX(int leftPos) {
@@ -266,6 +258,11 @@ public final class BundlePanelRenderer {
     }
 
     public static List<FlatItem> buildFlatItemList(List<ShulkerSlotEntry> shulkers) {
+        return buildFlatItemList(shulkers, true);
+    }
+
+    private static List<FlatItem> buildFlatItemList(
+            List<ShulkerSlotEntry> shulkers, boolean sortByCount) {
         Map<StackKey, MutableFlatItem> aggregated = new LinkedHashMap<>();
         for (ShulkerSlotEntry entry : shulkers) {
             List<ItemStack> items = entry.contents();
@@ -286,12 +283,42 @@ public final class BundlePanelRenderer {
             result.add(new FlatItem(
                     item.prototype.copyWithCount(item.total), List.copyOf(item.sources)));
         }
-        result.sort(Comparator
+        if (sortByCount) sortFlatItems(result);
+        return result;
+    }
+
+    private static void sortFlatItems(List<FlatItem> items) {
+        items.sort(Comparator
                 .comparingInt((FlatItem item) -> item.stack().getCount())
                 .reversed()
                 .thenComparing(item -> BuiltInRegistries.ITEM
                         .getKey(item.stack().getItem()).toString()));
-        return result;
+    }
+
+    private static List<FlatItem> updateFlatItemsKeepingOrder(
+            List<FlatItem> previous, List<FlatItem> current) {
+        if (previous.isEmpty()) return current;
+
+        Map<StackKey, FlatItem> currentByKey = new LinkedHashMap<>();
+        for (FlatItem item : current) {
+            currentByKey.put(new StackKey(item.stack()), item);
+        }
+
+        List<FlatItem> ordered = new ArrayList<>(current.size());
+        Set<StackKey> used = new HashSet<>();
+        for (FlatItem previousItem : previous) {
+            StackKey key = new StackKey(previousItem.stack());
+            FlatItem refreshed = currentByKey.get(key);
+            if (refreshed != null && used.add(key)) {
+                ordered.add(refreshed);
+            }
+        }
+        for (FlatItem item : current) {
+            if (used.add(new StackKey(item.stack()))) {
+                ordered.add(item);
+            }
+        }
+        return ordered;
     }
 
     public static List<FlatItem> getVisibleItems() {
@@ -374,6 +401,8 @@ public final class BundlePanelRenderer {
 
     public static void invalidateCache() {
         cachedPlayer = null;
+        cachedScreen = null;
+        sortPreparedAfterClose = false;
         cachedInventoryFingerprint = Long.MIN_VALUE;
         cachedAllShulkers = List.of();
         cachedNonEmptyShulkers = List.of();
@@ -381,8 +410,40 @@ public final class BundlePanelRenderer {
         cachedVisibleItems = List.of();
         cachedSearchQuery = null;
         cachedCategory = null;
-        cachedEnderChestPreview = false;
         hoveredShulkerInventorySlot = -1;
+    }
+
+    /**
+     * Captures the next count-based order while the closing inventory is still
+     * available. The current screen never sees this reordered list.
+     */
+    public static void prepareSortAfterContainerClose() {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null) return;
+        ensureCache();
+        if (!cachedFlatItems.isEmpty()) {
+            List<FlatItem> sorted = new ArrayList<>(cachedFlatItems);
+            sortFlatItems(sorted);
+            cachedFlatItems = List.copyOf(sorted);
+        }
+        cachedScreen = null;
+        sortPreparedAfterClose = true;
+        cachedVisibleItems = List.of();
+        cachedSearchQuery = null;
+        cachedCategory = null;
+    }
+
+    /**
+     * Refreshes inventory contents without discarding the order captured when
+     * the current container screen was opened.
+     */
+    public static void invalidateContentsCache() {
+        cachedInventoryFingerprint = Long.MIN_VALUE;
+        cachedAllShulkers = List.of();
+        cachedNonEmptyShulkers = List.of();
+        cachedVisibleItems = List.of();
+        cachedSearchQuery = null;
+        cachedCategory = null;
     }
 
     private static void ensureCache() {
@@ -392,53 +453,45 @@ public final class BundlePanelRenderer {
             invalidateCache();
             return;
         }
-        boolean enderChestPreview =
-                QuickShulkerExtractionController.isEnderChestPreviewActive();
         Inventory inv = player.getInventory();
-        List<ItemStack> enderChestContents = enderChestPreview
-                ? QuickShulkerExtractionController.getEnderChestSnapshot() : List.of();
         long fingerprint = 1;
-        int sourceSize = enderChestPreview ? enderChestContents.size() : 36;
-        for (int i = 0; i < sourceSize; i++) {
-            ItemStack stack = enderChestPreview
-                    ? enderChestContents.get(i) : inv.getItem(i);
+        for (int i = 0; i < 36; i++) {
+            ItemStack stack = inv.getItem(i);
             fingerprint = 31L * fingerprint + ItemStack.hashItemAndComponents(stack);
             fingerprint = 31L * fingerprint + stack.getCount();
         }
-        if (cachedPlayer == player
-                && cachedEnderChestPreview == enderChestPreview
-                && cachedInventoryFingerprint == fingerprint) return;
+        boolean newContainerScreen = cachedPlayer != player || cachedScreen != client.screen;
+        if (!newContainerScreen && cachedInventoryFingerprint == fingerprint) return;
 
         List<ShulkerSlotEntry> all = new ArrayList<>();
         List<ShulkerSlotEntry> nonEmpty = new ArrayList<>();
-        if (enderChestPreview) {
-            List<ItemStack> contents = new ArrayList<>(sourceSize);
-            for (int i = 0; i < sourceSize; i++) {
-                contents.add(enderChestContents.get(i).copy());
-            }
-            ShulkerSlotEntry entry = new ShulkerSlotEntry(
-                    -1, new ItemStack(Items.ENDER_CHEST), List.copyOf(contents));
+        for (int i = 0; i < 36; i++) {
+            ItemStack stack = inv.getItem(i);
+            if (!ShulkerContentsHelper.isShulker(stack)) continue;
+            List<ItemStack> contents = List.copyOf(ShulkerContentsHelper.getStacks(stack));
+            ShulkerSlotEntry entry = new ShulkerSlotEntry(i, stack.copy(), contents);
             all.add(entry);
             if (contents.stream().anyMatch(item -> !item.isEmpty())) nonEmpty.add(entry);
+        }
+        boolean usePreparedOrder = newContainerScreen
+                && sortPreparedAfterClose && !cachedFlatItems.isEmpty();
+        List<FlatItem> rebuiltFlatItems = buildFlatItemList(
+                nonEmpty, newContainerScreen && !usePreparedOrder);
+        if ((newContainerScreen && !usePreparedOrder) || cachedFlatItems.isEmpty()) {
+            cachedFlatItems = List.copyOf(rebuiltFlatItems);
         } else {
-            for (int i = 0; i < 36; i++) {
-                ItemStack stack = inv.getItem(i);
-                if (!ShulkerContentsHelper.isShulker(stack)) continue;
-                List<ItemStack> contents = List.copyOf(ShulkerContentsHelper.getStacks(stack));
-                ShulkerSlotEntry entry = new ShulkerSlotEntry(i, stack.copy(), contents);
-                all.add(entry);
-                if (contents.stream().anyMatch(item -> !item.isEmpty())) nonEmpty.add(entry);
-            }
+            cachedFlatItems = List.copyOf(
+                    updateFlatItemsKeepingOrder(cachedFlatItems, rebuiltFlatItems));
         }
         cachedPlayer = player;
-        cachedEnderChestPreview = enderChestPreview;
+        cachedScreen = client.screen;
         cachedInventoryFingerprint = fingerprint;
         cachedAllShulkers = List.copyOf(all);
         cachedNonEmptyShulkers = List.copyOf(nonEmpty);
-        cachedFlatItems = List.copyOf(buildFlatItemList(cachedNonEmptyShulkers));
         cachedVisibleItems = List.of();
         cachedSearchQuery = null;
         cachedCategory = null;
+        if (newContainerScreen) sortPreparedAfterClose = false;
     }
 
     private static final class StackKey {
@@ -478,20 +531,33 @@ public final class BundlePanelRenderer {
 
     public static int getHoveredShulkerInventorySlot() {
         return Configs.Features.HUD_ENABLED.getBooleanValue()
-                && !QuickShulkerExtractionController.isEnderChestPreviewActive()
                 ? hoveredShulkerInventorySlot : -1;
     }
     public static boolean isEffectivelyVisible() {
-        if (!Configs.Features.HUD_ENABLED.getBooleanValue() || isRecipeBookOpen()) return false;
-        Minecraft client = Minecraft.getInstance();
-        return !QuickShulkerExtractionController.isEnderChestPreviewActive()
-                || (client.screen instanceof AbstractContainerScreen<?> screen
-                && canFitEnderChestPreview(screen));
+        return Configs.Features.HUD_ENABLED.getBooleanValue() && !isRecipeBookOpen();
     }
     public static void toggleVisible() {
         Configs.Features.HUD_ENABLED.setBooleanValue(
                 !Configs.Features.HUD_ENABLED.getBooleanValue());
         Configs.saveToFile();
+    }
+
+    public static void minimizeCurrentPreview() {
+        toggleVisible();
+    }
+
+    public static boolean isToggleButtonHovered(
+            double mouseX, double mouseY, int leftPos, int topPos, int imageWidth) {
+        int x = toggleX(leftPos, imageWidth);
+        int y = toggleY(topPos);
+        return mouseX >= x && mouseX < x + TOGGLE_WIDTH
+                && mouseY >= y && mouseY < y + TOGGLE_HEIGHT;
+    }
+
+    public static void playButtonClick() {
+        Minecraft client = Minecraft.getInstance();
+        client.getSoundManager().play(
+                SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
     }
 
     // --- category button layout ---
@@ -683,13 +749,7 @@ public final class BundlePanelRenderer {
             if (selected) { bx -= 3; bw += 4; }
             boolean hovered = mouseX >= bx && mouseX < bx + bw
                     && mouseY >= by && mouseY < by + catHeight;
-            int bg = selected ? COLOR_PANEL_SELECTED
-                    : (hovered ? COLOR_PANEL_HOVER : COLOR_PANEL);
-            if (selected) {
-                drawInsetFrame(graphics, bx, by, bw, catHeight, bg);
-            } else {
-                drawFrame(graphics, bx, by, bw, catHeight, bg);
-            }
+            drawVanillaButton(graphics, bx, by, bw, catHeight, hovered, !selected);
             renderScaledCategoryIcon(
                     graphics, cats[i].getIcon(), bx, by, CAT_BAR_WIDTH, catHeight);
         }
@@ -699,7 +759,8 @@ public final class BundlePanelRenderer {
         int sbY = gridY;
         int sbH = gridHeight;
 
-        drawInsetFrame(graphics, sbX, sbY, SCROLL_BAR_WIDTH, sbH, COLOR_BORDER_MID);
+        graphics.blitSprite(RenderPipelines.GUI_TEXTURED, SCROLLER_BACKGROUND_SPRITE,
+                sbX, sbY, SCROLL_BAR_WIDTH, sbH);
         int thumbH = Math.min(15, sbH);
         if (maxScroll > 0) {
             int thumbY = sbY + (sbH - thumbH) * scrollOffset / maxScroll;
@@ -756,7 +817,6 @@ public final class BundlePanelRenderer {
             int sby = panelY + 3;
             int sbw = searchBarWidth(leftPos);
             boolean active = searchFocused;
-            drawControlShadow(graphics, sbx, sby, sbw, SEARCH_BAR_HEIGHT, 2);
             graphics.blitSprite(RenderPipelines.GUI_TEXTURED,
                     active ? TEXT_FIELD_HIGHLIGHTED_SPRITE : TEXT_FIELD_SPRITE,
                     sbx, sby, sbw, SEARCH_BAR_HEIGHT);
@@ -795,15 +855,10 @@ public final class BundlePanelRenderer {
         int returnY = panelY + panelHeight - 21;
         boolean returnHovered = isReturnButtonHovered(
                 mouseX, mouseY, leftPos, topPos, imageHeight);
-        boolean enderChestPreview =
-                QuickShulkerExtractionController.isEnderChestPreviewActive();
-        boolean canReturn = !enderChestPreview
-                && QuickShulkerExtractionController.canOrganizeInventory();
-        drawFrame(graphics, returnX, returnY, 18, 18,
-                returnHovered ? COLOR_PANEL_HOVER
-                        : (canReturn ? COLOR_PANEL : COLOR_BORDER_MID));
-        graphics.item(new ItemStack(
-                enderChestPreview ? Items.ENDER_CHEST : Items.HOPPER), returnX + 1, returnY + 1);
+        boolean canReturn = QuickShulkerExtractionController.canOrganizeInventory();
+        drawVanillaButton(graphics, returnX, returnY, 18, 18,
+                returnHovered, canReturn);
+        graphics.item(new ItemStack(Items.HOPPER), returnX + 1, returnY + 1);
 
         int categoryX = returnX + 22;
         int categoryWidth = Math.max(0, countX - categoryX - 6);
@@ -816,9 +871,7 @@ public final class BundlePanelRenderer {
         }
         if (returnHovered) {
             graphics.setTooltipForNextFrame(client.font,
-                    Component.translatable(enderChestPreview
-                            ? "message.better-shulker-hud.ender_chest_preview"
-                            : "message.better-shulker-hud.return_button"),
+                    Component.translatable("message.better-shulker-hud.return_button"),
                     mouseX, mouseY);
         }
 
@@ -826,8 +879,8 @@ public final class BundlePanelRenderer {
         int minimizeY = panelY + 4;
         boolean minimizeHovered = isMinimizeButtonHovered(
                 mouseX, mouseY, leftPos, topPos, imageHeight);
-        drawFrame(graphics, minimizeX, minimizeY, CONTROL_SIZE, CONTROL_SIZE,
-                minimizeHovered ? COLOR_PANEL_HOVER : COLOR_PANEL);
+        drawVanillaButton(graphics, minimizeX, minimizeY, CONTROL_SIZE, CONTROL_SIZE,
+                minimizeHovered, true);
         graphics.fill(minimizeX + 4, minimizeY + 7,
                 minimizeX + CONTROL_SIZE - 4, minimizeY + 8, COLOR_TEXT);
         if (minimizeHovered) {
@@ -836,9 +889,7 @@ public final class BundlePanelRenderer {
                     mouseX, mouseY);
         } else if (dropHovered) {
             graphics.setTooltipForNextFrame(client.font,
-                    Component.translatable(enderChestPreview
-                            ? "message.better-shulker-hud.ender_chest_drop_target"
-                            : "message.better-shulker-hud.store_drop_target"),
+                    Component.translatable("message.better-shulker-hud.store_drop_target"),
                     mouseX, mouseY);
         }
 
@@ -861,65 +912,28 @@ public final class BundlePanelRenderer {
 
     private static void drawFrame(
             GuiGraphicsExtractor graphics, int x, int y, int width, int height, int fill) {
-        int radius = Math.min(Configs.General.HUD_CORNER_RADIUS.getIntegerValue(),
-                Math.max(0, Math.min(width, height) / 2));
-        drawControlShadow(graphics, x, y, width, height, radius);
-        fillRoundedRect(graphics, x, y, width, height, radius, fill);
-        if (radius == 0) {
-            graphics.fill(x, y, x + width - 1, y + 1, COLOR_BORDER_LIGHT);
-            graphics.fill(x, y, x + 1, y + height - 1, COLOR_BORDER_LIGHT);
-            graphics.fill(x + 1, y + height - 1, x + width, y + height, COLOR_BORDER_DARK);
-            graphics.fill(x + width - 1, y + 1, x + width, y + height, COLOR_BORDER_DARK);
-        } else {
-            graphics.fill(x + radius, y, x + width - radius, y + 1, COLOR_BORDER_LIGHT);
-            graphics.fill(x, y + radius, x + 1, y + height - radius, COLOR_BORDER_LIGHT);
-            graphics.fill(x + radius, y + height - 1, x + width - radius, y + height, COLOR_BORDER_DARK);
-            graphics.fill(x + width - 1, y + radius, x + width, y + height - radius, COLOR_BORDER_DARK);
-        }
+        graphics.fill(x, y, x + width, y + height, fill);
+        graphics.fill(x, y, x + width - 1, y + 1, COLOR_BORDER_LIGHT);
+        graphics.fill(x, y, x + 1, y + height - 1, COLOR_BORDER_LIGHT);
+        graphics.fill(x + 1, y + height - 1, x + width, y + height, COLOR_BORDER_DARK);
+        graphics.fill(x + width - 1, y + 1, x + width, y + height, COLOR_BORDER_DARK);
     }
 
     private static void drawInsetFrame(
             GuiGraphicsExtractor graphics, int x, int y, int width, int height, int fill) {
-        int radius = Math.min(Configs.General.HUD_CORNER_RADIUS.getIntegerValue(),
-                Math.max(0, Math.min(width, height) / 2));
-        drawInsetShadow(graphics, x, y, width, height, radius);
-        fillRoundedRect(graphics, x, y, width, height, radius, fill);
-        if (radius == 0) {
-            graphics.fill(x, y, x + width - 1, y + 1, COLOR_BORDER_DARK);
-            graphics.fill(x, y, x + 1, y + height - 1, COLOR_BORDER_DARK);
-            graphics.fill(x + 1, y + height - 1, x + width, y + height, COLOR_BORDER_LIGHT);
-            graphics.fill(x + width - 1, y + 1, x + width, y + height, COLOR_BORDER_LIGHT);
-        } else {
-            graphics.fill(x + radius, y, x + width - radius, y + 1, COLOR_BORDER_DARK);
-            graphics.fill(x, y + radius, x + 1, y + height - radius, COLOR_BORDER_DARK);
-            graphics.fill(x + radius, y + height - 1, x + width - radius, y + height, COLOR_BORDER_LIGHT);
-            graphics.fill(x + width - 1, y + radius, x + width, y + height - radius, COLOR_BORDER_LIGHT);
-        }
+        graphics.fill(x, y, x + width, y + height, fill);
+        graphics.fill(x, y, x + width - 1, y + 1, COLOR_BORDER_DARK);
+        graphics.fill(x, y, x + 1, y + height - 1, COLOR_BORDER_DARK);
+        graphics.fill(x + 1, y + height - 1, x + width, y + height, COLOR_BORDER_LIGHT);
+        graphics.fill(x + width - 1, y + 1, x + width, y + height, COLOR_BORDER_LIGHT);
     }
 
-    private static void drawControlShadow(
-            GuiGraphicsExtractor graphics, int x, int y, int width, int height, int radius) {
-        fillRoundedRect(graphics, x + 1, y + 1, width, height, radius, COLOR_SHADOW_SOFT);
-        fillRoundedRect(graphics, x + 2, y + 3, width, height, radius, COLOR_SHADOW_DEEP);
-    }
-
-    private static void drawInsetShadow(
-            GuiGraphicsExtractor graphics, int x, int y, int width, int height, int radius) {
-        fillRoundedRect(graphics, x + 1, y + 2, width, height, radius, COLOR_SHADOW_SOFT);
-    }
-
-    private static void fillRoundedRect(
+    private static void drawVanillaButton(
             GuiGraphicsExtractor graphics, int x, int y, int width, int height,
-            int radius, int color) {
-        if (radius <= 0) {
-            graphics.fill(x, y, x + width, y + height, color);
-            return;
-        }
-        for (int row = 0; row < height; row++) {
-            int distance = Math.min(row, height - 1 - row);
-            int inset = distance >= radius ? 0 : radius - distance;
-            graphics.fill(x + inset, y + row, x + width - inset, y + row + 1, color);
-        }
+            boolean hovered, boolean active) {
+        Identifier sprite = !active ? BUTTON_DISABLED_SPRITE
+                : (hovered ? BUTTON_HIGHLIGHTED_SPRITE : BUTTON_SPRITE);
+        graphics.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, x, y, width, height);
     }
 
     private static void drawBorder(

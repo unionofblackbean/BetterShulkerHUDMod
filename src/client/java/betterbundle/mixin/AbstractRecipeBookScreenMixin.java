@@ -22,18 +22,10 @@ public abstract class AbstractRecipeBookScreenMixin {
         double mouseX = event.x();
         double mouseY = event.y();
 
-        if (BundlePanelRenderer.isEnderChestButtonHovered(
-                mouseX, mouseY, self.leftPos, self.topPos, self.imageWidth)) {
-            bettershulkerhud.compat.QuickShulkerExtractionController
-                    .requestEnderChestPreview(self);
-            cir.setReturnValue(true);
-            return;
-        }
-
         // Toggle button
-        int bx = BundlePanelRenderer.toggleX(self.leftPos, self.imageWidth);
-        int by = BundlePanelRenderer.toggleY(self.topPos);
-        if (mouseX >= bx && mouseX < bx + 20 && mouseY >= by && mouseY < by + 20) {
+        if (BundlePanelRenderer.isToggleButtonHovered(
+                mouseX, mouseY, self.leftPos, self.topPos, self.imageWidth)) {
+            BundlePanelRenderer.playButtonClick();
             BundlePanelRenderer.toggleVisible();
             cir.setReturnValue(true);
             return;
@@ -42,7 +34,8 @@ public abstract class AbstractRecipeBookScreenMixin {
 
         if (BundlePanelRenderer.isMinimizeButtonHovered(
                 mouseX, mouseY, self.leftPos, self.topPos, self.imageHeight)) {
-            BundlePanelRenderer.toggleVisible();
+            BundlePanelRenderer.playButtonClick();
+            BundlePanelRenderer.minimizeCurrentPreview();
             cir.setReturnValue(true);
             return;
         }
@@ -51,6 +44,7 @@ public abstract class AbstractRecipeBookScreenMixin {
         if (BundlePanelRenderer.isEffectivelyVisible()) {
             BundleCategory cat = BundlePanelRenderer.getCategoryAt(mouseX, mouseY, self.leftPos, self.topPos, self.imageHeight);
             if (cat != null) {
+                BundlePanelRenderer.playButtonClick();
                 BundlePanelRenderer.currentCategory = cat;
                 BundlePanelRenderer.searchQuery = "";
                 BundlePanelRenderer.scrollToTop();

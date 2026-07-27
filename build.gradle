@@ -9,6 +9,7 @@ group = project.maven_group
 repositories {
     mavenCentral()
     maven { url 'https://jitpack.io' }
+    maven { url 'https://maven.shedaniel.me' }
     maven {
         url 'https://masa.dy.fi/maven/sakura-ryoko'
         content { includeGroupAndSubgroups 'fi.dy.masa' }
@@ -46,6 +47,8 @@ dependencies {
     compileOnly('com.github.MoRanpcy:quickshulker:3.0.0-26.1') {
         transitive = false
     }
+
+    compileOnly('me.shedaniel:RoughlyEnoughItems-api:26.1.819')
 
     implementation 'fi.dy.masa.malilib:malilib-fabric-26.1.1:0.28.2'
 

@@ -7,10 +7,14 @@ import com.google.gson.JsonObject;
 import fi.dy.masa.malilib.config.ConfigUtils;
 import fi.dy.masa.malilib.config.IConfigBase;
 import fi.dy.masa.malilib.config.IConfigHandler;
+import fi.dy.masa.malilib.config.IConfigOptionListEntry;
+import fi.dy.masa.malilib.config.options.ConfigBoolean;
 import fi.dy.masa.malilib.config.options.ConfigBooleanHotkeyed;
 import fi.dy.masa.malilib.config.options.ConfigInteger;
+import fi.dy.masa.malilib.config.options.ConfigOptionList;
 import fi.dy.masa.malilib.config.options.ConfigStringList;
 import fi.dy.masa.malilib.util.FileUtils;
+import fi.dy.masa.malilib.util.StringUtils;
 import fi.dy.masa.malilib.util.data.json.JsonUtils;
 import com.google.common.collect.ImmutableList;
 
@@ -30,28 +34,35 @@ public final class Configs implements IConfigHandler {
                 new ConfigInteger("hudMaxColumns", 6, 2, 12).apply(PREFIX);
         public static final ConfigInteger HUD_MAX_ROWS =
                 new ConfigInteger("hudMaxRows", 8, 3, 16).apply(PREFIX);
-        public static final ConfigInteger HUD_CORNER_RADIUS =
-                new ConfigInteger("hudCornerRadius", 3, 0, 6).apply(PREFIX);
+        public static final ConfigOptionList CLEAR_SLOT_LIST_MODE =
+                new ConfigOptionList("clearSlotListMode", ClearanceListMode.BLACKLIST).apply(PREFIX);
         public static final ConfigStringList CLEAR_SLOT_WHITELIST =
                 new ConfigStringList("clearSlotWhitelist", ImmutableList.of()).apply(PREFIX);
         public static final ConfigStringList CLEAR_SLOT_BLACKLIST =
                 new ConfigStringList("clearSlotBlacklist", ImmutableList.of()).apply(PREFIX);
+        public static final ConfigStringList ORGANIZE_BLACKLIST =
+                new ConfigStringList("organizeBlacklist",
+                        ImmutableList.of("minecraft:firework_rocket")).apply(PREFIX);
         public static final ConfigInteger AUTO_RESTOCK_THRESHOLD =
                 new ConfigInteger("autoRestockThreshold", 6, 1, 64).apply(PREFIX);
         public static final ConfigInteger AUTO_RESTOCK_AMOUNT =
                 new ConfigInteger("autoRestockAmount", 64, 1, 64).apply(PREFIX);
         public static final ConfigInteger AUTO_RESTOCK_SCAN_INTERVAL =
                 new ConfigInteger("autoRestockScanInterval", 4, 1, 40).apply(PREFIX);
+        public static final ConfigBoolean DIAGNOSTIC_LOGGING =
+                new ConfigBoolean("diagnosticLogging", false).apply(PREFIX);
 
         public static final List<IConfigBase> OPTIONS = List.of(
                 HUD_MAX_COLUMNS,
                 HUD_MAX_ROWS,
-                HUD_CORNER_RADIUS,
+                CLEAR_SLOT_LIST_MODE,
                 CLEAR_SLOT_WHITELIST,
                 CLEAR_SLOT_BLACKLIST,
+                ORGANIZE_BLACKLIST,
                 AUTO_RESTOCK_THRESHOLD,
                 AUTO_RESTOCK_AMOUNT,
-                AUTO_RESTOCK_SCAN_INTERVAL
+                AUTO_RESTOCK_SCAN_INTERVAL,
+                DIAGNOSTIC_LOGGING
         );
 
         private General() {}
@@ -62,8 +73,6 @@ public final class Configs implements IConfigHandler {
 
         public static final ConfigBooleanHotkeyed HUD_ENABLED =
                 new ConfigBooleanHotkeyed("hudEnabled", false, "").apply(PREFIX);
-        public static final ConfigBooleanHotkeyed SHOW_ENDER_CHEST_BUTTON =
-                new ConfigBooleanHotkeyed("showEnderChestButton", true, "").apply(PREFIX);
         public static final ConfigBooleanHotkeyed LITEMATICA_RESTOCK =
                 new ConfigBooleanHotkeyed("litematicaRestock", true, "").apply(PREFIX);
         public static final ConfigBooleanHotkeyed HIDE_QUICK_SHULKER_SCREEN =
@@ -77,7 +86,6 @@ public final class Configs implements IConfigHandler {
 
         public static final List<ConfigBooleanHotkeyed> OPTIONS = List.of(
                 HUD_ENABLED,
-                SHOW_ENDER_CHEST_BUTTON,
                 LITEMATICA_RESTOCK,
                 HIDE_QUICK_SHULKER_SCREEN,
                 PINYIN_SEARCH,
@@ -86,6 +94,42 @@ public final class Configs implements IConfigHandler {
         );
 
         private Features() {}
+    }
+
+    public enum ClearanceListMode implements IConfigOptionListEntry {
+        BLACKLIST("blacklist"),
+        WHITELIST("whitelist");
+
+        private final String configValue;
+
+        ClearanceListMode(String configValue) {
+            this.configValue = configValue;
+        }
+
+        @Override
+        public String getStringValue() {
+            return configValue;
+        }
+
+        @Override
+        public String getDisplayName() {
+            return StringUtils.translate(
+                    Reference.MOD_ID + ".config.clear_slot_list_mode." + configValue);
+        }
+
+        @Override
+        public IConfigOptionListEntry cycle(boolean forward) {
+            int offset = forward ? 1 : values().length - 1;
+            return values()[(ordinal() + offset) % values().length];
+        }
+
+        @Override
+        public ClearanceListMode fromString(String value) {
+            for (ClearanceListMode mode : values()) {
+                if (mode.configValue.equalsIgnoreCase(value)) return mode;
+            }
+            return BLACKLIST;
+        }
     }
 
     public static void loadFromFile() {

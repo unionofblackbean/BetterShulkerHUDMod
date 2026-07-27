@@ -18,6 +18,9 @@
     "entrypoints": {
         "main": [
             "bettershulkerhud.BetterBundleMod"
+        ],
+        "rei_client": [
+            "bettershulkerhud.compat.ReiExclusionPlugin"
         ]
     },
     "accessWidener": "better-shulker-hud.accesswidener",
@@ -36,6 +39,7 @@
         "java": ">=25"
     },
     "suggests": {
-        "litematica": ">=0.27.1"
+        "litematica": ">=0.27.1",
+        "roughlyenoughitems": ">=26.1"
     }
 }

@@ -2,9 +2,8 @@ package bettershulkerhud.mixin;
 
 import bettershulkerhud.gui.BundlePanelRenderer;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.client.gui.screens.inventory.InventoryScreen;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -44,61 +43,25 @@ public abstract class InventoryScreenMixin {
             }
         }
 
-        if (BundlePanelRenderer.shouldRenderHudToggleButton()) {
-            betterShulkerHud$renderToggleButton(
-                    graphics,
-                    BundlePanelRenderer.toggleX(self.leftPos, self.imageWidth),
-                    BundlePanelRenderer.toggleY(self.topPos),
-                    mouseX,
-                    mouseY);
-        }
-        if (self instanceof InventoryScreen
-                && BundlePanelRenderer.shouldShowEnderChestButton()) {
-            betterShulkerHud$renderEnderChestButton(
-                    graphics,
-                    BundlePanelRenderer.enderChestButtonX(self.leftPos, self.imageWidth),
-                    BundlePanelRenderer.enderChestButtonY(self.topPos),
-                    mouseX,
-                    mouseY);
-        }
+        betterShulkerHud$renderToggleButton(
+                graphics,
+                BundlePanelRenderer.toggleX(self.leftPos, self.imageWidth),
+                BundlePanelRenderer.toggleY(self.topPos),
+                mouseX,
+                mouseY);
     }
 
     @Unique
     private static void betterShulkerHud$renderToggleButton(
             GuiGraphicsExtractor graphics, int x, int y, int mouseX, int mouseY) {
-        boolean hovered = mouseX >= x && mouseX < x + 20 && mouseY >= y && mouseY < y + 20;
-        graphics.fill(x + 2, y + 3, x + 22, y + 23, 0x68000000);
-        graphics.fill(x + 1, y + 1, x + 21, y + 21, 0x38000000);
-        graphics.fill(x, y, x + 20, y + 20, hovered ? 0xFFD6D6D6 : 0xFFC6C6C6);
-        graphics.fill(x, y, x + 19, y + 1, 0xFFFFFFFF);
-        graphics.fill(x, y, x + 1, y + 19, 0xFFFFFFFF);
-        graphics.fill(x + 1, y + 19, x + 20, y + 20, 0xFF373737);
-        graphics.fill(x + 19, y + 1, x + 20, y + 20, 0xFF373737);
-        if (BundlePanelRenderer.isEffectivelyVisible()) {
-            graphics.fill(x + 3, y + 17, x + 17, y + 18, 0xFF404040);
-        }
+        boolean hovered = mouseX >= x && mouseX < x + BundlePanelRenderer.TOGGLE_WIDTH
+                && mouseY >= y && mouseY < y + BundlePanelRenderer.TOGGLE_HEIGHT;
+        graphics.blitSprite(RenderPipelines.GUI_TEXTURED,
+                hovered ? BundlePanelRenderer.RECIPE_BUTTON_HIGHLIGHTED_SPRITE
+                        : BundlePanelRenderer.RECIPE_BUTTON_SPRITE,
+                x, y, BundlePanelRenderer.TOGGLE_WIDTH, BundlePanelRenderer.TOGGLE_HEIGHT);
         ItemStack icon = new ItemStack(Items.SHULKER_BOX);
-        graphics.item(icon, x + 2, y + 2);
-    }
-
-    @Unique
-    private static void betterShulkerHud$renderEnderChestButton(
-            GuiGraphicsExtractor graphics, int x, int y, int mouseX, int mouseY) {
-        boolean hovered = mouseX >= x && mouseX < x + 20 && mouseY >= y && mouseY < y + 20;
-        graphics.fill(x + 2, y + 3, x + 22, y + 23, 0x68000000);
-        graphics.fill(x + 1, y + 1, x + 21, y + 21, 0x38000000);
-        graphics.fill(x, y, x + 20, y + 20, hovered ? 0xFFD6D6D6 : 0xFFC6C6C6);
-        graphics.fill(x, y, x + 19, y + 1, 0xFFFFFFFF);
-        graphics.fill(x, y, x + 1, y + 19, 0xFFFFFFFF);
-        graphics.fill(x + 1, y + 19, x + 20, y + 20, 0xFF373737);
-        graphics.fill(x + 19, y + 1, x + 20, y + 20, 0xFF373737);
-        graphics.item(new ItemStack(Items.ENDER_CHEST), x + 2, y + 2);
-        if (hovered) {
-            graphics.setTooltipForNextFrame(
-                    net.minecraft.client.Minecraft.getInstance().font,
-                    Component.translatable("message.better-shulker-hud.open_ender_chest"),
-                    mouseX, mouseY);
-        }
+        graphics.item(icon, x + 2, y + 1);
     }
 
     @Unique
