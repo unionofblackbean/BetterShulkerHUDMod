@@ -11,7 +11,6 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
-import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
@@ -54,7 +53,7 @@ public final class BundlePanelRenderer {
     private static final int SCREEN_MARGIN = 4;
     private static final int PANEL_GAP = 4;
     private static final int CATEGORY_GAP = 2;
-    private static final int SCROLL_GAP = 2;
+    private static final int SCROLL_GAP = 7;
     private static final int BODY_INSET = 12;
     private static final int CONTROL_SIZE = 14;
     private static final int COLOR_PANEL = 0xFFC6C6C6;
@@ -194,12 +193,15 @@ public final class BundlePanelRenderer {
         int desired;
         if (client.screen instanceof InventoryScreen) {
             desired = leftPos + 130;
-        } else if (client.screen instanceof CreativeModeInventoryScreen) {
-            int outsideLeft = leftPos - 24;
-            desired = outsideLeft >= SCREEN_MARGIN
-                    ? outsideLeft : leftPos + imageWidth + 4;
         } else {
-            desired = leftPos + imageWidth - 24;
+            int outsideLeft = leftPos - TOGGLE_WIDTH - 4;
+            int outsideRight = leftPos + imageWidth + 4;
+            boolean leftFits = outsideLeft >= SCREEN_MARGIN;
+            boolean rightFits = outsideRight + TOGGLE_WIDTH
+                    <= client.getWindow().getGuiScaledWidth() - SCREEN_MARGIN;
+            desired = leftFits ? outsideLeft
+                    : rightFits ? outsideRight
+                    : leftPos + imageWidth - TOGGLE_WIDTH - 4;
         }
         return Math.clamp(desired, SCREEN_MARGIN,
                 Math.max(SCREEN_MARGIN,
@@ -209,7 +211,7 @@ public final class BundlePanelRenderer {
     public static int toggleY(int topPos) {
         Minecraft client = Minecraft.getInstance();
         int desired = client.screen instanceof InventoryScreen
-                ? topPos + 60
+                ? topPos + 61
                 : topPos + (FabricLoader.getInstance().isModLoaded("better-bundle") ? 27 : 5);
         return Math.clamp(desired, SCREEN_MARGIN,
                 Math.max(SCREEN_MARGIN,

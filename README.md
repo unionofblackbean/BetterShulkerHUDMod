@@ -1,10 +1,10 @@
-# Better Shulker HUD 1.8.18
+# Better Shulker HUD 1.8.20
 
 [简体中文](#简体中文) | [English](#english)
 
 ## 简体中文
 
-Better Shulker HUD 是 Minecraft 26.1.x Fabric 客户端物品管理模组。1.8.18 使用 MaLiLib 提供与 Tweakeroo 一致的原生配置界面，并通过服务器端 QuickShulker 完成真实物品转移。
+Better Shulker HUD 是 Minecraft 26.1.x Fabric 客户端物品管理模组。1.8.20 使用 MaLiLib 提供与 Tweakeroo 一致的原生配置界面，并通过服务器端 QuickShulker 完成真实物品转移。
 
 作者：`BF_skt`
 
@@ -20,7 +20,8 @@ HUD 设计与交互方式参考了 zeroowo24 的 BetterBundleHUD；本项目针�
 - 当前分类显示在 HUD 底部；支持分类内滚动、中文、物品 ID、全拼和拼音首字母搜索。
 - HUD 面板会根据当前 GUI 缩放、窗口宽高和容器位置动态调整列数、行数、左右位置及垂直位置；分类按钮会在低高度下同步缩放。
 - 创造模式中的潜影盒按钮会放在容器外侧，避免遮挡搜索栏和滚动条；安装 REI 时，HUD 会注册动态排除区域，防止 REI 物品列表绘制在面板后方。
-- HUD 主面板、物品槽、分类按钮、搜索框、滚动条和底部控件全部采用 Minecraft 26.1 原版容器与控件风格；潜影盒开关直接使用配方书按钮背景，并兼容资源包替换的原版 GUI sprite。
+- 普通箱子等通用容器中的潜影盒按钮优先放在容器左上方外侧，左侧空间不足时自动切换到右侧，不再遮挡容器槽位；REI 同时避让按钮区域。
+- HUD 主面板、物品槽、分类按钮、搜索框、滚动条和底部控件全部采用 Minecraft 26.1 原版容器与控件风格；滚动条与物品网格保留清晰间距，背包内潜影盒开关与配方书按钮对齐，并兼容资源包替换的原版 GUI sprite。
 - 潜影盒开关、最小化、分类切换和整理按钮使用原版 `ui.button.click` 点击音效。
 - 按 `B`、`C` 打开 MaLiLib 配置界面，可调整 HUD 尺寸、圆角和自动补货参数，并管理全部功能开关与快捷键。
 - 左键取出一个，`Shift+左键` 取出一组，右键将一组目标物品直接拿到鼠标光标；支持拖入 HUD 自由存放。
@@ -61,7 +62,7 @@ $env:JAVA_HOME='Java 25 路径'
 
 ## English
 
-Better Shulker HUD is a client-side inventory manager for every Minecraft 26.1.x patch release on Fabric. Version 1.8.18 uses MaLiLib to provide the same native configuration UI structure as Tweakeroo while QuickShulker performs server-authoritative item transfers.
+Better Shulker HUD is a client-side inventory manager for every Minecraft 26.1.x patch release on Fabric. Version 1.8.20 uses MaLiLib to provide the same native configuration UI structure as Tweakeroo while QuickShulker performs server-authoritative item transfers.
 
 Author: `BF_skt`
 
@@ -77,7 +78,8 @@ The HUD design and interaction model reference BetterBundleHUD by zeroowo24. Thi
 - Shows the active category in the HUD footer and supports in-category localized name, item ID, full-Pinyin, and Pinyin-initial search.
 - Adapts HUD columns, rows, side placement, vertical placement, and category icon size to the current GUI scale, window dimensions, and container position.
 - Places the shulker toggle outside Creative inventory controls and registers a dynamic exclusion zone when REI is installed, preventing REI entries from rendering behind the HUD.
-- Uses the native Minecraft 26.1 container and widget style for the HUD panel, item slots, category buttons, search box, scrollbar, and footer controls. The shulker toggle uses the recipe-book button background and respects resource-pack replacements for vanilla GUI sprites.
+- Places the shulker toggle outside the upper-left edge of ordinary containers, falling back to the right when needed, so it never covers a container slot. REI also excludes the toggle area.
+- Uses the native Minecraft 26.1 container and widget style for the HUD panel, item slots, category buttons, search box, scrollbar, and footer controls. The scrollbar is clearly separated from the item grid, and the inventory shulker toggle aligns with the recipe-book button while respecting resource-pack replacements for vanilla GUI sprites.
 - Plays the vanilla `ui.button.click` sound for the shulker toggle, minimize control, category selection, and organize button.
 - Press `B`, then `C` to open the native MaLiLib configuration screen for HUD sizing, corner radius, automatic restock settings, feature toggles, and hotkeys.
 - Extracts one item with left click, one stack with `Shift+left click`, or moves a stack directly to the mouse cursor with right click; items can also be dropped onto the HUD for storage.
