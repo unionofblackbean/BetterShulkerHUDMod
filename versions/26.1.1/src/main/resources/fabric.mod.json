@@ -1,0 +1,47 @@
+{
+    "schemaVersion": 1,
+    "id": "better-shulker-hud",
+    "version": "${version}",
+    "name": "Better Shulker HUD",
+    "description": "集中预览、搜索、排序和管理随身潜影盒物品，支持 QuickShulker 快速取放、来源归还、拼音搜索，以及 Litematica 轻松放置自动补块。HUD 设计参考 BetterBundleHUD（zeroowo24）。",
+    "authors": ["BF_skt"],
+    "contributors": [
+        "zeroowo24 - BetterBundleHUD 原作者，HUD 设计参考"
+    ],
+    "contact": {
+        "homepage": "https://github.com/unionofblackbean/BetterShulkerHUDMod",
+        "sources": "https://github.com/unionofblackbean/BetterShulkerHUDMod",
+        "issues": "https://github.com/unionofblackbean/BetterShulkerHUDMod/issues"
+    },
+    "license": "CC0-1.0",
+    "environment": "client",
+    "entrypoints": {
+        "main": [
+            "bettershulkerhud.BetterBundleMod"
+        ],
+        "rei_client": [
+            "bettershulkerhud.compat.ReiExclusionPlugin"
+        ]
+    },
+    "accessWidener": "better-shulker-hud.accesswidener",
+    "mixins": [
+        {
+            "config": "better-shulker-hud.client.mixins.json",
+            "environment": "client"
+        }
+    ],
+    "depends": {
+        "fabricloader": ">=0.18.4",
+        "fabric-api": "*",
+        "malilib": ">=0.28.2 <0.29.0",
+        "minecraft": "26.1.1",
+        "java": ">=25"
+    },
+    "suggests": {
+        "quickshulker": "*",
+        "litematica": ">=0.27.1",
+        "roughlyenoughitems": ">=26.1",
+        "jei": "*",
+        "modernui": ">=3.13.0"
+    }
+}

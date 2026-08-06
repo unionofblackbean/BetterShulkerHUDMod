@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "id": "better-shulker-hud",
+  "version": "${version}",
+  "name": "Better Shulker HUD",
+  "description": "Preview, search, sort and manage items stored in carried shulker boxes. Supports QuickShulker and AxShulkers, source-aware returns, Pinyin search and Litematica Easy Place restocking.",
+  "authors": [
+    "BF_skt"
+  ],
+  "contributors": [
+    "zeroowo24 - original BetterBundleHUD author and HUD design reference"
+  ],
+  "contact": {
+    "homepage": "https://github.com/unionofblackbean/BetterShulkerHUDMod",
+    "sources": "https://github.com/unionofblackbean/BetterShulkerHUDMod",
+    "issues": "https://github.com/unionofblackbean/BetterShulkerHUDMod/issues"
+  },
+  "license": "CC0-1.0",
+  "environment": "client",
+  "entrypoints": {
+    "main": [
+      "bettershulkerhud.BetterBundleMod"
+    ],
+    "rei_client": [
+      "bettershulkerhud.compat.ReiExclusionPlugin"
+    ]
+  },
+  "accessWidener": "better-shulker-hud.accesswidener",
+  "mixins": [
+    {
+      "config": "better-shulker-hud.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.14",
+    "fabric-api": "*",
+    "malilib": ">=0.25.0 <0.26.0",
+    "minecraft": ">=1.21.6 <=1.21.8",
+    "java": ">=21"
+  },
+  "suggests": {
+    "quickshulker": "*",
+    "litematica": "*",
+    "roughlyenoughitems": ">=16.0.0",
+    "jei": "*",
+    "modernui": ">=3.13.0"
+  }
+}

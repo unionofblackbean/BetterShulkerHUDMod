@@ -1,0 +1,121 @@
+plugins {
+    id 'fabric-loom' version "${loom_version}"
+    id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+    maven { url 'https://maven.shedaniel.me' }
+    maven { url 'https://maven.blamejared.com' }
+    maven { url 'https://api.modrinth.com/maven' }
+    maven {
+        url 'https://masa.dy.fi/maven/sakura-ryoko'
+        content { includeGroupAndSubgroups 'fi.dy.masa' }
+    }
+    maven {
+        url 'https://maven.fallenbreath.me/releases'
+        content { includeGroupAndSubgroups 'me.fallenbreath' }
+    }
+}
+
+configurations {
+    embed
+    compileOnly.extendsFrom embed
+}
+
+loom {
+    splitEnvironmentSourceSets()
+    accessWidenerPath = file("src/main/resources/better-shulker-hud.accesswidener")
+
+    mods {
+        "better-shulker-hud" {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
+        }
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings loom.officialMojangMappings()
+
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+    modCompileOnly('com.github.MoRanpcy:quickshulker:3.0.0-1.21.1') {
+        transitive = false
+    }
+    modRuntimeOnly('com.github.MoRanpcy:quickshulker:3.0.0-1.21.1') {
+        transitive = false
+    }
+    // The QuickShulker JitPack artifact uses this mixin plugin but omits it
+    // from its published POM. Keep it runtime-only for local client testing.
+    modRuntimeOnly('me.fallenbreath:conditional-mixin-fabric:0.6.4') {
+        transitive = false
+    }
+
+    modCompileOnly('me.shedaniel:RoughlyEnoughItems-api:16.0.799')
+    modCompileOnly('mezz.jei:jei-1.21.1-fabric-api:19.43.0.390')
+    modCompileOnly('maven.modrinth:emi:1.1.24+1.21.1+fabric')
+
+    modImplementation 'fi.dy.masa.malilib:malilib-fabric-1.21:0.21.10'
+
+    embed 'com.belerweb:pinyin4j:2.5.1'
+    embed('com.github.Towdium:PinIn:1.6.0') {
+        transitive = false
+    }
+}
+
+processResources {
+    def version = project.version
+    inputs.property "version", version
+
+    filesMatching("fabric.mod.json") {
+        expand "version": version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 21
+}
+
+java {
+    withSourcesJar()
+
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+jar {
+    def projectName = project.name
+    inputs.property "projectName", projectName
+
+    from("LICENSE") {
+        rename { "${it}_$projectName"}
+    }
+    from("LICENSE-PinIn") {
+        into("META-INF/licenses")
+        rename { "PinIn-LICENSE.txt" }
+    }
+
+    // Embed pinyin4j classes directly (not jar-in-jar)
+    from {
+        configurations.embed.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
+
+publishing {
+    publications {
+        create("mavenJava", MavenPublication) {
+            from components.java
+        }
+    }
+
+    repositories {
+    }
+}
