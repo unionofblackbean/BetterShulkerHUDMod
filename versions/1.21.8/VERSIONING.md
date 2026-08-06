@@ -1,0 +1,23 @@
+# Versioning
+
+Release artifacts use:
+
+`BetterShulkerHud-<minecraft-version-or-range>-<mod-semver>.jar`
+
+- The Minecraft version identifies compatibility and never changes the Mod version.
+- Branches with the same feature set use the same Mod version.
+- PATCH is for compatible bug fixes, MINOR for compatible features, and MAJOR for incompatible workflow or configuration changes.
+- Pre-releases use SemVer suffixes such as `2.1.0-beta.1`.
+
+Current feature lines:
+
+- `1.8.22`: classic feature set.
+- `2.0.0`: water-bucket replacement, death-protection restocking, separate offhand restocking, and the configurable HUD-to-offhand hotkey.
+- `2.0.1`: safe swapping when the offhand already contains an item.
+- `2.0.2`: recipe-book coexistence, optional ModernUI integration, and CozyUI+ sprite adaptation.
+- `2.0.3`: programmatic batch storage that reuses an open shulker menu.
+- `2.0.4`: hidden programmatic storage with a delay before reopening another shulker.
+- `2.0.5`: configurable programmatic transfer delays and same-item shulker priority.
+- `2.0.6`: cross-shulker queue ownership and verified inventory-menu settlement.
+- `2.0.7`: rebuilds stale inventory screens after the final programmatic extraction.
+- `2.1.0`: source-specific grouped extraction API and adaptive programmatic timing.
