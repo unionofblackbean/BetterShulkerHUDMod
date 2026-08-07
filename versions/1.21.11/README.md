@@ -1,4 +1,4 @@
-# Better Shulker HUD 2.0.2 for Minecraft 1.21.11
+# Better Shulker HUD 2.0.3 for Minecraft 1.21.11
 
 [简体中文](#简体中文) | [English](#english)
 
@@ -20,13 +20,12 @@ HUD 的设计与交互参考了 zeroowo24 的 BetterBundleHUD。本项目面向�
 - 使用水桶后先把空桶安全移到其他槽位，再从潜影盒补回水桶；不会把空桶当作补货目标。
 - 支持主手和副手的不死图腾类单件物品补货，副手补货可以单独关闭。
 - 鼠标悬停 HUD 物品时按可配置的 `F` 键可安全拿到副手；副手已有不同物品时会与空背包暂存槽交换。HUD 开关按钮仅在按 `E` 打开的玩家背包中显示。
-- HUD 可与配方书同时打开，可选择隐藏原版配方书按钮；支持可选的 ModernUI 与 CozyUI+ 界面适配，不要求安装为前置。
 - 可选兼容 Litematica Easy Place 和 REI。
 - 使用 MaLiLib 设置界面，并适配不同 GUI 缩放和窗口尺寸。
 
 ### 1.21.x 兼容矩阵
 
-Minecraft 1.21.x 存在多次不兼容的客户端 API 变化，因此本项目历史上提供过多个独立 JAR。请按游戏版本选择，不能混用；当前维护范围以仓库根目录的支持矩阵为准。
+Minecraft 1.21.x 存在多次不兼容的客户端 API 变化，因此本项目提供八个独立 JAR。请按游戏版本选择，不能混用。
 
 | Minecraft | 构建目标 | MaLiLib | QuickShulker |
 | --- | --- | --- | --- |
@@ -66,13 +65,12 @@ The HUD design and interaction model reference BetterBundleHUD by zeroowo24. Thi
 - After a water bucket is used, safely relocates the empty bucket and restores a water bucket from a carried shulker.
 - Restocks consumed death-protection items such as Totems of Undying in the main hand and offhand; offhand restocking has a separate toggle.
 - Press configurable `F` over a HUD item to move it safely to the offhand. A different existing offhand item is exchanged into an empty inventory staging slot. The HUD toggle button appears only in the player inventory opened with `E`.
-- The HUD can coexist with the recipe book and optionally hide the vanilla recipe-book button. ModernUI and CozyUI+ integration is optional and is not a required dependency.
 - Optionally integrates with Litematica Easy Place and REI.
 - Uses a MaLiLib configuration screen and adapts to GUI scale and window size.
 
 ### 1.21.x Compatibility
 
-Minecraft 1.21.x contains several incompatible client API boundaries, so this project has historically shipped multiple independent JARs. Select the JAR matching your exact game version; the artifacts are not interchangeable. See the repository root for the current maintenance matrix.
+Minecraft 1.21.x contains several incompatible client API boundaries, so this project ships eight independent JARs. Select the JAR matching your exact game version; the artifacts are not interchangeable.
 
 See the compatibility matrix above for the matching MaLiLib and QuickShulker versions. Every build requires Java 21, Fabric Loader 0.16.14 or newer, and the matching Fabric API. Install Better Shulker HUD, Fabric API, MaLiLib, and QuickShulker on the client. Install Fabric API and QuickShulker on the server for actual item transfers. Litematica and REI are optional client dependencies.
 

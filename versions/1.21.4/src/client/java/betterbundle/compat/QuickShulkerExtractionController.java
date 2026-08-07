@@ -45,6 +45,7 @@ public final class QuickShulkerExtractionController {
     // stack in a few ticks instead of spreading it over eight-click batches.
     private static final int MAX_STORE_CLICKS_PER_TICK = 32;
     private static final int MAX_QUEUED_EXTRACTIONS = 64;
+    private static final int AX_AUTOMATIC_RESTOCK_SETTLE_TICKS = 8;
     private static final String DIAGNOSTIC_PREFIX = "[Better Shulker HUD Diagnostics]";
     private static long containerSyncVersion;
     private static final Map<Integer, Long> containerSyncVersions = new HashMap<>();
@@ -118,6 +119,8 @@ public final class QuickShulkerExtractionController {
     private static boolean cachedOrganizeAvailability;
 
     private static int autoRestockCooldown;
+    private static int axAutomaticRestockSettleTicks = -1;
+    private static long blockedAxAutomaticRestockFingerprint = Long.MIN_VALUE;
     private static ItemStack rememberedMainSingleItem = ItemStack.EMPTY;
     private static int rememberedMainSingleSlot = -1;
     private static int rememberedMainSingleLooseCount;
@@ -192,6 +195,8 @@ public final class QuickShulkerExtractionController {
         clearReturnProcess();
         clearOrganizeProcess();
         autoRestockCooldown = 0;
+        axAutomaticRestockSettleTicks = -1;
+        blockedAxAutomaticRestockFingerprint = Long.MIN_VALUE;
         rememberedMainSingleItem = ItemStack.EMPTY;
         rememberedMainSingleSlot = -1;
         rememberedMainSingleLooseCount = 0;
@@ -239,6 +244,14 @@ public final class QuickShulkerExtractionController {
             fingerprint = 31L * fingerprint + stack.getCount();
         }
         return fingerprint;
+    }
+
+    private static long automaticRestockFingerprint(Inventory inventory) {
+        long fingerprint = inventoryFingerprint(inventory);
+        ItemStack offhand = inventory.getItem(Inventory.SLOT_OFFHAND);
+        fingerprint = 31L * fingerprint + ItemStack.hashItemAndComponents(offhand);
+        fingerprint = 31L * fingerprint + offhand.getCount();
+        return 31L * fingerprint + inventory.selected;
     }
 
     public static void request(BundlePanelRenderer.FlatItem item, boolean takeOne) {
@@ -325,7 +338,10 @@ public final class QuickShulkerExtractionController {
                 "packet-send open-shulker quickShulkerSlot=%d canSend=%s openSyncBaseline=%d target=inventory requested=%d",
                 source.quickShulkerSlot(), canUseConfiguredBackend(), extractionOpenSyncVersion,
                 takeOne ? 1 : source.expectedStack().getCount());
-        openShulker(client, source.quickShulkerSlot(), operationId);
+        if (!openShulker(client, source.quickShulkerSlot(), operationId)) {
+            failExtraction(client, "message.better-shulker-hud.open_failed");
+            return;
+        }
         diagnostic(operationId, "packet-sent open-shulker");
     }
 
@@ -424,7 +440,10 @@ public final class QuickShulkerExtractionController {
                 background ? "automatic-offhand-restock" : "offhand-hotkey",
                 itemId(source.expectedStack()), source.inventorySlot(), source.shulkerSlot(),
                 staging.inventorySlot(), itemId(offhand), offhand.getCount(), swap, requestedAmount);
-        openShulker(client, source.quickShulkerSlot(), operationId);
+        if (!openShulker(client, source.quickShulkerSlot(), operationId)) {
+            failExtraction(client, "message.better-shulker-hud.open_failed");
+            return false;
+        }
         return true;
     }
 
@@ -485,7 +504,10 @@ public final class QuickShulkerExtractionController {
         diagnostic(operationId,
                 "packet-send open-shulker quickShulkerSlot=%d canSend=%s openSyncBaseline=%d target=cursor-staging",
                 source.quickShulkerSlot(), canUseConfiguredBackend(), extractionOpenSyncVersion);
-        openShulker(client, source.quickShulkerSlot(), operationId);
+        if (!openShulker(client, source.quickShulkerSlot(), operationId)) {
+            failExtraction(client, "message.better-shulker-hud.open_failed");
+            return;
+        }
         diagnostic(operationId, "packet-sent open-shulker");
     }
 
@@ -558,7 +580,10 @@ public final class QuickShulkerExtractionController {
                 itemId(source.expectedStack()), source.inventorySlot(), source.shulkerSlot(),
                 source.quickShulkerSlot(), requestedAmount, capacity,
                 canUseConfiguredBackend(), extractionOpenSyncVersion);
-        openShulker(client, source.quickShulkerSlot(), operationId);
+        if (!openShulker(client, source.quickShulkerSlot(), operationId)) {
+            failExtraction(client, "message.better-shulker-hud.open_failed");
+            return;
+        }
         diagnostic(operationId, "packet-sent open-shulker");
     }
 
@@ -914,7 +939,38 @@ public final class QuickShulkerExtractionController {
             tickQueuedExtraction(client);
             return;
         }
-        tickAutoRestock(client);
+        if (!tickAxAutomaticRestockGuard(client)) tickAutoRestock(client);
+    }
+
+    private static boolean tickAxAutomaticRestockGuard(Minecraft client) {
+        if (activeBackend() != Configs.ShulkerOpenBackend.AX_SHULKERS) {
+            axAutomaticRestockSettleTicks = -1;
+            blockedAxAutomaticRestockFingerprint = Long.MIN_VALUE;
+            return false;
+        }
+        if (client.player == null) return false;
+        if (axAutomaticRestockSettleTicks >= 0) {
+            if (client.player.containerMenu != client.player.inventoryMenu) return true;
+            if (axAutomaticRestockSettleTicks-- > 0) return true;
+            blockedAxAutomaticRestockFingerprint =
+                    automaticRestockFingerprint(client.player.getInventory());
+            axAutomaticRestockSettleTicks = -1;
+            diagnostic(0, "ax-automatic-restock-paused fingerprint=%d",
+                    blockedAxAutomaticRestockFingerprint);
+            return true;
+        }
+        if (blockedAxAutomaticRestockFingerprint == Long.MIN_VALUE) return false;
+        long current = automaticRestockFingerprint(client.player.getInventory());
+        if (current == blockedAxAutomaticRestockFingerprint) return true;
+        blockedAxAutomaticRestockFingerprint = Long.MIN_VALUE;
+        diagnostic(0, "ax-automatic-restock-resumed inventory-changed");
+        return false;
+    }
+
+    private static void pauseAxAutomaticRestock() {
+        if (activeBackend() != Configs.ShulkerOpenBackend.AX_SHULKERS) return;
+        axAutomaticRestockSettleTicks = AX_AUTOMATIC_RESTOCK_SETTLE_TICKS;
+        blockedAxAutomaticRestockFingerprint = Long.MIN_VALUE;
     }
 
     private static void tickQueuedExtraction(Minecraft client) {
@@ -1326,7 +1382,10 @@ public final class QuickShulkerExtractionController {
                     pendingStore.sourceInventorySlot(), pendingStore.targetInventorySlot(),
                     pendingStore.shulkerSlot());
         }
-        openShulker(Minecraft.getInstance(), targetMenuSlot, operationId);
+        if (!openShulker(Minecraft.getInstance(), targetMenuSlot, operationId)) {
+            failStore(Minecraft.getInstance(), "message.better-shulker-hud.open_failed");
+            return;
+        }
         diagnostic(operationId, "packet-sent open-shulker");
     }
 
@@ -1540,7 +1599,10 @@ public final class QuickShulkerExtractionController {
                 itemId(source.expectedStack()), source.inventorySlot(), source.shulkerSlot(),
                 source.quickShulkerSlot(), targetInventorySlot, targetBaselineCount,
                 requestedAmount, canUseConfiguredBackend(), extractionOpenSyncVersion);
-        openShulker(client, source.quickShulkerSlot(), operationId);
+        if (!openShulker(client, source.quickShulkerSlot(), operationId)) {
+            failExtraction(client, "message.better-shulker-hud.open_failed");
+            return false;
+        }
         diagnostic(operationId, "packet-sent open-shulker");
         return true;
     }
@@ -1586,7 +1648,10 @@ public final class QuickShulkerExtractionController {
                 source.inventorySlot(), source.shulkerSlot(), staging.inventorySlot(),
                 selectedSlot, emptyBucketDestination.inventorySlot(),
                 emptyBucketDestination.baselineCount());
-        openShulker(client, source.quickShulkerSlot(), operationId);
+        if (!openShulker(client, source.quickShulkerSlot(), operationId)) {
+            failExtraction(client, "message.better-shulker-hud.open_failed");
+            return false;
+        }
         return true;
     }
 
@@ -2371,6 +2436,7 @@ public final class QuickShulkerExtractionController {
                         "operation-complete target=offhand confirmedAmount=%d offhandCount=%d swap=%s serverSync=%s waitTicks=%d",
                         pendingOffhandTransfer.extractedAmount(), offhand.getCount(),
                         swap, synced, offhandTransferWaitTicks);
+                if (pendingOffhandTransfer.background()) pauseAxAutomaticRestock();
                 clearOffhandTransfer();
                 return;
             }
@@ -2455,6 +2521,8 @@ public final class QuickShulkerExtractionController {
     }
 
     private static void failOffhandTransfer(Minecraft client) {
+        boolean background = pendingOffhandTransfer != null
+                && pendingOffhandTransfer.background();
         int preferredSlot = pendingOffhandTransfer == null
                 ? -1 : pendingOffhandTransfer.inventorySlot();
         returnCursorToInventory(
@@ -2462,6 +2530,7 @@ public final class QuickShulkerExtractionController {
         if (pendingOffhandTransfer != null && !pendingOffhandTransfer.background()) {
             show(client, "message.better-shulker-hud.offhand_transfer_failed");
         }
+        if (background) pauseAxAutomaticRestock();
         clearOffhandTransfer();
     }
 
@@ -2556,6 +2625,7 @@ public final class QuickShulkerExtractionController {
                         "operation-complete target=water-bucket-replacement selectedSlot=%d serverSync=%s waitTicks=%d",
                         pendingBucketTransfer.selectedInventorySlot(), synced,
                         bucketTransferWaitTicks);
+                pauseAxAutomaticRestock();
                 clearBucketTransfer();
                 return;
             }
@@ -2619,6 +2689,7 @@ public final class QuickShulkerExtractionController {
         returnCursorToInventory(
                 client, preferredSlot, bucketTransferOperationId,
                 "water-bucket-replacement");
+        pauseAxAutomaticRestock();
         clearBucketTransfer();
     }
 
@@ -2816,7 +2887,9 @@ public final class QuickShulkerExtractionController {
             returnExpectedTargetCount = -1;
             returnPendingMoved = 0;
             returnConfirmationTicks = 0;
-            openShulker(client, menuSlot, 0);
+            if (!openShulker(client, menuSlot, 0)) {
+                finishCurrentReturn(client);
+            }
             return;
         }
 
@@ -3448,6 +3521,8 @@ public final class QuickShulkerExtractionController {
 
     private static void failExtraction(Minecraft client, String messageKey) {
         boolean handRestock = pendingExtraction != null && pendingExtraction.handRestock();
+        boolean automaticRestock = handRestock
+                || (extractionToOffhand && extractionOffhandBackground);
         boolean background = pendingExtraction != null
                 && (pendingExtraction.litematicaRestock() || handRestock
                 || (extractionToOffhand && extractionOffhandBackground));
@@ -3468,6 +3543,7 @@ public final class QuickShulkerExtractionController {
                     background ? null : new InventoryScreen(client.player),
                     !background);
         }
+        if (automaticRestock) pauseAxAutomaticRestock();
         clearExtraction();
     }
 
@@ -3557,6 +3633,7 @@ public final class QuickShulkerExtractionController {
                     "operation-complete kind=extraction target=%s confirmedAmount=%d sourceAfter=%d menu=%d",
                     handRestock ? "main-hand" : litematicaRestock ? "litematica" : "inventory",
                     confirmedAmount, completedExpectedSourceCount, extractionMenuId);
+            if (handRestock) pauseAxAutomaticRestock();
         }
         if (!continuedInOpenMenu) {
             clearExtraction();
@@ -4061,25 +4138,27 @@ public final class QuickShulkerExtractionController {
                 : Configs.ShulkerOpenBackend.AX_SHULKERS;
     }
 
-    private static void openShulker(Minecraft client, int menuSlot, long operationId) {
+    private static boolean openShulker(Minecraft client, int menuSlot, long operationId) {
         Configs.ShulkerOpenBackend backend = activeBackend();
         diagnostic(operationId, "open-shulker backend=%s slot=%d",
                 backend.getStringValue(), menuSlot);
         if (backend == Configs.ShulkerOpenBackend.AX_SHULKERS) {
             if (client.player == null || client.gameMode == null
-                    || client.getConnection() == null) return;
+                    || client.getConnection() == null) return false;
             AbstractContainerMenu menu = client.player.containerMenu;
             if (menuSlot < 0 || menuSlot >= menu.slots.size()
-                    || !menu.getCarried().isEmpty()) return;
+                    || !menu.getCarried().isEmpty()) return false;
             Slot clicked = menu.getSlot(menuSlot);
             if (clicked.container != client.player.getInventory()
-                    || !ShulkerContentsHelper.isShulker(clicked.getItem())) return;
+                    || !ShulkerContentsHelper.isShulker(clicked.getItem())) return false;
             client.getConnection().send(new ServerboundContainerClickPacket(
                     menu.containerId, menu.getStateId(), menuSlot, 1,
                     ClickType.PICKUP, ItemStack.EMPTY, new Int2ObjectOpenHashMap<>()));
-            return;
+            return true;
         }
+        if (!QuickShulkerCompat.canSend()) return false;
         QuickShulkerCompat.open(menuSlot);
+        return true;
     }
 
     private static void rollbackAxOpenClick(
