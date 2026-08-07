@@ -21,3 +21,4 @@ Current feature lines:
 - `2.0.6`: cross-shulker queue ownership and verified inventory-menu settlement.
 - `2.0.7`: rebuilds stale inventory screens after the final programmatic extraction.
 - `2.1.0`: source-specific grouped extraction API and adaptive programmatic timing.
+- `2.1.1`: prevents AxShulkers automatic restocking from reopening the same shulker until the inventory changes.

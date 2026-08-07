@@ -21,3 +21,4 @@ Current feature lines:
 - `2.0.6`: reliable cross-box extraction queue ownership and verified inventory-menu settlement for Quick Crafting.
 - `2.0.7`: rebuilds and rebinds stale inventory screens after programmatic extraction instead of relying on delayed object-identity convergence.
 - `2.1.0`: source-specific grouped extraction API and adaptive programmatic transfer timing for Quick Crafting.
+- `2.1.1`: prevents AxShulkers automatic restocking from reopening the same shulker until the inventory changes.
