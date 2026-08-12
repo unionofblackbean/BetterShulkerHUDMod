@@ -18,7 +18,6 @@ import net.minecraft.network.protocol.game.ServerboundContainerClickPacket;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.ShulkerBoxMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
@@ -41,7 +40,6 @@ import java.util.Set;
 public final class QuickShulkerExtractionController {
     private static final int OPEN_TIMEOUT_TICKS = 60;
     private static final int LOCAL_CONFIRMATION_GRACE_TICKS = 6;
-    private static final int MAX_PROGRAMMATIC_DELAY_TICKS = 20;
     // Keep the interaction sequence server-authoritative, but finish a normal
     // stack in a few ticks instead of spreading it over eight-click batches.
     private static final int MAX_STORE_CLICKS_PER_TICK = 32;
@@ -73,13 +71,11 @@ public final class QuickShulkerExtractionController {
     private static int extractionEmptyBucketDestinationBaseline;
     private static final ArrayDeque<QueuedExtraction> queuedExtractions = new ArrayDeque<>();
     private static int queuedExtractionWaitTicks;
-    private static int queuedExtractionStartDelayTicks;
-    private static int extractionOperationDelayTicks;
-    private static boolean programmaticExtractionBatch;
-    private static int programmaticInventorySettleTicks;
 
     private static PendingCursorPickup pendingCursorPickup;
     private static int cursorPickupWaitTicks;
+    private static long cursorPickupMoveSyncVersion;
+    private static boolean cursorPickupAwaitingSync;
 
     private static PendingOffhandTransfer pendingOffhandTransfer;
     private static int offhandTransferWaitTicks;
@@ -102,11 +98,8 @@ public final class QuickShulkerExtractionController {
     private static long storeOpenSyncVersion;
     private static long storeMoveSyncVersion;
     private static int storeExpectedTargetCount = -1;
-    private static int storeOperationDelayTicks;
     private static boolean storeContinueAfterMove;
     private static int queuedStoreSessionCount;
-    private static int programmaticExtractionDelayTicks = 1;
-    private static int programmaticStorageDelayTicks = 2;
 
     private static DeferredExtraction deferredExtraction;
     private static int deferredExtractionDelay = -1;
@@ -149,20 +142,13 @@ public final class QuickShulkerExtractionController {
     private static int returnPendingMoved;
     private static int returnConfirmationTicks;
     private static ItemStack pendingLitematicaSelection = ItemStack.EMPTY;
+    private static PendingLitematicaSwap pendingLitematicaSwap;
 
     private QuickShulkerExtractionController() {}
 
     public static void onClientTick(Minecraft client) {
         updateRememberedHandItems(client);
         tick(client);
-        if (pendingExtraction == null && queuedExtractions.isEmpty()
-                && programmaticExtractionBatch) {
-            programmaticExtractionBatch = false;
-            programmaticInventorySettleTicks = Math.max(
-                    programmaticInventorySettleTicks,
-                    Math.max(3, programmaticExtractionDelayTicks));
-        }
-        tickProgrammaticInventorySettle(client);
     }
 
     public static void onContainerSync(int containerId) {
@@ -188,11 +174,6 @@ public final class QuickShulkerExtractionController {
         clearDeferredExtraction();
         queuedExtractions.clear();
         queuedExtractionWaitTicks = 0;
-        queuedExtractionStartDelayTicks = 0;
-        extractionOperationDelayTicks = 0;
-        programmaticExtractionBatch = false;
-        programmaticInventorySettleTicks = 0;
-        storeOperationDelayTicks = 0;
         clearReturnProcess();
         clearOrganizeProcess();
         autoRestockCooldown = 0;
@@ -222,6 +203,12 @@ public final class QuickShulkerExtractionController {
     public static boolean hasReturnableHistory() {
         return Configs.Features.RETURN_HISTORY.getBooleanValue()
                 && originRecords.stream().anyMatch(record -> record.remaining > 0);
+    }
+
+    public static boolean hasOriginFor(ItemStack stack) {
+        return stack != null && !stack.isEmpty()
+                && originRecords.stream().anyMatch(record -> record.remaining > 0
+                && ItemStack.isSameItemSameComponents(record.prototype, stack));
     }
 
     public static boolean canOrganizeInventory() {
@@ -256,6 +243,23 @@ public final class QuickShulkerExtractionController {
     }
 
     public static void request(BundlePanelRenderer.FlatItem item, boolean takeOne) {
+        requestInternal(item, takeOne, false);
+    }
+
+    /**
+     * Receives a wheel request from the optional Item Scroller integration.
+     * Wheel events are intentionally quiet when the HUD snapshot becomes
+     * stale (for example, after the user scrolls past the last item), while
+     * normal clicks keep their existing visible error messages.
+     */
+    public static void requestFromItemScroller(
+            BundlePanelRenderer.FlatItem item, boolean moveStack) {
+        requestInternal(item, !moveStack, true);
+    }
+
+    private static void requestInternal(
+            BundlePanelRenderer.FlatItem item, boolean takeOne,
+            boolean silentIfSourceMissing) {
         Minecraft client = Minecraft.getInstance();
         long operationId = nextDiagnosticOperationId();
         diagnostic(operationId, "request type=%s target=%s displayedCount=%d",
@@ -268,7 +272,8 @@ public final class QuickShulkerExtractionController {
 
         if (isBusy() || !queuedExtractions.isEmpty()) {
             if (queuedExtractions.size() < MAX_QUEUED_EXTRACTIONS) {
-                queuedExtractions.addLast(new QueuedExtraction(item, takeOne, operationId));
+                queuedExtractions.addLast(new QueuedExtraction(
+                        item, takeOne, operationId, silentIfSourceMissing));
                 diagnostic(operationId,
                         "request-queued reason=controller-busy activeOperation=%d queueSize=%d",
                         activeDiagnosticOperationId(), queuedExtractions.size());
@@ -277,14 +282,13 @@ public final class QuickShulkerExtractionController {
         }
         if (!canUseShulkerBackend(client, operationId)) return;
 
-        startInventoryExtraction(client, screen, item, takeOne, true, operationId);
-    }
+        if (silentIfSourceMissing
+                && findValidatedSource(screen, client.player.getInventory(), item) == null) {
+            diagnostic(operationId, "request-dropped reason=source-no-longer-present");
+            return;
+        }
 
-    public static void requestSource(
-            BundlePanelRenderer.ItemSource source, boolean takeOne) {
-        if (source == null || source.stack().isEmpty()) return;
-        request(new BundlePanelRenderer.FlatItem(
-                source.stack().copy(), List.of(source)), takeOne);
+        startInventoryExtraction(client, screen, item, takeOne, true, operationId);
     }
 
     private static void startInventoryExtraction(
@@ -555,6 +559,7 @@ public final class QuickShulkerExtractionController {
                 source.shulkerSlot(), source.quickShulkerSlot());
         if (capacity <= 0) {
             if (allowClear && beginLitematicaClearance(client, required, operationId)) return;
+            if (beginLitematicaHandSwap(client, source, required, operationId)) return;
             diagnostic(operationId,
                     "litematica-restock-rejected reason=no-inventory-capacity allowClear=%s",
                     allowClear);
@@ -689,19 +694,6 @@ public final class QuickShulkerExtractionController {
 
     public static void requestStoreInventorySlot(
             AbstractContainerScreen<?> screen, int sourceInventorySlot, boolean oneItem) {
-        requestStoreInventorySlot(
-                screen, sourceInventorySlot, oneItem, StorePurpose.INVENTORY_DRAG);
-    }
-
-    public static void requestProgrammaticStoreInventorySlot(
-            AbstractContainerScreen<?> screen, int sourceInventorySlot, boolean oneItem) {
-        requestStoreInventorySlot(
-                screen, sourceInventorySlot, oneItem, StorePurpose.PROGRAMMATIC_BATCH);
-    }
-
-    private static void requestStoreInventorySlot(
-            AbstractContainerScreen<?> screen, int sourceInventorySlot, boolean oneItem,
-            StorePurpose purpose) {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null || client.gameMode == null || isBusy()) return;
         if (!screen.getMenu().getCarried().isEmpty()
@@ -710,25 +702,20 @@ public final class QuickShulkerExtractionController {
         ItemStack source = client.player.getInventory().getItem(sourceInventorySlot);
         if (source.isEmpty() || ShulkerContentsHelper.isShulker(source)) return;
 
-        int requestedAmount = oneItem ? 1 : source.getCount();
+        int amount = oneItem ? 1 : source.getCount();
         long operationId = nextDiagnosticOperationId();
         diagnostic(operationId,
                 "request type=inventory-drag-store sourceInventorySlot=%d item=%s count=%d oneItem=%s",
-                sourceInventorySlot, itemId(source), requestedAmount, oneItem);
+                sourceInventorySlot, itemId(source), amount, oneItem);
         if (!canUseShulkerBackend(client, operationId)) return;
 
         ItemStack prototype = source.copyWithCount(1);
-        StoreTarget target = findStoreTarget(
-                client.player.getInventory(), prototype, requestedAmount,
-                purpose == StorePurpose.PROGRAMMATIC_BATCH);
+        StoreTarget target = findStoreTarget(client.player.getInventory(), prototype, amount);
         if (target == null) {
             diagnostic(operationId, "store-rejected reason=no-shulker-capacity");
             show(client, "message.better-shulker-hud.no_shulker_space");
             return;
         }
-        int amount = Math.min(requestedAmount, storeTargetCapacity(
-                client.player.getInventory(), target, prototype));
-        if (amount <= 0) return;
 
         int targetMenuSlot = resolveQuickShulkerSlot(
                 screen, client.player.getInventory(), target.inventorySlot());
@@ -743,7 +730,7 @@ public final class QuickShulkerExtractionController {
         pendingStore = new PendingStore(
                 sourceInventorySlot, amount, target.inventorySlot(), target.shulkerSlot(),
                 prototype, target.shulkerItem(), target.shulkerName(),
-                purpose,
+                StorePurpose.INVENTORY_DRAG,
                 findStoredMainHandMemorySlot(
                         client.player.getInventory(), prototype, sourceInventorySlot));
         queuedStoreSessionCount = 0;
@@ -754,77 +741,34 @@ public final class QuickShulkerExtractionController {
         openPendingStore(targetMenuSlot, operationId);
     }
 
-    public static boolean requestStoreInventorySlots(
-            AbstractContainerScreen<?> screen, List<Integer> sourceInventorySlots) {
-        Minecraft client = Minecraft.getInstance();
-        if (client.player == null || client.gameMode == null || isBusy()
-                || sourceInventorySlots == null || sourceInventorySlots.isEmpty()) return false;
-
-        List<Integer> validSlots = sourceInventorySlots.stream()
-                .filter(Objects::nonNull)
-                .filter(slot -> slot >= 0 && slot < 36)
-                .distinct()
-                .filter(slot -> {
-                    ItemStack stack = client.player.getInventory().getItem(slot);
-                    return !stack.isEmpty() && !ShulkerContentsHelper.isShulker(stack);
-                })
-                .toList();
-        if (validSlots.isEmpty()) return false;
-
-        InventoryDragStoreController.clearProgrammaticQueue();
-        InventoryDragStoreController.enqueueProgrammatic(
-                client, validSlots);
-        requestProgrammaticStoreInventorySlot(screen, validSlots.getFirst(), false);
-        if (pendingStore == null) {
-            InventoryDragStoreController.clearProgrammaticQueue();
-            return false;
-        }
-        diagnostic(storeOperationId,
-                "batch-store-start firstInventorySlot=%d queuedRemaining=%d",
-                validSlots.getFirst(), validSlots.size() - 1);
-        return true;
-    }
-
-    public static void configureProgrammaticTransferDelays(
-            int extractionDelayTicks, int storageDelayTicks) {
-        programmaticExtractionDelayTicks = clampProgrammaticDelay(extractionDelayTicks);
-        programmaticStorageDelayTicks = clampProgrammaticDelay(storageDelayTicks);
-    }
-
-    public static void beginProgrammaticExtractionBatch() {
-        programmaticExtractionBatch = true;
-        programmaticInventorySettleTicks = 0;
-    }
-
-    private static int clampProgrammaticDelay(int ticks) {
-        return Math.max(0, Math.min(MAX_PROGRAMMATIC_DELAY_TICKS, ticks));
-    }
-
     public static boolean hasActiveOperation() {
-        return isBusy() || !queuedExtractions.isEmpty()
-                || programmaticExtractionBatch
-                || programmaticInventorySettleTicks > 0;
+        return isBusy();
     }
 
-    private static void tickProgrammaticInventorySettle(Minecraft client) {
-        if (programmaticInventorySettleTicks <= 0 || client.player == null) return;
-        if (!(client.player.containerMenu instanceof InventoryMenu)) {
-            programmaticInventorySettleTicks = Math.max(
-                    3, programmaticExtractionDelayTicks);
-            if (client.player.containerMenu instanceof ShulkerBoxMenu) {
-                closeContainerAndSetScreen(
-                        client, new InventoryScreen(client.player), true, true);
-            }
-            return;
+    public static boolean isCursorTransferInProgress() {
+        return pendingCursorPickup != null
+                || pendingExtraction != null && pendingExtraction.cursorPickup()
+                || deferredExtraction != null && deferredExtraction.cursorPickup();
+    }
+
+    public static int getCursorStagingInventorySlot() {
+        if (pendingCursorPickup != null) return pendingCursorPickup.inventorySlot();
+        if (pendingExtraction != null && pendingExtraction.cursorPickup()) {
+            return pendingExtraction.targetInventorySlot();
         }
-        if (!(client.screen instanceof InventoryScreen screen)
-                || screen.getMenu() != client.player.containerMenu) {
-            client.setScreen(new InventoryScreen(client.player));
-            programmaticInventorySettleTicks = Math.max(
-                    3, programmaticExtractionDelayTicks);
-            return;
+        return -1;
+    }
+
+    public static ItemStack getCursorTransferPreview() {
+        if (pendingCursorPickup != null) {
+            return pendingCursorPickup.prototype().copyWithCount(
+                    pendingCursorPickup.extractedAmount());
         }
-        programmaticInventorySettleTicks--;
+        if (pendingExtraction != null && pendingExtraction.cursorPickup()) {
+            return pendingExtraction.expectedStack().copyWithCount(
+                    pendingExtraction.requestedAmount());
+        }
+        return ItemStack.EMPTY;
     }
 
     private static boolean isBusy() {
@@ -839,12 +783,7 @@ public final class QuickShulkerExtractionController {
     }
 
     public static boolean shouldHideQuickShulkerScreen() {
-        boolean programmaticStorage = pendingStore != null
-                && pendingStore.purpose() == StorePurpose.PROGRAMMATIC_BATCH;
-        boolean programmaticExtraction = programmaticExtractionBatch
-                && pendingExtraction != null;
-        return programmaticStorage || programmaticExtraction
-                || Configs.Features.HIDE_QUICK_SHULKER_SCREEN.getBooleanValue()
+        return Configs.Features.HIDE_QUICK_SHULKER_SCREEN.getBooleanValue()
                 && (pendingExtraction != null || pendingStore != null
                 || deferredExtraction != null || activeReturn != null);
     }
@@ -853,10 +792,19 @@ public final class QuickShulkerExtractionController {
         return preserveInventoryScreenDuringContainerClose;
     }
 
-    public static ActiveShulkerContents getActiveAxShulkerContents() {
+    /**
+     * Internal container screens may open and close while the player is still
+     * using the same inventory HUD. Preserve the visible item order until the
+     * whole operation queue is finished so repeated input keeps targeting the
+     * same item.
+     */
+    public static boolean shouldPreserveHudOrderOnScreenTransition() {
+        return isBusy() || !queuedExtractions.isEmpty();
+    }
+
+    public static ActiveShulkerContents getActiveShulkerContents() {
         Minecraft client = Minecraft.getInstance();
-        if (activeBackend() != Configs.ShulkerOpenBackend.AX_SHULKERS
-                || client.player == null
+        if (client.player == null
                 || !(client.player.containerMenu instanceof ShulkerBoxMenu menu)) {
             return null;
         }
@@ -911,7 +859,6 @@ public final class QuickShulkerExtractionController {
     }
 
     private static void tick(Minecraft client) {
-        if (programmaticInventorySettleTicks > 0) return;
         if (pendingStore != null) {
             tickStore(client);
             return;
@@ -980,39 +927,16 @@ public final class QuickShulkerExtractionController {
                 || !screen.getMenu().getCarried().isEmpty()) {
             queuedExtractions.clear();
             queuedExtractionWaitTicks = 0;
-            queuedExtractionStartDelayTicks = 0;
-            programmaticExtractionBatch = false;
-            return;
-        }
-        if (screen.getMenu() != client.player.containerMenu) {
-            if (client.player.containerMenu instanceof ShulkerBoxMenu) {
-                closeContainerAndSetScreen(
-                        client, new InventoryScreen(client.player), true);
-                queuedExtractionStartDelayTicks = Math.max(
-                        queuedExtractionStartDelayTicks,
-                        Math.max(2, programmaticExtractionDelayTicks));
-                queuedExtractionWaitTicks = 0;
-            } else if (client.player.containerMenu instanceof InventoryMenu) {
-                client.setScreen(new InventoryScreen(client.player));
-                queuedExtractionStartDelayTicks = Math.max(
-                        queuedExtractionStartDelayTicks,
-                        Math.max(2, programmaticExtractionDelayTicks));
-                queuedExtractionWaitTicks = 0;
-            } else if (++queuedExtractionWaitTicks > OPEN_TIMEOUT_TICKS) {
-                queuedExtractions.clear();
-                queuedExtractionWaitTicks = 0;
-                queuedExtractionStartDelayTicks = 0;
-                programmaticExtractionBatch = false;
-            }
-            return;
-        }
-        if (queuedExtractionStartDelayTicks > 0) {
-            queuedExtractionStartDelayTicks--;
             return;
         }
         QueuedExtraction queued = queuedExtractions.peekFirst();
         if (queued == null) return;
         if (findValidatedSource(screen, client.player.getInventory(), queued.item()) == null) {
+            if (queued.silentIfSourceMissing()) {
+                queuedExtractions.removeFirst();
+                queuedExtractionWaitTicks = 0;
+                return;
+            }
             if (++queuedExtractionWaitTicks > OPEN_TIMEOUT_TICKS) {
                 show(client, "message.better-shulker-hud.source_missing");
                 queuedExtractions.removeFirst();
@@ -1101,6 +1025,77 @@ public final class QuickShulkerExtractionController {
                 candidate.target().shulkerSlot(), targetMenuSlot,
                 itemId(candidate.prototype()), candidate.amount());
         openPendingStore(targetMenuSlot, operationId);
+        return true;
+    }
+
+    /**
+     * Last-resort easy-place restock for a completely full inventory and a
+     * completely full source shulker. The selected hotbar stack is exchanged
+     * with the requested shulker stack inside the real server menu, so no
+     * temporary player or shulker slot is required.
+     */
+    private static boolean beginLitematicaHandSwap(
+            Minecraft client, ResolvedSource source, ItemStack required,
+            long operationId) {
+        if (client.player == null || client.gameMode == null || source == null) return false;
+
+        Inventory inventory = client.player.getInventory();
+        int handInventorySlot = inventory.getSelectedSlot();
+        if (handInventorySlot < 0 || handInventorySlot >= 9
+                || handInventorySlot == source.inventorySlot()) return false;
+
+        ItemStack held = inventory.getItem(handInventorySlot);
+        if (held.isEmpty() || ShulkerContentsHelper.isShulker(held)
+                || ItemStack.isSameItemSameComponents(held, source.expectedStack())
+                || held.getCount() > held.getMaxStackSize()) {
+            diagnostic(operationId,
+                    "litematica-hand-swap-unavailable reason=invalid-held-stack held=%s heldCount=%d",
+                    itemId(held), held.getCount());
+            return false;
+        }
+
+        int handMenuSlot = findPlayerInventoryMenuSlot(
+                client.player.containerMenu, inventory, handInventorySlot);
+        if (handMenuSlot < 0) {
+            diagnostic(operationId,
+                    "litematica-hand-swap-unavailable reason=hand-slot-unresolved inventorySlot=%d",
+                    handInventorySlot);
+            return false;
+        }
+        Slot handSlot = client.player.containerMenu.getSlot(handMenuSlot);
+        if (!handSlot.mayPlace(source.expectedStack())
+                || source.expectedStack().getCount()
+                > handSlot.getMaxStackSize(source.expectedStack())) {
+            diagnostic(operationId,
+                    "litematica-hand-swap-unavailable reason=requested-stack-does-not-fit-hand item=%s count=%d inventorySlot=%d",
+                    itemId(source.expectedStack()), source.expectedStack().getCount(),
+                    handInventorySlot);
+            return false;
+        }
+
+        pendingLitematicaSwap = new PendingLitematicaSwap(
+                handInventorySlot, held.copy());
+        pendingExtraction = new PendingExtraction(
+                source.inventorySlot(), source.shulkerSlot(), source.expectedStack(), false,
+                source.shulkerItem(), source.shulkerName(), true, false, false,
+                -1, source.expectedStack().getCount(), 0);
+        extractionOperationId = operationId;
+        pendingLitematicaSelection = required.copyWithCount(1);
+        extractionWaitTicks = 0;
+        extractionMenuId = -1;
+        extractionCloseDelay = -1;
+        extractionMovedItemCount = 0;
+        extractionExpectedSourceCount = -1;
+        extractionOpenSyncVersion = containerSyncVersion;
+        diagnostic(operationId,
+                "litematica-hand-swap-open item=%s sourceInventorySlot=%d shulkerSlot=%d handInventorySlot=%d held=%s heldCount=%d requested=%d quickShulkerSlot=%d",
+                itemId(source.expectedStack()), source.inventorySlot(), source.shulkerSlot(),
+                handInventorySlot, itemId(held), held.getCount(),
+                source.expectedStack().getCount(), source.quickShulkerSlot());
+        if (!openShulker(client, source.quickShulkerSlot(), operationId)) {
+            failExtraction(client, "message.better-shulker-hud.open_failed");
+            return true;
+        }
         return true;
     }
 
@@ -1335,7 +1330,6 @@ public final class QuickShulkerExtractionController {
         }
         return null;
     }
-
     private static MatchingTarget findMatchingStoreTarget(
             Inventory inventory, ItemStack prototype) {
         MatchingTarget emptyTarget = null;
@@ -1689,10 +1683,6 @@ public final class QuickShulkerExtractionController {
             clearStore();
             return;
         }
-        if (storeOperationDelayTicks > 0) {
-            storeOperationDelayTicks--;
-            return;
-        }
 
         if (storeCloseDelay >= 0) {
             boolean synced = hasContainerSyncAfter(storeMenuId, storeMoveSyncVersion);
@@ -2035,10 +2025,6 @@ public final class QuickShulkerExtractionController {
             clearExtraction();
             return;
         }
-        if (extractionOperationDelayTicks > 0) {
-            extractionOperationDelayTicks--;
-            return;
-        }
 
         if (extractionCloseDelay >= 0) {
             boolean synced = hasContainerSyncAfter(
@@ -2122,7 +2108,74 @@ public final class QuickShulkerExtractionController {
 
         int before = sourceStack.getCount();
         extractionMoveSyncVersion = containerSyncVersion;
-        if (pendingExtraction.targetInventorySlot() >= 0) {
+        int directSwapAmount = -1;
+        if (pendingLitematicaSwap != null) {
+            int handMenuSlot = findPlayerInventoryMenuSlot(
+                    menu, client.player.getInventory(),
+                    pendingLitematicaSwap.handInventorySlot());
+            if (handMenuSlot < 0) {
+                diagnostic(extractionOperationId,
+                        "litematica-hand-swap-failed reason=hand-slot-unresolved inventorySlot=%d",
+                        pendingLitematicaSwap.handInventorySlot());
+                failExtraction(client, "message.better-shulker-hud.inventory_full");
+                return;
+            }
+
+            Slot handSlot = menu.getSlot(handMenuSlot);
+            ItemStack held = handSlot.getItem();
+            ItemStack originalHeld = pendingLitematicaSwap.originalHeld();
+            if (!ItemStack.matches(sourceStack, pendingExtraction.expectedStack())
+                    || !ItemStack.matches(held, originalHeld)
+                    || !handSlot.mayPlace(sourceStack)
+                    || sourceStack.getCount() > handSlot.getMaxStackSize(sourceStack)
+                    || !source.mayPlace(originalHeld)
+                    || originalHeld.getCount() > source.getMaxStackSize(originalHeld)) {
+                diagnostic(extractionOperationId,
+                        "litematica-hand-swap-failed reason=slot-state-changed source=%s sourceCount=%d expectedSource=%s expectedSourceCount=%d handInventorySlot=%d expectedHeld=%s expectedHeldCount=%d actualHeld=%s actualHeldCount=%d",
+                        itemId(sourceStack), sourceStack.getCount(),
+                        itemId(pendingExtraction.expectedStack()),
+                        pendingExtraction.expectedStack().getCount(),
+                        pendingLitematicaSwap.handInventorySlot(), itemId(originalHeld),
+                        originalHeld.getCount(), itemId(held), held.getCount());
+                failExtraction(client, "message.better-shulker-hud.inventory_full");
+                return;
+            }
+
+            diagnostic(extractionOperationId,
+                    "move-request menu=%d mode=litematica-hand-swap sourceShulkerSlot=%d handMenuSlot=%d handInventorySlot=%d source=%s sourceCount=%d held=%s heldCount=%d moveSyncBaseline=%d",
+                    menu.containerId, pendingExtraction.shulkerSlot(), handMenuSlot,
+                    pendingLitematicaSwap.handInventorySlot(), itemId(sourceStack),
+                    sourceStack.getCount(), itemId(originalHeld), originalHeld.getCount(),
+                    extractionMoveSyncVersion);
+            client.gameMode.handleContainerInput(
+                    menu.containerId, pendingExtraction.shulkerSlot(), 0,
+                    ContainerInput.PICKUP, client.player);
+            client.gameMode.handleContainerInput(
+                    menu.containerId, handMenuSlot, 0,
+                    ContainerInput.PICKUP, client.player);
+            client.gameMode.handleContainerInput(
+                    menu.containerId, pendingExtraction.shulkerSlot(), 0,
+                    ContainerInput.PICKUP, client.player);
+
+            ItemStack sourceAfter = menu.getSlot(pendingExtraction.shulkerSlot()).getItem();
+            ItemStack handAfter = menu.getSlot(handMenuSlot).getItem();
+            if (!menu.getCarried().isEmpty()
+                    || !ItemStack.matches(sourceAfter, originalHeld)
+                    || !ItemStack.matches(handAfter, pendingExtraction.expectedStack())) {
+                diagnostic(extractionOperationId,
+                        "litematica-hand-swap-failed reason=post-click-validation sourceAfter=%s sourceAfterCount=%d handAfter=%s handAfterCount=%d cursor=%s cursorCount=%d",
+                        itemId(sourceAfter), sourceAfter.getCount(), itemId(handAfter),
+                        handAfter.getCount(), itemId(menu.getCarried()),
+                        menu.getCarried().getCount());
+                failExtraction(client, "message.better-shulker-hud.inventory_full");
+                return;
+            }
+            directSwapAmount = before;
+            diagnostic(extractionOperationId,
+                    "move-local-result mode=litematica-hand-swap moved=%d sourceAfter=%s sourceAfterCount=%d handAfter=%s handAfterCount=%d cursorCount=%d",
+                    directSwapAmount, itemId(sourceAfter), sourceAfter.getCount(),
+                    itemId(handAfter), handAfter.getCount(), menu.getCarried().getCount());
+        } else if (pendingExtraction.targetInventorySlot() >= 0) {
             String targetError = pendingExtraction.cursorPickup()
                     ? "message.better-shulker-hud.cursor_pickup_failed"
                     : "message.better-shulker-hud.hand_unavailable";
@@ -2247,7 +2300,8 @@ public final class QuickShulkerExtractionController {
                     ContainerInput.QUICK_MOVE, client.player);
         }
 
-        int moved = before - menu.getSlot(pendingExtraction.shulkerSlot()).getItem().getCount();
+        int moved = directSwapAmount >= 0 ? directSwapAmount
+                : before - menu.getSlot(pendingExtraction.shulkerSlot()).getItem().getCount();
         if (pendingExtraction.targetInventorySlot() < 0
                 && !pendingExtraction.litematicaRestock()) {
             diagnostic(extractionOperationId,
@@ -2269,6 +2323,16 @@ public final class QuickShulkerExtractionController {
     private static boolean isConfirmedExtractionSource(ShulkerBoxMenu menu) {
         if (pendingExtraction == null || extractionExpectedSourceCount < 0) return false;
         ItemStack source = menu.getSlot(pendingExtraction.shulkerSlot()).getItem();
+        if (pendingLitematicaSwap != null) {
+            if (!ItemStack.matches(source, pendingLitematicaSwap.originalHeld())
+                    || Minecraft.getInstance().player == null) return false;
+            int handMenuSlot = findPlayerInventoryMenuSlot(
+                    menu, Minecraft.getInstance().player.getInventory(),
+                    pendingLitematicaSwap.handInventorySlot());
+            return handMenuSlot >= 0
+                    && ItemStack.matches(menu.getSlot(handMenuSlot).getItem(),
+                    pendingExtraction.expectedStack());
+        }
         if (extractionExpectedSourceCount == 0) return source.isEmpty();
         return ItemStack.isSameItemSameComponents(source, pendingExtraction.expectedStack())
                 && source.getCount() == extractionExpectedSourceCount;
@@ -2317,20 +2381,51 @@ public final class QuickShulkerExtractionController {
         }
 
         AbstractContainerMenu menu = client.player.inventoryMenu;
-        if (!menu.getCarried().isEmpty()) {
-            diagnostic(cursorPickupOperationId,
-                    "cursor-pickup-failed reason=cursor-not-empty item=%s count=%d",
-                    itemId(menu.getCarried()), menu.getCarried().getCount());
-            show(client, "message.better-shulker-hud.cursor_pickup_failed");
-            clearCursorPickup();
-            return;
-        }
         int menuSlot = findPlayerInventoryMenuSlot(
                 menu, client.player.getInventory(), pendingCursorPickup.inventorySlot());
         if (menuSlot < 0) {
             diagnostic(cursorPickupOperationId,
                     "cursor-pickup-failed reason=staging-menu-slot-unresolved stagingInventorySlot=%d",
                     pendingCursorPickup.inventorySlot());
+            show(client, "message.better-shulker-hud.cursor_pickup_failed");
+            clearCursorPickup();
+            return;
+        }
+
+        if (cursorPickupAwaitingSync) {
+            ItemStack carried = menu.getCarried();
+            ItemStack restored = menu.getSlot(menuSlot).getItem();
+            boolean confirmed = ItemStack.isSameItemSameComponents(
+                    carried, pendingCursorPickup.prototype())
+                    && carried.getCount() == pendingCursorPickup.extractedAmount()
+                    && isCursorStagingBaseline(restored);
+            boolean synced = hasContainerSyncAfter(
+                    menu.containerId, cursorPickupMoveSyncVersion);
+            if (confirmed && (synced
+                    || cursorPickupWaitTicks >= LOCAL_CONFIRMATION_GRACE_TICKS)) {
+                diagnostic(cursorPickupOperationId,
+                        "operation-complete target=cursor confirmedAmount=%d stagingInventorySlot=%d restoredBaseline=%d serverSync=%s waitTicks=%d",
+                        carried.getCount(), pendingCursorPickup.inventorySlot(),
+                        pendingCursorPickup.baselineCount(), synced, cursorPickupWaitTicks);
+                clearCursorPickup();
+                return;
+            }
+            if (++cursorPickupWaitTicks > 20) {
+                diagnostic(cursorPickupOperationId,
+                        "cursor-pickup-failed reason=server-confirmation-timeout carriedItem=%s carriedCount=%d restoredItem=%s restoredCount=%d expectedAmount=%d expectedBaseline=%d syncBaseline=%d currentSyncVersion=%d serverSync=%s",
+                        itemId(carried), carried.getCount(), itemId(restored), restored.getCount(),
+                        pendingCursorPickup.extractedAmount(), pendingCursorPickup.baselineCount(),
+                        cursorPickupMoveSyncVersion, containerSyncVersion, synced);
+                show(client, "message.better-shulker-hud.cursor_pickup_failed");
+                clearCursorPickup();
+            }
+            return;
+        }
+
+        if (!menu.getCarried().isEmpty()) {
+            diagnostic(cursorPickupOperationId,
+                    "cursor-pickup-failed reason=cursor-not-empty item=%s count=%d",
+                    itemId(menu.getCarried()), menu.getCarried().getCount());
             show(client, "message.better-shulker-hud.cursor_pickup_failed");
             clearCursorPickup();
             return;
@@ -2354,6 +2449,7 @@ public final class QuickShulkerExtractionController {
             return;
         }
 
+        cursorPickupMoveSyncVersion = containerSyncVersion;
         client.gameMode.handleContainerInput(
                 menu.containerId, menuSlot, 0, ContainerInput.PICKUP, client.player);
         for (int i = 0; i < pendingCursorPickup.baselineCount(); i++) {
@@ -2363,20 +2459,17 @@ public final class QuickShulkerExtractionController {
 
         ItemStack carried = menu.getCarried();
         ItemStack restored = menu.getSlot(menuSlot).getItem();
-        boolean restoredBaseline = pendingCursorPickup.baselineCount() == 0
-                ? restored.isEmpty()
-                : ItemStack.isSameItemSameComponents(
-                restored, pendingCursorPickup.prototype())
-                && restored.getCount() == pendingCursorPickup.baselineCount();
+        boolean restoredBaseline = isCursorStagingBaseline(restored);
         if (ItemStack.isSameItemSameComponents(
                 carried, pendingCursorPickup.prototype())
                 && carried.getCount() == pendingCursorPickup.extractedAmount()
                 && restoredBaseline) {
             diagnostic(cursorPickupOperationId,
-                    "operation-complete target=cursor confirmedAmount=%d stagingInventorySlot=%d restoredBaseline=%d",
+                    "cursor-pickup-local-result status=valid awaiting-server-sync confirmedAmount=%d stagingInventorySlot=%d restoredBaseline=%d syncBaseline=%d",
                     carried.getCount(), pendingCursorPickup.inventorySlot(),
-                    pendingCursorPickup.baselineCount());
-            clearCursorPickup();
+                    pendingCursorPickup.baselineCount(), cursorPickupMoveSyncVersion);
+            cursorPickupAwaitingSync = true;
+            cursorPickupWaitTicks = 0;
             return;
         }
 
@@ -2390,6 +2483,15 @@ public final class QuickShulkerExtractionController {
         }
         show(client, "message.better-shulker-hud.cursor_pickup_failed");
         clearCursorPickup();
+    }
+
+    private static boolean isCursorStagingBaseline(ItemStack stack) {
+        if (pendingCursorPickup == null) return false;
+        return pendingCursorPickup.baselineCount() == 0
+                ? stack.isEmpty()
+                : ItemStack.isSameItemSameComponents(
+                        stack, pendingCursorPickup.prototype())
+                && stack.getCount() == pendingCursorPickup.baselineCount();
     }
 
     private static void tickOffhandTransfer(Minecraft client) {
@@ -2939,61 +3041,30 @@ public final class QuickShulkerExtractionController {
 
     private static StoreTarget findStoreTarget(
             Inventory inventory, ItemStack prototype, int amount) {
-        return findStoreTarget(inventory, prototype, amount, false);
-    }
-
-    private static StoreTarget findStoreTarget(
-            Inventory inventory, ItemStack prototype, int amount,
-            boolean allowPartialMerge) {
         StoreTarget emptyTarget = null;
-        StoreTarget matchingBoxEmptyTarget = null;
         for (int inventorySlot = 0; inventorySlot < 36; inventorySlot++) {
             ItemStack shulker = inventory.getItem(inventorySlot);
             if (!ShulkerContentsHelper.isShulker(shulker)) continue;
 
             List<ItemStack> contents = ShulkerContentsHelper.getStacks(shulker);
-            int emptySlot = -1;
-            boolean containsMatchingItem = false;
             for (int shulkerSlot = 0; shulkerSlot < contents.size(); shulkerSlot++) {
                 ItemStack current = contents.get(shulkerSlot);
                 if (!current.isEmpty()
-                        && ItemStack.isSameItemSameComponents(current, prototype)) {
-                    containsMatchingItem = true;
-                    int capacity = current.getMaxStackSize() - current.getCount();
-                    if (capacity >= amount || allowPartialMerge && capacity > 0) {
-                        return new StoreTarget(
-                                inventorySlot, shulkerSlot, shulker.getItem(),
-                                shulker.get(DataComponents.CUSTOM_NAME));
-                    }
+                        && ItemStack.isSameItemSameComponents(current, prototype)
+                        && current.getMaxStackSize() - current.getCount() >= amount) {
+                    return new StoreTarget(
+                            inventorySlot, shulkerSlot, shulker.getItem(),
+                            shulker.get(DataComponents.CUSTOM_NAME));
                 }
-                if (current.isEmpty() && emptySlot < 0
+                if (current.isEmpty() && emptyTarget == null
                         && prototype.getMaxStackSize() >= amount) {
-                    emptySlot = shulkerSlot;
+                    emptyTarget = new StoreTarget(
+                            inventorySlot, shulkerSlot, shulker.getItem(),
+                            shulker.get(DataComponents.CUSTOM_NAME));
                 }
             }
-            if (emptySlot < 0) continue;
-            StoreTarget candidate = new StoreTarget(
-                    inventorySlot, emptySlot, shulker.getItem(),
-                    shulker.get(DataComponents.CUSTOM_NAME));
-            if (containsMatchingItem && matchingBoxEmptyTarget == null) {
-                matchingBoxEmptyTarget = candidate;
-            }
-            if (emptyTarget == null) emptyTarget = candidate;
         }
-        return matchingBoxEmptyTarget != null ? matchingBoxEmptyTarget : emptyTarget;
-    }
-
-    private static int storeTargetCapacity(
-            Inventory inventory, StoreTarget target, ItemStack prototype) {
-        if (target.inventorySlot() < 0 || target.inventorySlot() >= 36) return 0;
-        ItemStack shulker = inventory.getItem(target.inventorySlot());
-        if (!ShulkerContentsHelper.isShulker(shulker)) return 0;
-        List<ItemStack> contents = ShulkerContentsHelper.getStacks(shulker);
-        if (target.shulkerSlot() < 0 || target.shulkerSlot() >= contents.size()) return 0;
-        ItemStack current = contents.get(target.shulkerSlot());
-        if (!current.isEmpty()
-                && !ItemStack.isSameItemSameComponents(current, prototype)) return 0;
-        return prototype.getMaxStackSize() - current.getCount();
+        return emptyTarget;
     }
 
     private static StoreTarget findClearanceStoreTarget(
@@ -3579,17 +3650,12 @@ public final class QuickShulkerExtractionController {
                 && client.player.containerMenu instanceof ShulkerBoxMenu menu
                 && continueQueuedExtractionInCurrentMenu(
                 client, menu, completedExtraction);
-        if (continuedInOpenMenu) {
-            extractionOperationDelayTicks = programmaticExtractionDelayTicks;
-            if (extractionOperationDelayTicks == 0) tickExtraction(client);
-        }
+        if (continuedInOpenMenu) tickExtraction(client);
         if (client.player != null && !continuedInOpenMenu) {
-            boolean refreshProgrammaticInventory = programmaticExtractionBatch
-                    && queuedExtractions.isEmpty() && !background;
             closeContainerAndSetScreen(
                     client,
                     background ? null : new InventoryScreen(client.player),
-                    !background, refreshProgrammaticInventory);
+                    !background);
         }
         if (cursorPickup) {
             pendingCursorPickup = new PendingCursorPickup(
@@ -3604,6 +3670,10 @@ public final class QuickShulkerExtractionController {
                     extractionMovedItemCount, extractionExpectedSourceCount,
                     completedExtraction.targetInventorySlot(),
                     completedExtraction.targetBaselineCount());
+            // The staging slot is already updated locally at this point. Complete
+            // the real cursor pickup before the next frame whenever possible, so
+            // neither vanilla nor Item Scroller can observe the internal hop.
+            tickCursorPickup(client);
         } else if (offhandTransfer) {
             pendingOffhandTransfer = new PendingOffhandTransfer(
                     completedExtraction.targetInventorySlot(),
@@ -3641,12 +3711,7 @@ public final class QuickShulkerExtractionController {
                     confirmedAmount, completedExpectedSourceCount, extractionMenuId);
             if (handRestock) pauseAxAutomaticRestock();
         }
-        if (!continuedInOpenMenu) {
-            clearExtraction();
-            if (!queuedExtractions.isEmpty()) {
-                queuedExtractionStartDelayTicks = programmaticExtractionDelayTicks;
-            }
-        }
+        if (!continuedInOpenMenu) clearExtraction();
         if (litematicaRestock) selectLitematicaItem(client, selected);
     }
 
@@ -3735,6 +3800,7 @@ public final class QuickShulkerExtractionController {
     private static void clearExtraction() {
         pendingExtraction = null;
         pendingLitematicaSelection = ItemStack.EMPTY;
+        pendingLitematicaSwap = null;
         extractionWaitTicks = 0;
         extractionMenuId = -1;
         extractionCloseDelay = -1;
@@ -3749,7 +3815,6 @@ public final class QuickShulkerExtractionController {
         extractionBucketSelectedSlot = -1;
         extractionEmptyBucketDestination = -1;
         extractionEmptyBucketDestinationBaseline = 0;
-        extractionOperationDelayTicks = 0;
         extractionOperationId = 0;
     }
 
@@ -3757,6 +3822,8 @@ public final class QuickShulkerExtractionController {
         pendingCursorPickup = null;
         cursorPickupWaitTicks = 0;
         cursorPickupOperationId = 0;
+        cursorPickupMoveSyncVersion = 0;
+        cursorPickupAwaitingSync = false;
     }
 
     private static void clearOffhandTransfer() {
@@ -3806,10 +3873,6 @@ public final class QuickShulkerExtractionController {
             } else {
                 finishOrganize(client, true);
             }
-        } else if (purpose == StorePurpose.PROGRAMMATIC_BATCH) {
-            queuedStoreSessionCount = 0;
-            InventoryDragStoreController.clearProgrammaticQueue();
-            show(client, messageKey);
         } else if (purpose == StorePurpose.INVENTORY_DRAG) {
             queuedStoreSessionCount = 0;
             show(client, messageKey);
@@ -3836,18 +3899,15 @@ public final class QuickShulkerExtractionController {
             consumeOriginRecords(storedPrototype, completed);
         }
         forgetStoredMainHandMemory(completedStore, completed);
-        if (isQueuedStorePurpose(purpose)) {
+        if (purpose == StorePurpose.INVENTORY_DRAG) {
             queuedStoreSessionCount += completed;
             if (client.player != null
                     && client.player.containerMenu instanceof ShulkerBoxMenu menu
                     && continueQueuedStoreInCurrentMenu(client, menu, completedStore)) {
-                storeOperationDelayTicks = purpose == StorePurpose.PROGRAMMATIC_BATCH
-                        ? programmaticStorageDelayTicks : 0;
-                if (storeOperationDelayTicks == 0) tickStore(client);
+                tickStore(client);
                 return;
             }
         }
-
         boolean keepMenuForDeferredExtraction = purpose == StorePurpose.EXTRACTION_PREPARATION
                 && deferredExtraction != null
                 && client.player != null
@@ -3855,9 +3915,6 @@ public final class QuickShulkerExtractionController {
                 && canResumeDeferredExtractionInCurrentMenu(client, menu, deferredExtraction);
         deferredExtractionMenuId = keepMenuForDeferredExtraction
                 ? client.player.containerMenu.containerId : -1;
-        boolean deferProgrammaticReopen = purpose == StorePurpose.PROGRAMMATIC_BATCH
-                && client.player != null
-                && InventoryDragStoreController.peekNextProgrammatic(client) != null;
         if (client.player != null && !keepMenuForDeferredExtraction) {
             closeContainerAndSetScreen(
                     client,
@@ -3876,13 +3933,9 @@ public final class QuickShulkerExtractionController {
             organizedItemCount += completed;
             organizeRetryCount = 0;
             organizeDelay = 2;
-        } else if (isQueuedStorePurpose(purpose)) {
+        } else if (purpose == StorePurpose.INVENTORY_DRAG) {
             int batchCompleted = queuedStoreSessionCount;
             queuedStoreSessionCount = 0;
-            if (deferProgrammaticReopen) {
-                InventoryDragStoreController.deferProgrammaticQueue(
-                        programmaticStorageDelayTicks);
-            }
             if (batchCompleted > 0) {
                 show(client, "message.better-shulker-hud.store_complete", batchCompleted);
             }
@@ -3895,28 +3948,25 @@ public final class QuickShulkerExtractionController {
             Minecraft client, ShulkerBoxMenu menu, PendingStore completedStore) {
         if (client.player == null || completedStore == null) return false;
         InventoryDragStoreController.QueuedStoreRequest request =
-                completedStore.purpose() == StorePurpose.PROGRAMMATIC_BATCH
-                        ? InventoryDragStoreController.peekNextProgrammatic(client)
-                        : InventoryDragStoreController.peekNextValid(client);
+                InventoryDragStoreController.peekNextValid(client);
         if (request == null) return false;
 
         Inventory inventory = client.player.getInventory();
         ItemStack source = inventory.getItem(request.inventorySlot());
+        int amount = request.oneItem() ? 1 : source.getCount();
         ItemStack prototype = source.copyWithCount(1);
-        int requestedAmount = request.oneItem() ? 1 : source.getCount();
-        int targetSlot = findOpenMenuStoreTarget(
-                menu, prototype, requestedAmount, request.programmatic());
-        if (targetSlot < 0) return false;
-        ItemStack target = menu.getSlot(targetSlot).getItem();
-        int capacity = prototype.getMaxStackSize() - target.getCount();
-        int amount = Math.min(request.oneItem() ? 1 : source.getCount(), capacity);
-        if (amount <= 0) return false;
+        StoreTarget target = findStoreTarget(inventory, prototype, amount);
+        if (target == null
+                || target.inventorySlot() != completedStore.targetInventorySlot()) return false;
 
-        if (!request.programmatic()) InventoryDragStoreController.consume(request);
+        int targetSlot = findOpenMenuStoreTarget(menu, prototype, amount);
+        if (targetSlot < 0) return false;
+
+        InventoryDragStoreController.consume(request);
         pendingStore = new PendingStore(
                 request.inventorySlot(), amount, completedStore.targetInventorySlot(), targetSlot,
                 prototype, completedStore.shulkerItem(), completedStore.shulkerName(),
-                completedStore.purpose(),
+                StorePurpose.INVENTORY_DRAG,
                 findStoredMainHandMemorySlot(inventory, prototype, request.inventorySlot()));
         storeOperationId = nextDiagnosticOperationId();
         storeWaitTicks = 0;
@@ -3937,18 +3987,15 @@ public final class QuickShulkerExtractionController {
     }
 
     private static int findOpenMenuStoreTarget(
-            ShulkerBoxMenu menu, ItemStack prototype, int amount,
-            boolean allowPartialMerge) {
+            ShulkerBoxMenu menu, ItemStack prototype, int amount) {
         int emptySlot = -1;
         for (int slotIndex = 0;
                 slotIndex < ShulkerContentsHelper.SHULKER_SIZE; slotIndex++) {
             ItemStack current = menu.getSlot(slotIndex).getItem();
             if (!current.isEmpty()
-                    && ItemStack.isSameItemSameComponents(current, prototype)) {
-                int capacity = current.getMaxStackSize() - current.getCount();
-                if (capacity >= amount || allowPartialMerge && capacity > 0) {
-                    return slotIndex;
-                }
+                    && ItemStack.isSameItemSameComponents(current, prototype)
+                    && current.getMaxStackSize() - current.getCount() >= amount) {
+                return slotIndex;
             }
             if (current.isEmpty() && emptySlot < 0
                     && prototype.getMaxStackSize() >= amount) {
@@ -3965,11 +4012,6 @@ public final class QuickShulkerExtractionController {
                 ? findRestockSource(menu, client.player.getInventory(), deferred.litematicaRequired())
                 : findValidatedSource(menu, client.player.getInventory(), deferred.item());
         return source != null && source.inventorySlot() == pendingStore.targetInventorySlot();
-    }
-
-    private static boolean isQueuedStorePurpose(StorePurpose purpose) {
-        return purpose == StorePurpose.INVENTORY_DRAG
-                || purpose == StorePurpose.PROGRAMMATIC_BATCH;
     }
 
     private static boolean resumeDeferredExtractionInCurrentMenu(
@@ -4029,14 +4071,7 @@ public final class QuickShulkerExtractionController {
 
     private static void closeContainerAndSetScreen(
             Minecraft client, Screen nextScreen, boolean preserveCursor) {
-        closeContainerAndSetScreen(client, nextScreen, preserveCursor, false);
-    }
-
-    private static void closeContainerAndSetScreen(
-            Minecraft client, Screen nextScreen, boolean preserveCursor,
-            boolean forceScreenRefresh) {
-        boolean keepCurrentInventoryScreen = !forceScreenRefresh
-                && nextScreen instanceof InventoryScreen
+        boolean keepCurrentInventoryScreen = nextScreen instanceof InventoryScreen
                 && client.screen instanceof InventoryScreen;
         long window = client.getWindow().handle();
         double[] cursorX = new double[1];
@@ -4073,7 +4108,6 @@ public final class QuickShulkerExtractionController {
         storeMoveSyncVersion = 0;
         storeExpectedTargetCount = -1;
         storeContinueAfterMove = false;
-        storeOperationDelayTicks = 0;
         storeOperationId = 0;
     }
 
@@ -4249,8 +4283,12 @@ public final class QuickShulkerExtractionController {
             int selectedInventorySlot, int emptyBucketInventorySlot,
             int emptyBucketBaselineCount) {}
 
+    private record PendingLitematicaSwap(
+            int handInventorySlot, ItemStack originalHeld) {}
+
     private record QueuedExtraction(
-            BundlePanelRenderer.FlatItem item, boolean takeOne, long operationId) {}
+            BundlePanelRenderer.FlatItem item, boolean takeOne, long operationId,
+            boolean silentIfSourceMissing) {}
 
     private record ResolvedSource(
             int inventorySlot, int shulkerSlot, ItemStack expectedStack, int quickShulkerSlot,
@@ -4264,7 +4302,6 @@ public final class QuickShulkerExtractionController {
     private enum StorePurpose {
         MANUAL,
         INVENTORY_DRAG,
-        PROGRAMMATIC_BATCH,
         EXTRACTION_PREPARATION,
         MATCHING_SORT
     }

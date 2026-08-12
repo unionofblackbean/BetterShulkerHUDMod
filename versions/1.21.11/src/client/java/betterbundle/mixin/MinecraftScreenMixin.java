@@ -36,7 +36,12 @@ public abstract class MinecraftScreenMixin {
         }
         if (client.screen instanceof AbstractContainerScreen<?>
                 && client.screen != screen) {
-            BundlePanelRenderer.prepareSortAfterContainerClose();
+            if (QuickShulkerExtractionController
+                    .shouldPreserveHudOrderOnScreenTransition()) {
+                BundlePanelRenderer.prepareOrderAfterTransientContainerClose();
+            } else {
+                BundlePanelRenderer.prepareSortAfterContainerClose();
+            }
         }
     }
 }

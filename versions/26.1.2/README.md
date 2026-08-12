@@ -1,10 +1,10 @@
-# Better Shulker HUD 2.0.3 for Minecraft 26.1.2
+# Better Shulker HUD 2.0.5 for Minecraft 26.1.2
 
 [简体中文](#简体中文) | [English](#english)
 
 ## 简体中文
 
-Better Shulker HUD 是 Minecraft 26.1.x Fabric 客户端物品管理模组。2.0.1 针对 Minecraft 26.1.2 构建，使用 MaLiLib 提供与 Tweakeroo 一致的原生配置界面，并通过 QuickShulker 或 AxShulkers 服务端后端完成真实物品转移。
+Better Shulker HUD 是 Minecraft 26.1.x Fabric 客户端物品管理模组。2.0.5 针对 Minecraft 26.1.2 构建，使用 MaLiLib 提供与 Tweakeroo 一致的原生配置界面，并通过 QuickShulker 或 AxShulkers 服务端后端完成真实物品转移。
 
 作者：`BF_skt`
 
@@ -21,7 +21,7 @@ HUD 设计与交互方式参考了 zeroowo24 的 BetterBundleHUD；本项目针�
 - HUD 面板会根据当前 GUI 缩放、窗口宽高和容器位置动态调整列数、行数、左右位置及垂直位置；分类按钮会在低高度下同步缩放。
 - 创造模式中的潜影盒按钮会放在容器外侧，避免遮挡搜索栏和滚动条；安装 REI 时，HUD 会注册动态排除区域，防止 REI 物品列表绘制在面板后方。
 - 普通箱子等通用容器中的潜影盒按钮优先放在容器左上方外侧，左侧空间不足时自动切换到右侧，不再遮挡容器槽位；REI 同时避让按钮区域。
-- HUD 主面板、物品槽、分类按钮、搜索框、滚动条和底部控件采用 Minecraft 26.1 原版容器风格，并增加克制的圆角和阴影；背包内潜影盒开关与配方书按钮对齐。ModernUI 为可选兼容项，不安装也能运行；检测到 CozyUI+ 覆盖原版按钮或输入框 sprite 时，HUD 会自动使用对应高清资源包纹理。
+- HUD 主面板、物品槽、分类按钮、搜索框、滚动条和底部控件采用 Minecraft 26.1 原版容器风格，并增加克制的圆角和阴影；HUD 开关只在按 `E` 打开的玩家背包显示，末影箱、箱子、潜影盒等容器不会显示。ModernUI 为可选兼容项，不安装也能运行；检测到 CozyUI+ 覆盖原版按钮或输入框 sprite 时，HUD 会自动使用对应高清资源包纹理。
 - 潜影盒开关、最小化、分类切换和整理按钮使用原版 `ui.button.click` 点击音效。
 - 按 `B`、`C` 打开 MaLiLib 配置界面，可调整 HUD 尺寸、圆角和自动补货参数，并管理全部功能开关与快捷键。
 - 新增背包拖动存放：默认按住空格后用左键点击或拖过背包槽位，将经过的整组物品依次存入潜影盒；空格加右键则每个槽位只存一个。拖动期间先进行槽位去重并建立队列，松开鼠标后才执行；连续目标属于同一潜影盒时复用当前已打开的容器，收到上一项服务器确认后立即发送下一项，不再为每组物品重复开关潜影盒。功能开关和修饰键均可在 MaLiLib 中修改。
@@ -46,6 +46,7 @@ HUD 设计与交互方式参考了 zeroowo24 的 BetterBundleHUD；本项目针�
 - HUD 使用背包指纹、哈希聚合和搜索结果缓存，背包未变化时不重复解析潜影盒。
 - 安装 Litematica 后，轻松放置缺少目标方块时会从随身潜影盒取出可容纳的数量，并自动选中该方块。补块会解析明确的背包目标槽并执行精确移动，不再依赖可能无响应的快速移动。
 - Litematica 补块会预先检查背包容量；部分容量只取可容纳数量，背包满载时复用安全腾位逻辑并在后台继续，无法腾位时立即提示而不再等待容器超时。
+- 当背包和目标潜影盒都没有空位时，常规腾位失败后会把当前手中整组物品与目标潜影盒槽位整组交换；交换校验物品、数量、槽位限制、光标和服务端状态，不修改 Litematica 投影或 Easy Place 根本逻辑。
 - 当前主手的可堆叠物品低于设定阈值时，自动从随身潜影盒补充组件完全相同的物品。使用水桶后，模组会先把当前槽的空桶安全移到背包其他位置，再从潜影盒补回水桶；不会继续补空桶。
 - 支持带原版死亡保护组件的单件物品自动补货，包括不死图腾；主手和副手分别跟踪，失败后会保留记忆并重试。
 - 副手自动补货可单独关闭。鼠标悬停 HUD 物品时按 `F` 可安全拿到副手；副手已有不同物品时会与空背包暂存槽交换。按键可在 MaLiLib 设置界面修改，未悬停 HUD 物品时不会拦截原版 `F` 行为。
@@ -67,7 +68,7 @@ $env:JAVA_HOME='Java 25 路径'
 
 ## English
 
-Better Shulker HUD is a Fabric client inventory manager for Minecraft 26.1.x. Version 2.0.1 targets Minecraft 26.1.2. It uses MaLiLib for the native configuration UI and either QuickShulker or an AxShulkers server backend for authoritative item transfers.
+Better Shulker HUD is a Fabric client inventory manager for Minecraft 26.1.x. Version 2.0.5 targets Minecraft 26.1.2. It uses MaLiLib for the native configuration UI and either QuickShulker or an AxShulkers server backend for authoritative item transfers.
 
 Author: `BF_skt`
 
@@ -84,7 +85,7 @@ The HUD design and interaction model reference BetterBundleHUD by zeroowo24. Thi
 - Adapts HUD columns, rows, side placement, vertical placement, and category icon size to the current GUI scale, window dimensions, and container position.
 - Places the shulker toggle outside Creative inventory controls and registers a dynamic exclusion zone when REI is installed, preventing REI entries from rendering behind the HUD.
 - Places the shulker toggle outside the upper-left edge of ordinary containers, falling back to the right when needed, so it never covers a container slot. REI also excludes the toggle area.
-- Uses the native Minecraft 26.1 container style with restrained rounded corners and shadows. The inventory shulker toggle aligns with the recipe-book button. ModernUI integration is optional, and the mod runs without it; when CozyUI+ replaces the vanilla button or text-field sprites, the HUD automatically uses those high-resolution resource-pack textures.
+- Uses the native Minecraft 26.1 container style with restrained rounded corners and shadows. The HUD toggle appears only in the player inventory opened with `E`; ender-chest, chest, and shulker-container screens never render or capture it. ModernUI integration is optional, and the mod runs without it; when CozyUI+ replaces the vanilla button or text-field sprites, the HUD automatically uses those high-resolution resource-pack textures.
 - Plays the vanilla `ui.button.click` sound for the shulker toggle, minimize control, category selection, and organize button.
 - Press `B`, then `C` to open the native MaLiLib configuration screen for HUD sizing, corner radius, automatic restock settings, feature toggles, and hotkeys.
 - Adds queued inventory drag storage. Hold Space and left-click or drag across player inventory slots to queue full stacks; use Space plus right click to queue one item per slot. Slots are deduplicated during the gesture. After release, consecutive targets that use the same shulker reuse its open menu and send the next move immediately after server confirmation instead of reopening the box for every stack. Both the feature and modifier key are configurable in MaLiLib.
@@ -108,6 +109,7 @@ The HUD design and interaction model reference BetterBundleHUD by zeroowo24. Thi
 - Caches shulker scans, hash-based aggregation, and filtered search results using an inventory fingerprint.
 - With Litematica installed, an Easy Place pick that lacks its target block extracts the amount the inventory can accept and selects it. Restocking resolves a concrete player slot and performs an exact transfer instead of relying on a potentially inert quick move.
 - Litematica restocking checks capacity before opening the shulker, supports partial capacity, reuses safe full-inventory clearance in the background, and fails immediately when no slot can be freed instead of waiting for a container timeout.
+- When both the inventory and target shulker are full, the final fallback exchanges the complete selected hotbar stack with the target shulker slot after normal clearance fails. The transaction validates item components, counts, slot rules, cursor state, and server synchronization without changing Litematica projection or Easy Place rules.
 - Automatically refills a low, stackable main-hand item from an identical stack in a carried shulker. After using a water bucket, it safely moves the empty bucket elsewhere in the inventory and restores a water bucket from a carried shulker instead of restocking empty buckets.
 - Refills consumed single-stack items with the vanilla death-protection component, including Totems of Undying. Main-hand and offhand memories remain available for retries after a failed transfer.
 - Offhand automatic restocking has a separate toggle. Press configurable `F` while hovering a HUD item to move it safely to the offhand. A different existing offhand item is exchanged into an empty inventory staging slot; outside a HUD item, the hotkey does not consume vanilla `F` behavior.

@@ -1,4 +1,4 @@
-# Better Shulker HUD 2.1.1 for Minecraft 1.21.9-1.21.10
+# Better Shulker HUD 2.1.2 for Minecraft 1.21.9-1.21.10
 
 [简体中文](#简体中文) | [English](#english)
 

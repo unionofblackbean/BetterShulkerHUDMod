@@ -1,0 +1,19 @@
+{
+    "required": true,
+    "package": "bettershulkerhud.mixin",
+    "compatibilityLevel": "JAVA_25",
+    "client": [
+        "InventoryScreenMixin",
+        "PlayerInventoryScreenMixin",
+        "AbstractContainerScreenMixin",
+        "AbstractRecipeBookScreenMixin",
+        "ContainerEventHandlerMixin",
+        "ClientPacketListenerMixin",
+        "GuiScreenMixin",
+        "ItemScrollerInputHandlerMixin",
+        "LitematicaInventoryUtilsMixin"
+    ],
+    "injectors": {
+        "defaultRequire": 1
+    }
+}

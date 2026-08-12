@@ -719,6 +719,10 @@ public final class QuickShulkerExtractionController {
         return isBusy();
     }
 
+    public static boolean shouldPreserveHudOrderOnScreenTransition() {
+        return hasActiveOperation();
+    }
+
     private static boolean continueQueuedStoreInCurrentMenu(
             Minecraft client, ShulkerBoxMenu menu, PendingStore completedStore) {
         if (client.player == null || completedStore == null) return false;

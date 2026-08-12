@@ -36,17 +36,19 @@ public abstract class AbstractContainerScreenMixin {
 
         // Recipe-book screens receive these controls in their more specific mixin.
         if (!(((Object) this) instanceof AbstractRecipeBookScreen)) {
-            if (BundlePanelRenderer.handleAdjustModeClick(
-                    mouseX, mouseY, event.button(),
-                    screen.leftPos, screen.topPos, screen.imageWidth)) {
-                cir.setReturnValue(true);
-                return;
-            }
-            if (BundlePanelRenderer.handleToggleButtonClick(
-                    mouseX, mouseY, event.button(),
-                    screen.leftPos, screen.topPos, screen.imageWidth)) {
-                cir.setReturnValue(true);
-                return;
+            if (screen instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen) {
+                if (BundlePanelRenderer.handleAdjustModeClick(
+                        mouseX, mouseY, event.button(),
+                        screen.leftPos, screen.topPos, screen.imageWidth)) {
+                    cir.setReturnValue(true);
+                    return;
+                }
+                if (BundlePanelRenderer.handleToggleButtonClick(
+                        mouseX, mouseY, event.button(),
+                        screen.leftPos, screen.topPos, screen.imageWidth)) {
+                    cir.setReturnValue(true);
+                    return;
+                }
             }
 
             if (BundlePanelRenderer.isMinimizeButtonHovered(
@@ -95,7 +97,8 @@ public abstract class AbstractContainerScreenMixin {
             MouseButtonEvent event, double dragX, double dragY,
             CallbackInfoReturnable<Boolean> cir) {
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
-        if (BundlePanelRenderer.handleToggleButtonDrag(
+        if (screen instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen
+                && BundlePanelRenderer.handleToggleButtonDrag(
                 event.x(), event.y(), event.button())) {
             cir.setReturnValue(true);
             return;
@@ -107,7 +110,9 @@ public abstract class AbstractContainerScreenMixin {
 
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true)
     private void onMouseReleased(MouseButtonEvent event, CallbackInfoReturnable<Boolean> cir) {
-        if (BundlePanelRenderer.handleToggleButtonRelease(
+        AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
+        if (screen instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen
+                && BundlePanelRenderer.handleToggleButtonRelease(
                 event.x(), event.y(), event.button())) {
             cir.setReturnValue(true);
             return;
@@ -117,7 +122,6 @@ public abstract class AbstractContainerScreenMixin {
             return;
         }
         if (!BundlePanelRenderer.isEffectivelyVisible()) return;
-        AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
         if (!screen.getMenu().getCarried().isEmpty()
                 && BundlePanelRenderer.isInsidePanelBounds(
                 event.x(), event.y(), screen.leftPos, screen.topPos, screen.imageHeight)) {

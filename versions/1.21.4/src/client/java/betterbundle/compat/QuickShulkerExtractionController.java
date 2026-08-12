@@ -852,6 +852,10 @@ public final class QuickShulkerExtractionController {
         return preserveInventoryScreenDuringContainerClose;
     }
 
+    public static boolean shouldPreserveHudOrderOnScreenTransition() {
+        return hasActiveOperation();
+    }
+
     public static ActiveShulkerContents getActiveAxShulkerContents() {
         Minecraft client = Minecraft.getInstance();
         if (activeBackend() != Configs.ShulkerOpenBackend.AX_SHULKERS

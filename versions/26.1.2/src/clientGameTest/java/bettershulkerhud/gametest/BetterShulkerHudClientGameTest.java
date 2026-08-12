@@ -38,15 +38,74 @@ public final class BetterShulkerHudClientGameTest implements FabricClientGameTes
 
         try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
             context.waitFor(client -> client.player != null);
+            testHudToggleButtonScope(context);
             testWaterBucketReplacement(context, singleplayer);
+            testFullInventoryLitematicaHandSwap(context, singleplayer);
             testMainHandTotemRestock(context, singleplayer);
             testMovedMainHandTotemDoesNotRestock(context, singleplayer);
             testManualStoreDoesNotRestock(context, singleplayer);
+            testHudOrderStableDuringContinuousExtraction(context, singleplayer);
             testOffhandRestockToggle(context, singleplayer);
             testTakeToOffhandHotkey(context, singleplayer);
             testTakeToOffhandSwap(context, singleplayer);
             testRecipeBookCoexistsWithHud(context, singleplayer);
         }
+    }
+
+    private static void testHudToggleButtonScope(ClientGameTestContext context) {
+        context.runOnClient(client -> {
+            Configs.Features.SHOW_HUD_TOGGLE_BUTTON.setBooleanValue(true);
+            assertTrue(!BundlePanelRenderer.shouldShowToggleButton(),
+                    "the HUD toggle must stay hidden outside the player inventory");
+        });
+        context.getInput().pressKey(options -> options.keyInventory);
+        context.waitForScreen(InventoryScreen.class);
+        context.runOnClient(client -> assertTrue(
+                BundlePanelRenderer.shouldShowToggleButton(),
+                "the HUD toggle must be available in the E-opened player inventory"));
+        context.setScreen(() -> null);
+        context.waitTick();
+        context.runOnClient(client -> assertTrue(
+                !BundlePanelRenderer.shouldShowToggleButton(),
+                "closing the player inventory must hide the HUD toggle"));
+    }
+
+    private static void testFullInventoryLitematicaHandSwap(
+            ClientGameTestContext context, TestSingleplayerContext singleplayer) {
+        resetRememberedItems(context, singleplayer);
+        setInventory(singleplayer, inventory -> {
+            inventory.setSelectedSlot(0);
+            for (int slot = 0; slot < 36; slot++) {
+                inventory.setItem(slot, new ItemStack(Items.SEA_LANTERN, 64));
+            }
+            inventory.setItem(1, fullShulkerWith(Items.GRASS_BLOCK, 64));
+        });
+        context.waitTicks(5);
+
+        context.runOnClient(client -> QuickShulkerExtractionController
+                .requestLitematicaRestock(new ItemStack(Items.GRASS_BLOCK)));
+        context.waitFor(client -> client.player != null
+                && client.player.getInventory().getSelectedItem().is(Items.GRASS_BLOCK)
+                && client.player.getInventory().getSelectedItem().getCount() == 64
+                && countShulkerItem(client.player.getInventory(), Items.GRASS_BLOCK) == 26 * 64
+                && countShulkerItem(client.player.getInventory(), Items.SEA_LANTERN) == 64
+                && client.player.containerMenu.getCarried().isEmpty()
+                && !QuickShulkerExtractionController.hasActiveOperation(),
+                OPERATION_TIMEOUT_TICKS);
+
+        singleplayer.getServer().runOnServer(server -> {
+            Inventory inventory = server.getPlayerList().getPlayers().getFirst().getInventory();
+            assertTrue(inventory.getSelectedItem().is(Items.GRASS_BLOCK)
+                            && inventory.getSelectedItem().getCount() == 64,
+                    "server must confirm the full requested stack in the selected hotbar slot");
+            assertEquals(26 * 64, countShulkerItem(inventory, Items.GRASS_BLOCK),
+                    "the source shulker must lose exactly one requested stack");
+            assertEquals(64, countShulkerItem(inventory, Items.SEA_LANTERN),
+                    "the original held stack must replace the requested shulker slot");
+            assertTrue(server.getPlayerList().getPlayers().getFirst()
+                            .containerMenu.getCarried().isEmpty(),
+                    "the direct swap must leave the server cursor empty");
+        });
     }
 
     private static void testRecipeBookCoexistsWithHud(
@@ -362,7 +421,78 @@ public final class BetterShulkerHudClientGameTest implements FabricClientGameTes
         context.waitForScreen(InventoryScreen.class);
         context.waitFor(client -> !BundlePanelRenderer.getVisibleItems().isEmpty());
 
-        double[] cursor = context.computeOnClient(client -> {
+        double[] cursor = firstHudItemCursor(context);
+        context.getInput().setCursorPos(cursor[0], cursor[1]);
+        context.waitTick();
+        context.getInput().pressKey(GLFW.GLFW_KEY_F);
+    }
+
+    private static void testHudOrderStableDuringContinuousExtraction(
+            ClientGameTestContext context, TestSingleplayerContext singleplayer) {
+        resetRememberedItems(context, singleplayer);
+        context.runOnClient(client -> {
+            Configs.Features.AUTO_RESTOCK.setBooleanValue(false);
+            Configs.Features.SINGLE_ITEM_AUTO_RESTOCK.setBooleanValue(false);
+            Configs.Features.OFFHAND_AUTO_RESTOCK.setBooleanValue(false);
+        });
+        setInventory(singleplayer, inventory -> {
+            inventory.setSelectedSlot(0);
+            inventory.setItem(0, new ItemStack(Items.WOODEN_SWORD));
+            inventory.setItem(1, shulkerWithTwo(
+                    Items.DIAMOND, 10, Items.APPLE, 9));
+        });
+        context.waitTicks(5);
+        context.getInput().pressKey(options -> options.keyInventory);
+        context.waitForScreen(InventoryScreen.class);
+        context.waitFor(client -> BundlePanelRenderer.getVisibleItems().size() >= 2);
+        context.runOnClient(client -> assertTrue(
+                BundlePanelRenderer.getVisibleItems().getFirst().stack().is(Items.DIAMOND),
+                "the initial HUD order must be count-descending"));
+
+        double[] cursor = firstHudItemCursor(context);
+        context.getInput().setCursorPos(cursor[0], cursor[1]);
+        context.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        context.waitFor(client -> QuickShulkerExtractionController.hasActiveOperation());
+        context.waitFor(client -> !QuickShulkerExtractionController.hasActiveOperation(),
+                OPERATION_TIMEOUT_TICKS);
+        context.waitFor(client -> BundlePanelRenderer.getVisibleItems().size() >= 2);
+        context.runOnClient(client -> {
+            ItemStack first = BundlePanelRenderer.getVisibleItems().getFirst().stack();
+            assertTrue(first.is(Items.DIAMOND) && first.getCount() == 9,
+                    "extracting while the inventory stays open must keep HUD order");
+        });
+
+        context.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        context.waitFor(client -> !QuickShulkerExtractionController.hasActiveOperation(),
+                OPERATION_TIMEOUT_TICKS);
+        context.runOnClient(client -> {
+            assertEquals(2, countItem(client.player.getInventory(), Items.DIAMOND),
+                    "continuous HUD clicks must keep extracting the hovered item");
+            assertEquals(8, countShulkerItem(
+                            client.player.getInventory(), Items.DIAMOND),
+                    "the second click must remove another diamond");
+            assertEquals(9, countShulkerItem(
+                            client.player.getInventory(), Items.APPLE),
+                    "the second click must not switch to the tied apple entry");
+            Configs.Features.AUTO_RESTOCK.setBooleanValue(true);
+            Configs.Features.SINGLE_ITEM_AUTO_RESTOCK.setBooleanValue(true);
+            Configs.Features.OFFHAND_AUTO_RESTOCK.setBooleanValue(true);
+        });
+        context.setScreen(() -> null);
+        context.waitTick();
+        context.getInput().pressKey(options -> options.keyInventory);
+        context.waitForScreen(InventoryScreen.class);
+        context.waitFor(client -> BundlePanelRenderer.getVisibleItems().size() >= 2);
+        context.runOnClient(client -> {
+            ItemStack first = BundlePanelRenderer.getVisibleItems().getFirst().stack();
+            assertTrue(first.is(Items.APPLE) && first.getCount() == 9,
+                    "closing and reopening the inventory must prepare a new count-based order");
+        });
+        context.setScreen(() -> null);
+    }
+
+    private static double[] firstHudItemCursor(ClientGameTestContext context) {
+        return context.computeOnClient(client -> {
             InventoryScreen screen = (InventoryScreen) client.screen;
             int guiX = BundlePanelRenderer.gridX(screen.leftPos)
                     + BundlePanelRenderer.SLOT_SIZE / 2;
@@ -374,9 +504,6 @@ public final class BetterShulkerHudClientGameTest implements FabricClientGameTes
                     / client.getWindow().getGuiScaledHeight();
             return new double[]{guiX * xScale, guiY * yScale};
         });
-        context.getInput().setCursorPos(cursor[0], cursor[1]);
-        context.waitTick();
-        context.getInput().pressKey(GLFW.GLFW_KEY_F);
     }
 
     private static void resetRememberedItems(
@@ -467,6 +594,28 @@ public final class BetterShulkerHudClientGameTest implements FabricClientGameTes
         NonNullList<ItemStack> contents = NonNullList.withSize(
                 ShulkerContentsHelper.SHULKER_SIZE, ItemStack.EMPTY);
         contents.set(0, new ItemStack(item, count));
+        ItemStack shulker = new ItemStack(Items.SHULKER_BOX);
+        shulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(contents));
+        return shulker;
+    }
+
+    private static ItemStack fullShulkerWith(Item item, int count) {
+        NonNullList<ItemStack> contents = NonNullList.withSize(
+                ShulkerContentsHelper.SHULKER_SIZE, ItemStack.EMPTY);
+        for (int slot = 0; slot < contents.size(); slot++) {
+            contents.set(slot, new ItemStack(item, count));
+        }
+        ItemStack shulker = new ItemStack(Items.SHULKER_BOX);
+        shulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(contents));
+        return shulker;
+    }
+
+    private static ItemStack shulkerWithTwo(
+            Item first, int firstCount, Item second, int secondCount) {
+        NonNullList<ItemStack> contents = NonNullList.withSize(
+                ShulkerContentsHelper.SHULKER_SIZE, ItemStack.EMPTY);
+        contents.set(0, new ItemStack(first, firstCount));
+        contents.set(1, new ItemStack(second, secondCount));
         ItemStack shulker = new ItemStack(Items.SHULKER_BOX);
         shulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(contents));
         return shulker;

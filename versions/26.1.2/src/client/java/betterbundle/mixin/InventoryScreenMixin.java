@@ -41,14 +41,13 @@ public abstract class InventoryScreenMixin {
             }
         }
 
-        BundlePanelRenderer.renderToggleButton(
-                graphics,
-                BundlePanelRenderer.toggleX(self.leftPos, self.imageWidth),
-                BundlePanelRenderer.toggleY(self.topPos),
-                mouseX,
-                mouseY);
-
         if (self instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen) {
+            BundlePanelRenderer.renderToggleButton(
+                    graphics,
+                    BundlePanelRenderer.toggleX(self.leftPos, self.imageWidth),
+                    BundlePanelRenderer.toggleY(self.topPos),
+                    mouseX,
+                    mouseY);
             BundlePanelRenderer.renderAdjustControls(graphics, mouseX, mouseY);
         }
     }

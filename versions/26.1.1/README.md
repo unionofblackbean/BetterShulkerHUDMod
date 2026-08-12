@@ -1,10 +1,10 @@
-# Better Shulker HUD 2.1.1 for Minecraft 26.1.1
+# Better Shulker HUD 2.2.2 for Minecraft 26.1.1
 
 [简体中文](#简体中文) | [English](#english)
 
 ## 简体中文
 
-Better Shulker HUD 是 Minecraft 26.1.x Fabric 客户端物品管理模组。2.1.0 针对 Minecraft 26.1.1 构建，使用 MaLiLib 提供与 Tweakeroo 一致的原生配置界面，并通过 QuickShulker 或 AxShulkers 服务端后端完成真实物品转移。
+Better Shulker HUD 是 Minecraft 26.1.x Fabric 客户端物品管理模组。2.2.2 针对 Minecraft 26.1.1 构建，使用 MaLiLib 提供与 Tweakeroo 一致的原生配置界面，并通过 QuickShulker 或 AxShulkers 服务端后端完成真实物品转移。
 
 作者：`BF_skt`
 
@@ -49,6 +49,7 @@ HUD 设计与交互方式参考了 zeroowo24 的 BetterBundleHUD；本项目针�
 - HUD 使用背包指纹、哈希聚合和搜索结果缓存，背包未变化时不重复解析潜影盒。
 - 安装 Litematica 后，轻松放置缺少目标方块时会从随身潜影盒取出可容纳的数量，并自动选中该方块。补块会解析明确的背包目标槽并执行精确移动，不再依赖可能无响应的快速移动。
 - Litematica 补块会预先检查背包容量；部分容量只取可容纳数量，背包满载时复用安全腾位逻辑并在后台继续，无法腾位时立即提示而不再等待容器超时。
+- 2.2.2 增加满背包与满潜影盒的最后回退：常规腾位失败时，把当前选中快捷栏的整组物品与目标潜影盒槽位整组交换。交换使用真实容器点击并校验两侧物品、数量、光标和服务端同步；不会修改 Litematica 投影识别或 Easy Place 的根本放置判定。
 - 当前主手的可堆叠物品低于设定阈值时，自动从随身潜影盒补充组件完全相同的物品。使用水桶后，模组会先把当前槽的空桶安全移到背包其他位置，再从潜影盒补回水桶；不会继续补空桶。
 - 支持带原版死亡保护组件的单件物品自动补货，包括不死图腾；主手和副手分别跟踪，失败后会保留记忆并重试。
 - 副手自动补货可单独关闭。鼠标悬停 HUD 物品时按 `F` 可安全拿到副手；副手已有不同物品时会与空背包暂存槽交换。按键可在 MaLiLib 设置界面修改，未悬停 HUD 物品时不会拦截原版 `F` 行为。
@@ -70,7 +71,7 @@ $env:JAVA_HOME='Java 25 路径'
 
 ## English
 
-Better Shulker HUD is a Fabric client inventory manager for Minecraft 26.1.x. Version 2.1.0 targets Minecraft 26.1.1. It uses MaLiLib for the native configuration UI and either QuickShulker or an AxShulkers server backend for authoritative item transfers.
+Better Shulker HUD is a Fabric client inventory manager for Minecraft 26.1.x. Version 2.2.2 targets Minecraft 26.1.1. It uses MaLiLib for the native configuration UI and either QuickShulker or an AxShulkers server backend for authoritative item transfers.
 
 Author: `BF_skt`
 
@@ -114,6 +115,7 @@ The HUD design and interaction model reference BetterBundleHUD by zeroowo24. Thi
 - Caches shulker scans, hash-based aggregation, and filtered search results using an inventory fingerprint.
 - With Litematica installed, an Easy Place pick that lacks its target block extracts the amount the inventory can accept and selects it. Restocking resolves a concrete player slot and performs an exact transfer instead of relying on a potentially inert quick move.
 - Litematica restocking checks capacity before opening the shulker, supports partial capacity, reuses safe full-inventory clearance in the background, and fails immediately when no slot can be freed instead of waiting for a container timeout.
+- Version 2.2.2 adds a final fallback for a full inventory and a full source shulker: after normal clearance fails, the complete selected hotbar stack is exchanged with the requested shulker slot. The transaction validates both stacks, the cursor, and server synchronization without changing Litematica's projection matching or core Easy Place placement rules.
 - Automatically refills a low, stackable main-hand item from an identical stack in a carried shulker. After using a water bucket, it safely moves the empty bucket elsewhere in the inventory and restores a water bucket from a carried shulker instead of restocking empty buckets.
 - Refills consumed single-stack items with the vanilla death-protection component, including Totems of Undying. Main-hand and offhand memories remain available for retries after a failed transfer.
 - Offhand automatic restocking has a separate toggle. Press configurable `F` while hovering a HUD item to move it safely to the offhand. A different existing offhand item is exchanged into an empty inventory staging slot; outside a HUD item, the hotkey does not consume vanilla `F` behavior.

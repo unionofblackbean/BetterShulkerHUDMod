@@ -86,7 +86,9 @@ dependencies {
     compileOnly('me.shedaniel:RoughlyEnoughItems-api:26.1.819')
     compileOnly('mezz.jei:jei-26.1.1-fabric-api:29.4.0.23')
 
-    implementation 'fi.dy.masa.malilib:malilib-fabric-26.1.1:0.28.2'
+    clientImplementation('fi.dy.masa.malilib:malilib-fabric-26.1.1:0.28.2') {
+        exclude group: 'net.fabricmc', module: 'fabric-loader'
+    }
 
     embed 'com.belerweb:pinyin4j:2.5.1'
     embed('com.github.Towdium:PinIn:1.6.0') {
@@ -124,6 +126,10 @@ jar {
     from("LICENSE-PinIn") {
         into("META-INF/licenses")
         rename { "PinIn-LICENSE.txt" }
+    }
+    from("LICENSE-Sakurastreet-BetterShulkerHUD") {
+        into("META-INF/licenses")
+        rename { "Sakurastreet-BetterShulkerHUD-MIT.txt" }
     }
 
     // Embed pinyin4j classes directly (not jar-in-jar)

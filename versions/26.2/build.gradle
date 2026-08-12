@@ -1,0 +1,156 @@
+plugins {
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
+    id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+    maven { url 'https://maven.shedaniel.me' }
+    maven { url 'https://maven.blamejared.com' }
+    maven {
+        url 'https://masa.dy.fi/maven/sakura-ryoko'
+        content { includeGroupAndSubgroups 'fi.dy.masa' }
+    }
+    maven {
+        url 'https://maven.fallenbreath.me/releases'
+        content { includeGroupAndSubgroups 'me.fallenbreath' }
+    }
+}
+
+configurations {
+    embed
+    compileOnly.extendsFrom embed
+    runtimeOnly.extendsFrom embed
+}
+
+loom {
+    splitEnvironmentSourceSets()
+}
+
+sourceSets {
+    clientGameTest {
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        compileClasspath += sourceSets.client.output + sourceSets.client.compileClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+        runtimeClasspath += sourceSets.client.output + sourceSets.client.runtimeClasspath
+    }
+}
+
+configurations {
+    clientGameTestImplementation.extendsFrom clientImplementation
+    clientGameTestRuntimeOnly.extendsFrom clientRuntimeOnly
+}
+
+loom {
+    accessWidenerPath = file("src/main/resources/better-shulker-hud.accesswidener")
+
+    mods {
+        "better-shulker-hud" {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
+        }
+        "better-shulker-hud-client-gametest" {
+            sourceSet sourceSets.clientGameTest
+        }
+    }
+
+    runs {
+        clientGameTest {
+            client()
+            name = "Better Shulker HUD Client Game Test"
+            source sourceSets.clientGameTest
+            vmArg "-Dfabric.client.gametest"
+            runDir "build/clientGameTest"
+        }
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+    compileOnly('com.github.MoRanpcy:quickshulker:3.0.2-26.2') {
+        transitive = false
+    }
+    clientGameTestRuntimeOnly('com.github.MoRanpcy:quickshulker:3.0.2-26.2') {
+        transitive = false
+    }
+
+    compileOnly('me.shedaniel:RoughlyEnoughItems-api:26.2.821')
+    compileOnly('mezz.jei:jei-26.2-fabric-api:30.15.0.118')
+
+    clientImplementation('fi.dy.masa.malilib:malilib-fabric-26.2:0.29.2') {
+        exclude group: 'net.fabricmc', module: 'fabric-loader'
+    }
+
+    // Optional compatibility lane for local Client GameTest runs. Item Scroller
+    // remains an optional user-installed mod and is never bundled in our jar.
+    if (project.hasProperty('itemscroller_test_jar')) {
+        clientRuntimeOnly files(project.property('itemscroller_test_jar'))
+    }
+
+    embed 'com.belerweb:pinyin4j:2.5.1'
+    embed('com.github.Towdium:PinIn:1.6.0') {
+        transitive = false
+    }
+}
+
+processResources {
+    def version = project.version
+    inputs.property "version", version
+
+    filesMatching("fabric.mod.json") {
+        expand "version": version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 25
+}
+
+java {
+    withSourcesJar()
+
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+}
+
+jar {
+    def projectName = project.name
+    inputs.property "projectName", projectName
+
+    from("LICENSE") {
+        rename { "${it}_$projectName"}
+    }
+    from("LICENSE-PinIn") {
+        into("META-INF/licenses")
+        rename { "PinIn-LICENSE.txt" }
+    }
+    from("LICENSE-Sakurastreet-BetterShulkerHUD") {
+        into("META-INF/licenses")
+        rename { "Sakurastreet-BetterShulkerHUD-MIT.txt" }
+    }
+
+    // Embed pinyin4j classes directly (not jar-in-jar)
+    from {
+        configurations.embed.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
+
+publishing {
+    publications {
+        create("mavenJava", MavenPublication) {
+            from components.java
+        }
+    }
+
+    repositories {
+    }
+}

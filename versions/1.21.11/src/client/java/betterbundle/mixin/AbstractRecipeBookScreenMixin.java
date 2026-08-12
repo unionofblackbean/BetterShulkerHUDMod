@@ -118,6 +118,18 @@ public abstract class AbstractRecipeBookScreenMixin {
         BundlePanelRenderer.searchFocused = false;
     }
 
+    @Inject(method = "mouseDragged", at = @At("HEAD"), cancellable = true)
+    private void onMouseDragged(
+            MouseButtonEvent event, double dragX, double dragY,
+            CallbackInfoReturnable<Boolean> cir) {
+        // This class handles dragging before AbstractContainerScreen, so the
+        // toggle must be given the event before the recipe-book search field.
+        if (BundlePanelRenderer.handleToggleButtonDrag(
+                event.x(), event.y(), event.button())) {
+            cir.setReturnValue(true);
+        }
+    }
+
     @Inject(method = "charTyped", at = @At("HEAD"), cancellable = true)
     private void onCharTyped(CharacterEvent event, CallbackInfoReturnable<Boolean> cir) {
         if (BundlePanelRenderer.onCharTyped(event.codepoint())) {

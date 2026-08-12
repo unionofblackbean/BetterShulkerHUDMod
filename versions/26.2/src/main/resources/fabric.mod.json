@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "id": "better-shulker-hud",
+  "version": "${version}",
+  "name": "Better Shulker HUD",
+  "description": "Preview, search, and manage carried shulker boxes, bundles, and portable ender-chest contents.",
+  "authors": [
+    "BF_skt"
+  ],
+  "contributors": [
+    "zeroowo24 - original BetterBundleHUD author and HUD design reference",
+    "Sakurastreet - MIT-licensed portable storage interaction reference"
+  ],
+  "contact": {
+    "homepage": "https://github.com/unionofblackbean/BetterShulkerHUDMod",
+    "sources": "https://github.com/unionofblackbean/BetterShulkerHUDMod",
+    "issues": "https://github.com/unionofblackbean/BetterShulkerHUDMod/issues"
+  },
+  "license": ["CC0-1.0", "MIT"],
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "bettershulkerhud.BetterShulkerHudCommon"
+    ],
+    "client": [
+      "bettershulkerhud.BetterBundleMod"
+    ],
+    "rei_client": [
+      "bettershulkerhud.compat.ReiExclusionPlugin"
+    ]
+  },
+  "accessWidener": "better-shulker-hud.accesswidener",
+  "mixins": [
+    {
+      "config": "better-shulker-hud.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "fabric-api": "*",
+    "minecraft": ">=26.2 <26.3",
+    "java": ">=25"
+  },
+  "recommends": {
+    "malilib": ">=0.29.2 <0.30.0"
+  },
+  "suggests": {
+    "quickshulker": "3.0.2-26.2",
+    "litematica": ">=0.28.3",
+    "roughlyenoughitems": ">=26.2",
+    "jei": "*",
+    "modernui": ">=3.13.0"
+  }
+}

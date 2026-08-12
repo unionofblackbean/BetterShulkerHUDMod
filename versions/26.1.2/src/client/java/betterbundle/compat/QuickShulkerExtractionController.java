@@ -140,6 +140,7 @@ public final class QuickShulkerExtractionController {
     private static int returnPendingMoved;
     private static int returnConfirmationTicks;
     private static ItemStack pendingLitematicaSelection = ItemStack.EMPTY;
+    private static PendingLitematicaSwap pendingLitematicaSwap;
 
     private QuickShulkerExtractionController() {}
 
@@ -526,6 +527,7 @@ public final class QuickShulkerExtractionController {
                 source.shulkerSlot(), source.quickShulkerSlot());
         if (capacity <= 0) {
             if (allowClear && beginLitematicaClearance(client, required, operationId)) return;
+            if (beginLitematicaHandSwap(client, source, required, operationId)) return;
             diagnostic(operationId,
                     "litematica-restock-rejected reason=no-inventory-capacity allowClear=%s",
                     allowClear);
@@ -730,6 +732,10 @@ public final class QuickShulkerExtractionController {
 
     public static boolean shouldPreserveInventoryScreenDuringContainerClose() {
         return preserveInventoryScreenDuringContainerClose;
+    }
+
+    public static boolean shouldPreserveHudOrderOnScreenTransition() {
+        return isBusy() || !queuedExtractions.isEmpty();
     }
 
     public static ActiveShulkerContents getActiveAxShulkerContents() {
@@ -951,6 +957,77 @@ public final class QuickShulkerExtractionController {
                 candidate.target().shulkerSlot(), targetMenuSlot,
                 itemId(candidate.prototype()), candidate.amount());
         openPendingStore(targetMenuSlot, operationId);
+        return true;
+    }
+
+    /**
+     * Last-resort easy-place restock for a completely full inventory and a
+     * completely full source shulker. The selected hotbar stack is exchanged
+     * with the requested shulker stack inside the real server menu, so no
+     * temporary player or shulker slot is required.
+     */
+    private static boolean beginLitematicaHandSwap(
+            Minecraft client, ResolvedSource source, ItemStack required,
+            long operationId) {
+        if (client.player == null || client.gameMode == null || source == null) return false;
+
+        Inventory inventory = client.player.getInventory();
+        int handInventorySlot = inventory.getSelectedSlot();
+        if (handInventorySlot < 0 || handInventorySlot >= 9
+                || handInventorySlot == source.inventorySlot()) return false;
+
+        ItemStack held = inventory.getItem(handInventorySlot);
+        if (held.isEmpty() || ShulkerContentsHelper.isShulker(held)
+                || ItemStack.isSameItemSameComponents(held, source.expectedStack())
+                || held.getCount() > held.getMaxStackSize()) {
+            diagnostic(operationId,
+                    "litematica-hand-swap-unavailable reason=invalid-held-stack held=%s heldCount=%d",
+                    itemId(held), held.getCount());
+            return false;
+        }
+
+        int handMenuSlot = findPlayerInventoryMenuSlot(
+                client.player.containerMenu, inventory, handInventorySlot);
+        if (handMenuSlot < 0) {
+            diagnostic(operationId,
+                    "litematica-hand-swap-unavailable reason=hand-slot-unresolved inventorySlot=%d",
+                    handInventorySlot);
+            return false;
+        }
+        Slot handSlot = client.player.containerMenu.getSlot(handMenuSlot);
+        if (!handSlot.mayPlace(source.expectedStack())
+                || source.expectedStack().getCount()
+                > handSlot.getMaxStackSize(source.expectedStack())) {
+            diagnostic(operationId,
+                    "litematica-hand-swap-unavailable reason=requested-stack-does-not-fit-hand item=%s count=%d inventorySlot=%d",
+                    itemId(source.expectedStack()), source.expectedStack().getCount(),
+                    handInventorySlot);
+            return false;
+        }
+
+        pendingLitematicaSwap = new PendingLitematicaSwap(
+                handInventorySlot, held.copy());
+        pendingExtraction = new PendingExtraction(
+                source.inventorySlot(), source.shulkerSlot(), source.expectedStack(), false,
+                source.shulkerItem(), source.shulkerName(), true, false, false,
+                -1, source.expectedStack().getCount(), 0);
+        extractionOperationId = operationId;
+        pendingLitematicaSelection = required.copyWithCount(1);
+        extractionWaitTicks = 0;
+        extractionMenuId = -1;
+        extractionCloseDelay = -1;
+        extractionMovedItemCount = 0;
+        extractionExpectedSourceCount = -1;
+        extractionOpenSyncVersion = containerSyncVersion;
+        diagnostic(operationId,
+                "litematica-hand-swap-open item=%s sourceInventorySlot=%d shulkerSlot=%d handInventorySlot=%d held=%s heldCount=%d requested=%d quickShulkerSlot=%d",
+                itemId(source.expectedStack()), source.inventorySlot(), source.shulkerSlot(),
+                handInventorySlot, itemId(held), held.getCount(),
+                source.expectedStack().getCount(), source.quickShulkerSlot());
+        if (!openShulker(client, source.quickShulkerSlot(), operationId)) {
+            failExtraction(client, "message.better-shulker-hud.open_failed");
+            return true;
+        }
         return true;
     }
 
@@ -1964,7 +2041,74 @@ public final class QuickShulkerExtractionController {
 
         int before = sourceStack.getCount();
         extractionMoveSyncVersion = containerSyncVersion;
-        if (pendingExtraction.targetInventorySlot() >= 0) {
+        int directSwapAmount = -1;
+        if (pendingLitematicaSwap != null) {
+            int handMenuSlot = findPlayerInventoryMenuSlot(
+                    menu, client.player.getInventory(),
+                    pendingLitematicaSwap.handInventorySlot());
+            if (handMenuSlot < 0) {
+                diagnostic(extractionOperationId,
+                        "litematica-hand-swap-failed reason=hand-slot-unresolved inventorySlot=%d",
+                        pendingLitematicaSwap.handInventorySlot());
+                failExtraction(client, "message.better-shulker-hud.inventory_full");
+                return;
+            }
+
+            Slot handSlot = menu.getSlot(handMenuSlot);
+            ItemStack held = handSlot.getItem();
+            ItemStack originalHeld = pendingLitematicaSwap.originalHeld();
+            if (!ItemStack.matches(sourceStack, pendingExtraction.expectedStack())
+                    || !ItemStack.matches(held, originalHeld)
+                    || !handSlot.mayPlace(sourceStack)
+                    || sourceStack.getCount() > handSlot.getMaxStackSize(sourceStack)
+                    || !source.mayPlace(originalHeld)
+                    || originalHeld.getCount() > source.getMaxStackSize(originalHeld)) {
+                diagnostic(extractionOperationId,
+                        "litematica-hand-swap-failed reason=slot-state-changed source=%s sourceCount=%d expectedSource=%s expectedSourceCount=%d handInventorySlot=%d expectedHeld=%s expectedHeldCount=%d actualHeld=%s actualHeldCount=%d",
+                        itemId(sourceStack), sourceStack.getCount(),
+                        itemId(pendingExtraction.expectedStack()),
+                        pendingExtraction.expectedStack().getCount(),
+                        pendingLitematicaSwap.handInventorySlot(), itemId(originalHeld),
+                        originalHeld.getCount(), itemId(held), held.getCount());
+                failExtraction(client, "message.better-shulker-hud.inventory_full");
+                return;
+            }
+
+            diagnostic(extractionOperationId,
+                    "move-request menu=%d mode=litematica-hand-swap sourceShulkerSlot=%d handMenuSlot=%d handInventorySlot=%d source=%s sourceCount=%d held=%s heldCount=%d moveSyncBaseline=%d",
+                    menu.containerId, pendingExtraction.shulkerSlot(), handMenuSlot,
+                    pendingLitematicaSwap.handInventorySlot(), itemId(sourceStack),
+                    sourceStack.getCount(), itemId(originalHeld), originalHeld.getCount(),
+                    extractionMoveSyncVersion);
+            client.gameMode.handleContainerInput(
+                    menu.containerId, pendingExtraction.shulkerSlot(), 0,
+                    ContainerInput.PICKUP, client.player);
+            client.gameMode.handleContainerInput(
+                    menu.containerId, handMenuSlot, 0,
+                    ContainerInput.PICKUP, client.player);
+            client.gameMode.handleContainerInput(
+                    menu.containerId, pendingExtraction.shulkerSlot(), 0,
+                    ContainerInput.PICKUP, client.player);
+
+            ItemStack sourceAfter = menu.getSlot(pendingExtraction.shulkerSlot()).getItem();
+            ItemStack handAfter = menu.getSlot(handMenuSlot).getItem();
+            if (!menu.getCarried().isEmpty()
+                    || !ItemStack.matches(sourceAfter, originalHeld)
+                    || !ItemStack.matches(handAfter, pendingExtraction.expectedStack())) {
+                diagnostic(extractionOperationId,
+                        "litematica-hand-swap-failed reason=post-click-validation sourceAfter=%s sourceAfterCount=%d handAfter=%s handAfterCount=%d cursor=%s cursorCount=%d",
+                        itemId(sourceAfter), sourceAfter.getCount(), itemId(handAfter),
+                        handAfter.getCount(), itemId(menu.getCarried()),
+                        menu.getCarried().getCount());
+                failExtraction(client, "message.better-shulker-hud.inventory_full");
+                return;
+            }
+            directSwapAmount = before;
+            diagnostic(extractionOperationId,
+                    "move-local-result mode=litematica-hand-swap moved=%d sourceAfter=%s sourceAfterCount=%d handAfter=%s handAfterCount=%d cursorCount=%d",
+                    directSwapAmount, itemId(sourceAfter), sourceAfter.getCount(),
+                    itemId(handAfter), handAfter.getCount(), menu.getCarried().getCount());
+        } else if (pendingExtraction.targetInventorySlot() >= 0) {
             String targetError = pendingExtraction.cursorPickup()
                     ? "message.better-shulker-hud.cursor_pickup_failed"
                     : "message.better-shulker-hud.hand_unavailable";
@@ -2089,7 +2233,8 @@ public final class QuickShulkerExtractionController {
                     ContainerInput.QUICK_MOVE, client.player);
         }
 
-        int moved = before - menu.getSlot(pendingExtraction.shulkerSlot()).getItem().getCount();
+        int moved = directSwapAmount >= 0 ? directSwapAmount
+                : before - menu.getSlot(pendingExtraction.shulkerSlot()).getItem().getCount();
         if (pendingExtraction.targetInventorySlot() < 0
                 && !pendingExtraction.litematicaRestock()) {
             diagnostic(extractionOperationId,
@@ -2111,6 +2256,16 @@ public final class QuickShulkerExtractionController {
     private static boolean isConfirmedExtractionSource(ShulkerBoxMenu menu) {
         if (pendingExtraction == null || extractionExpectedSourceCount < 0) return false;
         ItemStack source = menu.getSlot(pendingExtraction.shulkerSlot()).getItem();
+        if (pendingLitematicaSwap != null) {
+            if (!ItemStack.matches(source, pendingLitematicaSwap.originalHeld())
+                    || Minecraft.getInstance().player == null) return false;
+            int handMenuSlot = findPlayerInventoryMenuSlot(
+                    menu, Minecraft.getInstance().player.getInventory(),
+                    pendingLitematicaSwap.handInventorySlot());
+            return handMenuSlot >= 0
+                    && ItemStack.matches(menu.getSlot(handMenuSlot).getItem(),
+                    pendingExtraction.expectedStack());
+        }
         if (extractionExpectedSourceCount == 0) return source.isEmpty();
         return ItemStack.isSameItemSameComponents(source, pendingExtraction.expectedStack())
                 && source.getCount() == extractionExpectedSourceCount;
@@ -3536,6 +3691,7 @@ public final class QuickShulkerExtractionController {
     private static void clearExtraction() {
         pendingExtraction = null;
         pendingLitematicaSelection = ItemStack.EMPTY;
+        pendingLitematicaSwap = null;
         extractionWaitTicks = 0;
         extractionMenuId = -1;
         extractionCloseDelay = -1;
@@ -4001,6 +4157,8 @@ public final class QuickShulkerExtractionController {
             Item shulkerItem, Component shulkerName, boolean litematicaRestock,
             boolean handRestock, boolean cursorPickup, int targetInventorySlot,
             int requestedAmount, int targetBaselineCount) {}
+
+    private record PendingLitematicaSwap(int handInventorySlot, ItemStack originalHeld) {}
 
     private record PendingCursorPickup(
             int inventorySlot, ItemStack prototype,

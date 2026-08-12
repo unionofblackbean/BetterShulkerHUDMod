@@ -460,6 +460,18 @@ public final class BundlePanelRenderer {
         cachedCategory = null;
     }
 
+    /** Keeps HUD order during an internal QuickShulker/AxShulkers transition. */
+    public static void prepareOrderAfterTransientContainerClose() {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null) return;
+        ensureCache();
+        cachedScreen = null;
+        sortPreparedAfterClose = true;
+        cachedVisibleItems = List.of();
+        cachedSearchQuery = null;
+        cachedCategory = null;
+    }
+
     /**
      * Refreshes inventory contents without discarding the order captured when
      * the current container screen was opened.

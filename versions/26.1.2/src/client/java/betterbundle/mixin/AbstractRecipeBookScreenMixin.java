@@ -75,19 +75,21 @@ public abstract class AbstractRecipeBookScreenMixin {
         double mouseX = event.x();
         double mouseY = event.y();
 
-        if (BundlePanelRenderer.handleAdjustModeClick(
-                mouseX, mouseY, event.button(),
-                self.leftPos, self.topPos, self.imageWidth)) {
-            cir.setReturnValue(true);
-            return;
-        }
+        if (self instanceof InventoryScreen) {
+            if (BundlePanelRenderer.handleAdjustModeClick(
+                    mouseX, mouseY, event.button(),
+                    self.leftPos, self.topPos, self.imageWidth)) {
+                cir.setReturnValue(true);
+                return;
+            }
 
-        // Toggle button
-        if (BundlePanelRenderer.handleToggleButtonClick(
-                mouseX, mouseY, event.button(),
-                self.leftPos, self.topPos, self.imageWidth)) {
-            cir.setReturnValue(true);
-            return;
+            // Toggle button
+            if (BundlePanelRenderer.handleToggleButtonClick(
+                    mouseX, mouseY, event.button(),
+                    self.leftPos, self.topPos, self.imageWidth)) {
+                cir.setReturnValue(true);
+                return;
+            }
         }
 
 
