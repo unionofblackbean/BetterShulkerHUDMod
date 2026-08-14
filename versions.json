@@ -18,7 +18,7 @@
       "id": "1.21.1",
       "path": "versions/1.21.1",
       "minecraft": { "build": "1.21.1", "range": "1.21.1" },
-      "modVersion": "2.1.2",
+      "modVersion": "2.1.3",
       "java": 21,
       "gradle": "9.5.1",
       "loom": "1.15.5",
@@ -37,15 +37,15 @@
       "tests": { "clientGameTest": false, "serverIntegration": false, "compatibilityProfiles": [] },
       "release": {
         "status": "stable",
-        "artifact": "BetterShulkerHud-1.21.1-2.1.2.jar",
-        "sourcesArtifact": "BetterShulkerHud-1.21.1-2.1.2-sources.jar"
+        "artifact": "BetterShulkerHud-2.1.3+mc1.21.1.jar",
+        "sourcesArtifact": "BetterShulkerHud-2.1.3+mc1.21.1-sources.jar"
       }
     },
     {
       "id": "1.21.4",
       "path": "versions/1.21.4",
       "minecraft": { "build": "1.21.4", "range": "1.21.4" },
-      "modVersion": "2.1.2",
+      "modVersion": "2.1.3",
       "java": 21,
       "gradle": "9.5.1",
       "loom": "1.15.5",
@@ -62,15 +62,15 @@
       "tests": { "clientGameTest": false, "serverIntegration": false, "compatibilityProfiles": [] },
       "release": {
         "status": "stable",
-        "artifact": "BetterShulkerHud-1.21.4-2.1.2.jar",
-        "sourcesArtifact": "BetterShulkerHud-1.21.4-2.1.2-sources.jar"
+        "artifact": "BetterShulkerHud-2.1.3+mc1.21.4.jar",
+        "sourcesArtifact": "BetterShulkerHud-2.1.3+mc1.21.4-sources.jar"
       }
     },
     {
       "id": "1.21.8",
       "path": "versions/1.21.8",
       "minecraft": { "build": "1.21.8", "range": ">=1.21.6 <=1.21.8" },
-      "modVersion": "2.1.1",
+      "modVersion": "2.1.2",
       "java": 21,
       "gradle": "9.5.1",
       "loom": "1.15.5",
@@ -89,15 +89,15 @@
       "release": {
         "status": "held",
         "blockingIssue": 6,
-        "artifact": "BetterShulkerHud-1.21.6-1.21.8-2.1.1.jar",
-        "sourcesArtifact": "BetterShulkerHud-1.21.6-1.21.8-2.1.1-sources.jar"
+        "artifact": "BetterShulkerHud-2.1.2+mc1.21.6-1.21.8.jar",
+        "sourcesArtifact": "BetterShulkerHud-2.1.2+mc1.21.6-1.21.8-sources.jar"
       }
     },
     {
       "id": "1.21.10",
       "path": "versions/1.21.10",
       "minecraft": { "build": "1.21.10", "range": ">=1.21.9 <=1.21.10" },
-      "modVersion": "2.1.2",
+      "modVersion": "2.1.3",
       "java": 21,
       "gradle": "9.5.1",
       "loom": "1.15.5",
@@ -115,15 +115,15 @@
       "tests": { "clientGameTest": false, "serverIntegration": false, "compatibilityProfiles": [] },
       "release": {
         "status": "stable",
-        "artifact": "BetterShulkerHud-1.21.9-1.21.10-2.1.2.jar",
-        "sourcesArtifact": "BetterShulkerHud-1.21.9-1.21.10-2.1.2-sources.jar"
+        "artifact": "BetterShulkerHud-2.1.3+mc1.21.9-1.21.10.jar",
+        "sourcesArtifact": "BetterShulkerHud-2.1.3+mc1.21.9-1.21.10-sources.jar"
       }
     },
     {
       "id": "1.21.11",
       "path": "versions/1.21.11",
       "minecraft": { "build": "1.21.11", "range": "1.21.11" },
-      "modVersion": "2.0.5",
+      "modVersion": "2.0.6",
       "java": 21,
       "gradle": "9.5.1",
       "loom": "1.16.3",
@@ -147,15 +147,15 @@
       },
       "release": {
         "status": "stable",
-        "artifact": "BetterShulkerHud-1.21.11-2.0.5.jar",
-        "sourcesArtifact": "BetterShulkerHud-1.21.11-2.0.5-sources.jar"
+        "artifact": "BetterShulkerHud-2.0.6+mc1.21.11.jar",
+        "sourcesArtifact": "BetterShulkerHud-2.0.6+mc1.21.11-sources.jar"
       }
     },
     {
       "id": "26.1.1",
       "path": "versions/26.1.1",
       "minecraft": { "build": "26.1.1", "range": "26.1.1" },
-      "modVersion": "2.2.2",
+      "modVersion": "2.2.3",
       "java": 25,
       "gradle": "9.5.1",
       "loom": "1.16.3",
@@ -180,15 +180,15 @@
       },
       "release": {
         "status": "stable",
-        "artifact": "BetterShulkerHud-26.1.1-2.2.2.jar",
-        "sourcesArtifact": "BetterShulkerHud-26.1.1-2.2.2-sources.jar"
+        "artifact": "BetterShulkerHud-2.2.3+mc26.1.1.jar",
+        "sourcesArtifact": "BetterShulkerHud-2.2.3+mc26.1.1-sources.jar"
       }
     },
     {
       "id": "26.1.2",
       "path": "versions/26.1.2",
       "minecraft": { "build": "26.1.2", "range": "26.1.2" },
-      "modVersion": "2.0.5",
+      "modVersion": "2.0.6",
       "java": 25,
       "gradle": "9.5.1",
       "loom": "1.16.3",
@@ -212,15 +212,15 @@
       },
       "release": {
         "status": "stable",
-        "artifact": "BetterShulkerHud-26.1.2-2.0.5.jar",
-        "sourcesArtifact": "BetterShulkerHud-26.1.2-2.0.5-sources.jar"
+        "artifact": "BetterShulkerHud-2.0.6+mc26.1.2.jar",
+        "sourcesArtifact": "BetterShulkerHud-2.0.6+mc26.1.2-sources.jar"
       }
     },
     {
       "id": "26.2",
       "path": "versions/26.2",
       "minecraft": { "build": "26.2", "range": ">=26.2 <26.3" },
-      "modVersion": "2.2.2",
+      "modVersion": "2.2.3",
       "java": 25,
       "gradle": "9.5.1",
       "loom": "1.16.3",
@@ -246,8 +246,8 @@
       },
       "release": {
         "status": "stable",
-        "artifact": "BetterShulkerHud-26.2-2.2.2.jar",
-        "sourcesArtifact": "BetterShulkerHud-26.2-2.2.2-sources.jar"
+        "artifact": "BetterShulkerHud-2.2.3+mc26.2.x.jar",
+        "sourcesArtifact": "BetterShulkerHud-2.2.3+mc26.2.x-sources.jar"
       }
     }
   ]

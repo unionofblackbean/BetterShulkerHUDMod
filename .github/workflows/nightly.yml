@@ -27,6 +27,7 @@ jobs:
         run: |
           ./scripts/Test-VersionManifest.ps1
           ./scripts/Test-CompatibilityAnchors.ps1
+          ./scripts/Test-ScrollbarInput.ps1
       - id: matrix
         shell: pwsh
         run: |

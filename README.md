@@ -1,6 +1,6 @@
 # Better Shulker HUD
 
-Better Shulker HUD 是一个以 Fabric 客户端为主体的便携存储管理模组。它会在背包和容器界面中汇总随身潜影盒内容；从 2.2.0 开始，还可在同一 HUD 中管理末影箱与收纳袋。服务器安装同版本模组后可直接执行三类存储的安全取放，未安装时潜影盒仍沿用 QuickShulker / AxShulkers 兼容路径。
+Better Shulker HUD 是一个以 Fabric 客户端为主体的便携存储管理模组。它会在背包和容器界面中汇总随身潜影盒内容；从 Mod 2.2.0 开始，还可在同一 HUD 中管理末影箱与收纳袋。服务器安装同版本模组后可直接执行三类存储的安全取放，未安装时潜影盒仍沿用 QuickShulker / AxShulkers 兼容路径。
 
 作者：`BF_skt`
 
@@ -10,17 +10,19 @@ Better Shulker HUD 是一个以 Fabric 客户端为主体的便携存储管理�
 
 每个 `versions/` 子目录都是可独立构建的完整 Gradle 工程。JAR 必须与 Minecraft 版本完全匹配，不能跨版本混用。
 
+版本号始终成对标注，例如 `Minecraft 26.2.x / Mod 2.2.3`。单独出现的 `26.2.x` 是 Minecraft 游戏版本，`2.2.3` 是 Better Shulker HUD 自身的 Mod 版本。JAR 使用 `BetterShulkerHud-<Mod版本>+mc<Minecraft版本>.jar`，例如 `BetterShulkerHud-2.2.3+mc26.2.x.jar`。
+
 <!-- generated:maintained-versions:start -->
-| Minecraft | Mod | 功能线 | 维护等级 | Java | 源码 |
+| Minecraft 游戏版本 | Better Shulker HUD Mod 版本 | 功能线 | 维护等级 | Java | 源码 |
 | --- | --- | --- | --- | --- | --- |
-| `1.21.1` | `2.1.2` | 完整 2.1.x | `active` | 21 | [`versions/1.21.1`](versions/1.21.1) |
-| `1.21.4` | `2.1.2` | 完整 2.1.x | `active` | 21 | [`versions/1.21.4`](versions/1.21.4) |
-| `>=1.21.6 <=1.21.8` | `2.1.1` | 2.1.x（Issue #6 修复待发布） | `active` | 21 | [`versions/1.21.8`](versions/1.21.8) |
-| `>=1.21.9 <=1.21.10` | `2.1.2` | 完整 2.1.x | `active` | 21 | [`versions/1.21.10`](versions/1.21.10) |
-| `1.21.11` | `2.0.5` | 稳定 2.0.x | `maintenance` | 21 | [`versions/1.21.11`](versions/1.21.11) |
-| `26.1.1` | `2.2.2` | 完整便携存储 2.2.x | `active` | 25 | [`versions/26.1.1`](versions/26.1.1) |
-| `26.1.2` | `2.0.5` | 稳定 2.0.x | `maintenance` | 25 | [`versions/26.1.2`](versions/26.1.2) |
-| `>=26.2 <26.3` | `2.2.2` | 完整便携存储 2.2.x | `active` | 25 | [`versions/26.2`](versions/26.2) |
+| `1.21.1` | `2.1.3` | 完整 2.1.x | `active` | 21 | [`versions/1.21.1`](versions/1.21.1) |
+| `1.21.4` | `2.1.3` | 完整 2.1.x | `active` | 21 | [`versions/1.21.4`](versions/1.21.4) |
+| `>=1.21.6 <=1.21.8` | `2.1.2` | 2.1.x（Issue #6 修复待发布） | `active` | 21 | [`versions/1.21.8`](versions/1.21.8) |
+| `>=1.21.9 <=1.21.10` | `2.1.3` | 完整 2.1.x | `active` | 21 | [`versions/1.21.10`](versions/1.21.10) |
+| `1.21.11` | `2.0.6` | 稳定 2.0.x | `maintenance` | 21 | [`versions/1.21.11`](versions/1.21.11) |
+| `26.1.1` | `2.2.3` | 完整便携存储 2.2.x | `active` | 25 | [`versions/26.1.1`](versions/26.1.1) |
+| `26.1.2` | `2.0.6` | 稳定 2.0.x | `maintenance` | 25 | [`versions/26.1.2`](versions/26.1.2) |
+| `>=26.2 <26.3` | `2.2.3` | 完整便携存储 2.2.x | `active` | 25 | [`versions/26.2`](versions/26.2) |
 <!-- generated:maintained-versions:end -->
 
 详细差异见 [VERSION_MATRIX.md](VERSION_MATRIX.md)，更新记录见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。
@@ -31,6 +33,7 @@ Better Shulker HUD 是一个以 Fabric 客户端为主体的便携存储管理�
 - 仓库根目录的 Gradle 工程是历史 `Minecraft 26.1.2 / Mod 1.8.8` 源码，只用于追溯，不参与当前 CI，也不是 26.1 的新适配基础。
 - 历史根工程会在基础设施稳定后通过单独的机械迁移 PR 移到 `legacy/26.1.2-1.8.8`；当前阶段不改动其源码。
 - GitHub Release 使用 `release-YYYY.MM-rN` 发布列车标签；每个附件文件名和 JAR 内元数据仍保留真实 Mod 与 Minecraft 版本。
+- 新分支使用 `codex/mc-<Minecraft版本>-mod-<Mod版本>-<用途>`；PR 与 Release 标题使用 `[MC <Minecraft版本>][Mod <Mod版本>] <内容>`。涉及全部维护版本时，Minecraft 写 `all`，Mod 部分列出所有实际版本。
 
 ## 主要功能
 
@@ -44,7 +47,7 @@ Better Shulker HUD 是一个以 Fabric 客户端为主体的便携存储管理�
 - 末影箱和收纳袋的真实取放要求服务器安装同版本 Better Shulker HUD。潜影盒在服务器未安装本模组时仍可选择 QuickShulker 或 AxShulkers 后端；没有任何可用后端时只提供预览。
 - 使用 MaLiLib 原生设置界面管理 HUD、快捷键、补货、整理和诊断选项。
 
-## 最新修复（2.1.2 / 2.0.4 / 2.0.5 / 2.2.2）
+## 最新修复（Mod 2.0.6 / 2.1.2 / 2.1.3 / 2.2.3）
 
 - 26.1.1、26.1.2 与 26.2 在“背包已满、目标潜影盒也满、无法常规腾位”时，可把当前手中整组物品与目标潜影盒槽位直接交换，轻松放置不再因没有临时空位而中断。
 - 整组交换复用 QuickShulker/AxShulkers 的真实容器，校验双方物品与数量、空光标及服务端同步；未改动 Litematica 投影或 Easy Place 根本判定。
@@ -54,7 +57,7 @@ Better Shulker HUD 是一个以 Fabric 客户端为主体的便携存储管理�
 - 本次公开同步覆盖 `1.21.1`、`1.21.4`、`1.21.9-1.21.10`、`1.21.11`、`26.1.1`、`26.1.2` 和 `26.2`。
 - `1.21.6-1.21.8` 暂留公开版 `2.1.1`：已确认 1.21.7 存在 HUD 按钮后绘制、遮挡原版 tooltip 的图层问题，修复并验证后单独发布。
 
-## 2.2.0 更新
+## Mod 2.2.0 更新
 
 - 新增末影箱 27 格同步以及收纳袋聚合显示，三类来源均支持单件、整组、光标取放和来源记忆。
 - 增加服务器二次校验：客户端请求携带预期物品，槽位变化时会重新定位同类物品，不会误取或误存其他物品。
@@ -63,7 +66,7 @@ Better Shulker HUD 是一个以 Fabric 客户端为主体的便携存储管理�
 - 保留 ModernUI 与 CozyUI+ 的可选兼容路径，二者均不是硬前置；未安装时继续使用现有原版风格、圆角和阴影。
 - 保留 QuickShulker、AxShulkers、自动补货、副手交换、水桶、来源归还和 Litematica Easy Place 的既有判断，不改写投影根本逻辑。
 
-## 2.1.1 / 2.0.3 修复
+## Mod 2.1.1 / 2.0.3 修复
 
 - AxShulkers 自动补货完成、失败或只补到部分数量后，不再反复打开同一个潜影盒。
 - 等待服务端物品状态稳定后记录背包状态；玩家消耗、移动物品或潜影盒内容变化时才允许再次补货。

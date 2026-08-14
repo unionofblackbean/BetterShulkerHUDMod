@@ -130,6 +130,14 @@ public abstract class AbstractRecipeBookScreenMixin {
     private void onMouseDragged(
             MouseButtonEvent event, double dragX, double dragY,
             CallbackInfoReturnable<Boolean> cir) {
+        AbstractContainerScreen<?> screen =
+                (AbstractContainerScreen<?>) (Object) this;
+        if (BundlePanelRenderer.handleScrollBarDrag(
+                event.y(), event.button(),
+                screen.leftPos, screen.topPos, screen.imageHeight)) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (BundlePanelRenderer.handleToggleButtonDrag(
                 event.x(), event.y(), event.button())) {
             cir.setReturnValue(true);

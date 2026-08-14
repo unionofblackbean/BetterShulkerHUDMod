@@ -122,6 +122,14 @@ public abstract class AbstractRecipeBookScreenMixin {
     private void onMouseDragged(
             MouseButtonEvent event, double dragX, double dragY,
             CallbackInfoReturnable<Boolean> cir) {
+        AbstractContainerScreen<?> screen =
+                (AbstractContainerScreen<?>) (Object) this;
+        if (BundlePanelRenderer.handleScrollBarDrag(
+                event.y(), event.button(),
+                screen.leftPos, screen.topPos, screen.imageHeight)) {
+            cir.setReturnValue(true);
+            return;
+        }
         // This class handles dragging before AbstractContainerScreen, so the
         // toggle must be given the event before the recipe-book search field.
         if (BundlePanelRenderer.handleToggleButtonDrag(

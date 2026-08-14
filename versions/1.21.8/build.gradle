@@ -6,6 +6,12 @@ plugins {
 version = project.mod_version
 group = project.maven_group
 
+def releaseArtifactVersion = "${project.mod_version}+mc${project.artifact_minecraft_version}"
+tasks.withType(org.gradle.api.tasks.bundling.AbstractArchiveTask).configureEach {
+    archiveBaseName.set('BetterShulkerHud')
+    archiveVersion.set(releaseArtifactVersion)
+}
+
 repositories {
     mavenCentral()
     maven { url 'https://jitpack.io' }

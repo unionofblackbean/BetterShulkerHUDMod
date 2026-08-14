@@ -45,7 +45,7 @@ function Get-MaintainedVersionsTable {
     param([Parameter(Mandatory = $true)]$Manifest)
 
     $lines = [System.Collections.Generic.List[string]]::new()
-    $lines.Add('| Minecraft | Mod | 功能线 | 维护等级 | Java | 源码 |')
+    $lines.Add('| Minecraft 游戏版本 | Better Shulker HUD Mod 版本 | 功能线 | 维护等级 | Java | 源码 |')
     $lines.Add('| --- | --- | --- | --- | --- | --- |')
     foreach ($entry in $Manifest.versions) {
         $range = $entry.minecraft.range
@@ -58,7 +58,7 @@ function Get-VersionMatrixTable {
     param([Parameter(Mandatory = $true)]$Manifest)
 
     $lines = [System.Collections.Generic.List[string]]::new()
-    $lines.Add('| 源码目录 | Minecraft 范围 | Mod | Java | Loader | Fabric API | MaLiLib | 功能线 | 发布状态 |')
+    $lines.Add('| 源码目录 | Minecraft 游戏版本范围 | Better Shulker HUD Mod 版本 | Java | Loader | Fabric API | MaLiLib | 功能线 | 发布状态 |')
     $lines.Add('| --- | --- | --- | --- | --- | --- | --- | --- | --- |')
     foreach ($entry in $Manifest.versions) {
         $malilibVersion = ($entry.malilib -split ':')[-1]
