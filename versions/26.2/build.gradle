@@ -29,23 +29,6 @@ configurations {
 
 loom {
     splitEnvironmentSourceSets()
-}
-
-sourceSets {
-    clientGameTest {
-        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
-        compileClasspath += sourceSets.client.output + sourceSets.client.compileClasspath
-        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
-        runtimeClasspath += sourceSets.client.output + sourceSets.client.runtimeClasspath
-    }
-}
-
-configurations {
-    clientGameTestImplementation.extendsFrom clientImplementation
-    clientGameTestRuntimeOnly.extendsFrom clientRuntimeOnly
-}
-
-loom {
     accessWidenerPath = file("src/main/resources/better-shulker-hud.accesswidener")
 
     mods {
@@ -53,20 +36,31 @@ loom {
             sourceSet sourceSets.main
             sourceSet sourceSets.client
         }
-        "better-shulker-hud-client-gametest" {
-            sourceSet sourceSets.clientGameTest
-        }
     }
+}
 
-    runs {
-        clientGameTest {
-            client()
-            name = "Better Shulker HUD Client Game Test"
-            source sourceSets.clientGameTest
-            vmArg "-Dfabric.client.gametest"
-            runDir "build/clientGameTest"
-        }
+// Use Fabric API's test source set so optional Fabric mods pass through Loom's
+// remapper before the named development runtime loads their classTweakers.
+fabricApi {
+    configureTests {
+        createSourceSet = true
+        modId = "better-shulker-hud-client-gametest"
+        enableGameTests = false
+        enableClientGameTests = true
+        eula = true
     }
+}
+
+sourceSets.gametest {
+    java.setSrcDirs(['src/clientGameTest/java'])
+    resources.setSrcDirs(['src/clientGameTest/resources'])
+    compileClasspath += sourceSets.client.output
+    runtimeClasspath += sourceSets.client.output
+}
+
+loom.runs.named("clientGameTest") {
+    property "fabric.client.gametest.testModResourcesPath",
+            file("src/clientGameTest/resources").absolutePath
 }
 
 dependencies {
@@ -79,8 +73,16 @@ dependencies {
     compileOnly('com.github.MoRanpcy:quickshulker:3.0.2-26.2') {
         transitive = false
     }
-    clientGameTestRuntimeOnly('com.github.MoRanpcy:quickshulker:3.0.2-26.2') {
-        transitive = false
+    // The Item Scroller lane also needs a real portable-storage backend to
+    // verify HUD wheel transfers. Keep both optional mods out of the base lane.
+    if (project.hasProperty('compat_quickshulker') ||
+            project.hasProperty('itemscroller_test_jar')) {
+        gametestRuntimeOnly('com.github.MoRanpcy:quickshulker:3.0.2-26.2') {
+            transitive = false
+        }
+        gametestRuntimeOnly('me.fallenbreath:conditional-mixin-fabric:0.6.4') {
+            transitive = false
+        }
     }
 
     compileOnly('me.shedaniel:RoughlyEnoughItems-api:26.2.821')
@@ -93,7 +95,7 @@ dependencies {
     // Optional compatibility lane for local Client GameTest runs. Item Scroller
     // remains an optional user-installed mod and is never bundled in our jar.
     if (project.hasProperty('itemscroller_test_jar')) {
-        clientRuntimeOnly files(project.property('itemscroller_test_jar'))
+        gametestRuntimeOnly files(project.property('itemscroller_test_jar'))
     }
 
     embed 'com.belerweb:pinyin4j:2.5.1'

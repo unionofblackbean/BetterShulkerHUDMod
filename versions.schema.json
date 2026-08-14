@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/unionofblackbean/BetterShulkerHUDMod/raw/master/versions.schema.json",
+  "title": "Better Shulker HUD maintained version manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "repository", "legacyRoot", "versions"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["slug", "defaultBranch", "releaseArtifactPrefix"],
+      "properties": {
+        "slug": { "const": "unionofblackbean/BetterShulkerHUDMod" },
+        "defaultBranch": { "const": "master" },
+        "releaseArtifactPrefix": { "type": "string", "minLength": 1 }
+      }
+    },
+    "legacyRoot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minecraft", "modVersion", "status", "includedInCi", "plannedPath"],
+      "properties": {
+        "minecraft": { "type": "string" },
+        "modVersion": { "type": "string" },
+        "status": { "const": "historical-source-only" },
+        "includedInCi": { "const": false },
+        "plannedPath": { "type": "string", "pattern": "^legacy/" }
+      }
+    },
+    "versions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/version" }
+    }
+  },
+  "$defs": {
+    "version": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "path", "minecraft", "modVersion", "java", "gradle", "loom", "loader", "fabricApi", "malilib", "optionalCompatibility", "featureLevel", "featureSummary", "maintenanceLevel", "tests", "release"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "pattern": "^versions/" },
+        "minecraft": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["build", "range"],
+          "properties": {
+            "build": { "type": "string" },
+            "range": { "type": "string" }
+          }
+        },
+        "modVersion": { "type": "string" },
+        "java": { "enum": [21, 25] },
+        "gradle": { "type": "string" },
+        "loom": { "type": "string" },
+        "loader": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["build", "requirement"],
+          "properties": {
+            "build": { "type": "string" },
+            "requirement": { "type": "string" }
+          }
+        },
+        "fabricApi": { "type": "string" },
+        "malilib": { "type": "string" },
+        "optionalCompatibility": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        },
+        "featureLevel": { "enum": ["2.0.x", "2.1.x", "2.2.x"] },
+        "featureSummary": { "type": "string" },
+        "maintenanceLevel": { "enum": ["active", "maintenance", "deprecated"] },
+        "tests": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["clientGameTest", "serverIntegration", "compatibilityProfiles"],
+          "properties": {
+            "clientGameTest": { "type": "boolean" },
+            "serverIntegration": { "type": "boolean" },
+            "compatibilityProfiles": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/compatibilityProfile" }
+            }
+          }
+        },
+        "release": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "artifact", "sourcesArtifact"],
+          "properties": {
+            "status": { "enum": ["stable", "beta", "held", "unreleased"] },
+            "blockingIssue": { "type": "integer", "minimum": 1 },
+            "artifact": { "type": "string", "pattern": "\\.jar$" },
+            "sourcesArtifact": { "type": "string", "pattern": "-sources\\.jar$" }
+          }
+        }
+      }
+    },
+    "compatibilityProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "property", "ci"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9_-]+$" },
+        "property": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+        "ci": { "type": "boolean" },
+        "requiresLocalArtifact": { "type": "boolean", "default": false }
+      }
+    }
+  }
+}

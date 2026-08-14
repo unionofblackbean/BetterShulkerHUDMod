@@ -1,0 +1,106 @@
+name: Bug 反馈
+description: 反馈 Better Shulker HUD 的可复现问题
+title: "[Bug] "
+labels: ["status:needs-repro"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。请完整填写环境、复现步骤并上传日志；当前版本可能仍有较多 Bug，也可加入 QQ 群 1093770867 沟通。
+  - type: input
+    id: minecraft
+    attributes:
+      label: Minecraft 版本
+      placeholder: 例如 1.21.7 或 26.1.1
+    validations:
+      required: true
+  - type: input
+    id: mod_version
+    attributes:
+      label: Better Shulker HUD 版本
+      placeholder: 例如 2.1.2-beta.1
+    validations:
+      required: true
+  - type: input
+    id: loader
+    attributes:
+      label: Fabric Loader 版本
+      placeholder: 例如 0.19.2
+    validations:
+      required: true
+  - type: input
+    id: fabric_api
+    attributes:
+      label: Fabric API 版本
+    validations:
+      required: true
+  - type: textarea
+    id: other_mods
+    attributes:
+      label: 其他 Mod / 疑似冲突 Mod
+      description: 请粘贴 Mod 列表，尤其是 QuickShulker、AxShulkers、Item Scroller、Litematica、ModernUI、CozyUI、REI、JEI 或 EMI。
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 严重程度
+      options:
+        - P0 - 存档损坏、物品丢失或安全问题
+        - P1 - 崩溃、卡死或核心功能完全不可用
+        - P2 - 主要功能异常但存在绕过方式
+        - P3 - 显示、交互或轻微兼容问题
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开……
+        2. 点击……
+        3. 出现……
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期结果
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际结果
+    validations:
+      required: true
+  - type: dropdown
+    id: clean_repro
+    attributes:
+      label: 是否能在纯净环境复现
+      options:
+        - 是，仅安装必需前置和 Better Shulker HUD
+        - 否，只在当前整合包复现
+        - 尚未测试
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志、崩溃报告与截图
+      description: 请直接拖入 latest.log、crash-report、截图；不要只粘贴启动器最后几行。
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: 备注
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提交确认
+      options:
+        - label: 我已确认 Minecraft 与 Mod 版本匹配，没有跨版本误装 JAR。
+          required: true
+        - label: 我已搜索现有 Issue，未发现相同问题。
+          required: true
