@@ -27,14 +27,26 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.item.component.BundleContents;
 import org.lwjgl.glfw.GLFW;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
 public final class BetterShulkerHudClientGameTest implements FabricClientGameTest {
     private static final int OPERATION_TIMEOUT_TICKS = 20 * 15;
+    private static final Logger LOGGER = LoggerFactory.getLogger(
+            "better-shulker-hud-client-gametest");
 
     @Override
     public void runTest(ClientGameTestContext context) {
+        boolean quickShulkerAvailable = FabricLoader.getInstance().isModLoaded("quickshulker");
+        boolean itemScrollerProfile = FabricLoader.getInstance().isModLoaded("itemscroller");
+        assertTrue(!itemScrollerProfile || quickShulkerAvailable,
+                "Item Scroller compatibility tests require the QuickShulker transfer backend");
+        String profile = itemScrollerProfile
+                ? "itemscroller"
+                : quickShulkerAvailable ? "quickshulker" : "base";
+        LOGGER.info("BSH_CLIENT_GAMETEST_START profile={}", profile);
         context.runOnClient(client -> {
             Configs.Features.AUTO_RESTOCK.setBooleanValue(true);
             Configs.Features.SINGLE_ITEM_AUTO_RESTOCK.setBooleanValue(true);
@@ -46,21 +58,26 @@ public final class BetterShulkerHudClientGameTest implements FabricClientGameTes
 
         try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
             context.waitFor(client -> client.player != null);
-            testWaterBucketReplacement(context, singleplayer);
-            testFullInventoryLitematicaHandSwap(context, singleplayer);
-            testMainHandTotemRestock(context, singleplayer);
             testMovedMainHandTotemDoesNotRestock(context, singleplayer);
-            testManualStoreDoesNotRestock(context, singleplayer);
-            testRightClickDirectCursor(context, singleplayer);
-            testItemScrollerHudWheel(context, singleplayer);
-            testHudOrderStableDuringContinuousExtraction(context, singleplayer);
-            testOffhandRestockToggle(context, singleplayer);
-            testTakeToOffhandHotkey(context, singleplayer);
-            testTakeToOffhandSwap(context, singleplayer);
-            testPortableStorageViewsAndTransfers(context, singleplayer);
+            if (quickShulkerAvailable) {
+                testWaterBucketReplacement(context, singleplayer);
+                testFullInventoryLitematicaHandSwap(context, singleplayer);
+                testMainHandTotemRestock(context, singleplayer);
+                testManualStoreDoesNotRestock(context, singleplayer);
+                testRightClickDirectCursor(context, singleplayer);
+                testHudOrderStableDuringContinuousExtraction(context, singleplayer);
+                testOffhandRestockToggle(context, singleplayer);
+                testTakeToOffhandHotkey(context, singleplayer);
+                testTakeToOffhandSwap(context, singleplayer);
+                testPortableStorageViewsAndTransfers(context, singleplayer);
+            }
+            if (itemScrollerProfile) {
+                testItemScrollerHudWheel(context, singleplayer);
+            }
             testHudToggleButtonDrag(context);
             testRecipeBookCoexistsWithHud(context, singleplayer);
         }
+        LOGGER.info("BSH_CLIENT_GAMETEST_SUCCESS profile={}", profile);
     }
 
     private static void testPortableStorageViewsAndTransfers(
@@ -601,8 +618,6 @@ public final class BetterShulkerHudClientGameTest implements FabricClientGameTes
 
     private static void testItemScrollerHudWheel(
             ClientGameTestContext context, TestSingleplayerContext singleplayer) {
-        if (!FabricLoader.getInstance().isModLoaded("itemscroller")) return;
-
         resetRememberedItems(context, singleplayer);
         setInventory(singleplayer, inventory -> {
             inventory.setSelectedSlot(0);

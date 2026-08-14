@@ -29,23 +29,6 @@ configurations {
 
 loom {
     splitEnvironmentSourceSets()
-}
-
-sourceSets {
-    clientGameTest {
-        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
-        compileClasspath += sourceSets.client.output + sourceSets.client.compileClasspath
-        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
-        runtimeClasspath += sourceSets.client.output + sourceSets.client.runtimeClasspath
-    }
-}
-
-configurations {
-    clientGameTestImplementation.extendsFrom clientImplementation
-    clientGameTestRuntimeOnly.extendsFrom clientRuntimeOnly
-}
-
-loom {
     accessWidenerPath = file("src/main/resources/better-shulker-hud.accesswidener")
 
     mods {
@@ -53,20 +36,32 @@ loom {
             sourceSet sourceSets.main
             sourceSet sourceSets.client
         }
-        "better-shulker-hud-client-gametest" {
-            sourceSet sourceSets.clientGameTest
-        }
     }
+}
 
-    runs {
-        clientGameTest {
-            client()
-            name = "Better Shulker HUD Client Game Test"
-            source sourceSets.clientGameTest
-            vmArg "-Dfabric.client.gametest"
-            runDir "build/clientGameTest"
-        }
+// Use Loom's official Fabric API test lane. The previous hand-built run copied
+// main/client runtime classpaths into the target classloader, duplicating Loader
+// and Mixin and causing Knot/app ClassCastException before tests could start.
+fabricApi {
+    configureTests {
+        createSourceSet = true
+        modId = "better-shulker-hud-client-gametest"
+        enableGameTests = false
+        enableClientGameTests = true
+        eula = true
     }
+}
+
+sourceSets.gametest {
+    java.setSrcDirs(['src/clientGameTest/java'])
+    resources.setSrcDirs(['src/clientGameTest/resources'])
+    compileClasspath += sourceSets.client.output
+    runtimeClasspath += sourceSets.client.output
+}
+
+loom.runs.named("clientGameTest") {
+    property "fabric.client.gametest.testModResourcesPath",
+            file("src/clientGameTest/resources").absolutePath
 }
 
 dependencies {
@@ -80,14 +75,25 @@ dependencies {
     modCompileOnly('com.github.MoRanpcy:quickshulker:3.0.1-1.21.11') {
         transitive = false
     }
-    modRuntimeOnly('com.github.MoRanpcy:quickshulker:3.0.1-1.21.11') {
-        transitive = false
+    // Optional runtime lane. Base Client GameTest deliberately excludes it.
+    if (project.hasProperty('compat_quickshulker')) {
+        // These are Fabric mods, not ordinary JVM libraries. Using the plain
+        // gametestRuntimeOnly configuration bypasses Loom's remapper and leaves
+        // QuickShulker's classTweaker in the intermediary namespace.
+        modGametestRuntimeOnly('com.github.MoRanpcy:quickshulker:3.0.1-1.21.11') {
+            transitive = false
+        }
+        modGametestRuntimeOnly('me.fallenbreath:conditional-mixin-fabric:0.6.4') {
+            transitive = false
+        }
     }
 
     modCompileOnly('me.shedaniel:RoughlyEnoughItems-api:21.11.816')
     compileOnly('mezz.jei:jei-1.21.11-common-api:27.22.0.64')
 
-    modImplementation 'fi.dy.masa.malilib:malilib-fabric-1.21.11:0.27.16'
+    modImplementation('fi.dy.masa.malilib:malilib-fabric-1.21.11:0.27.16') {
+        exclude group: 'net.fabricmc', module: 'fabric-loader'
+    }
 
     embed 'com.belerweb:pinyin4j:2.5.1'
     embed('com.github.Towdium:PinIn:1.6.0') {

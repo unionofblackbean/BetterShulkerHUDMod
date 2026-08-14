@@ -1,0 +1,108 @@
+name: GitHub release train
+
+on:
+  push:
+    tags:
+      - "release-*"
+  workflow_dispatch:
+    inputs:
+      manifest:
+        description: "Release train manifest, for example release-trains/release-2026.08-r1-beta.1.json"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}-${{ inputs.manifest }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Validate release train
+    runs-on: ubuntu-latest
+    outputs:
+      manifest: ${{ steps.release.outputs.manifest }}
+      train: ${{ steps.release.outputs.train }}
+      title: ${{ steps.release.outputs.title }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
+      notes: ${{ steps.release.outputs.notes }}
+      matrix: ${{ steps.release.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate repository
+        shell: pwsh
+        run: |
+          ./scripts/Test-VersionManifest.ps1
+          ./scripts/Test-CompatibilityAnchors.ps1
+      - id: release
+        name: Resolve release metadata
+        shell: pwsh
+        env:
+          INPUT_MANIFEST: ${{ inputs.manifest }}
+        run: |
+          $manifestPath = if ($env:GITHUB_REF_TYPE -eq 'tag') { "release-trains/$($env:GITHUB_REF_NAME).json" } else { $env:INPUT_MANIFEST }
+          if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw "Release manifest not found: $manifestPath" }
+          $release = Get-Content -LiteralPath $manifestPath -Raw -Encoding utf8 | ConvertFrom-Json
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $release.train -cne $env:GITHUB_REF_NAME) { throw "Tag and release train differ." }
+          "manifest=$manifestPath" >> $env:GITHUB_OUTPUT
+          "train=$($release.train)" >> $env:GITHUB_OUTPUT
+          "title=$($release.title)" >> $env:GITHUB_OUTPUT
+          "prerelease=$($release.prerelease.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          "notes=$($release.notesFile)" >> $env:GITHUB_OUTPUT
+          "matrix=$(./scripts/Get-ReleaseMatrix.ps1 -ReleaseManifest $manifestPath)" >> $env:GITHUB_OUTPUT
+
+  build:
+    name: Release build / ${{ matrix.id }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Clean release build
+        shell: pwsh
+        run: ./scripts/Build-Version.ps1 -Id '${{ matrix.id }}' -Clean
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.id }}
+          path: ${{ matrix.path }}/build/libs/*.jar
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Verify and publish GitHub Release
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Build verified attachment set
+        shell: pwsh
+        run: ./scripts/New-ReleaseBundle.ps1 -ReleaseManifest '${{ needs.prepare.outputs.manifest }}' -ArtifactsRoot artifacts -OutputDirectory bundle
+      - name: Preserve verified release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-${{ needs.prepare.outputs.train }}
+          path: bundle/*
+          if-no-files-found: error
+          retention-days: 90
+      - name: Create GitHub Release only
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.train }}
+          name: ${{ needs.prepare.outputs.title }}
+          prerelease: ${{ needs.prepare.outputs.prerelease }}
+          body_path: ${{ needs.prepare.outputs.notes }}
+          fail_on_unmatched_files: true
+          files: bundle/*

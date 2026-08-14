@@ -49,17 +49,22 @@ dependencies {
     modCompileOnly('com.github.MoRanpcy:quickshulker:3.0.1-1.21.10') {
         transitive = false
     }
-    modRuntimeOnly('com.github.MoRanpcy:quickshulker:3.0.1-1.21.10') {
-        transitive = false
-    }
-    modRuntimeOnly('me.fallenbreath:conditional-mixin-fabric:0.6.4') {
-        transitive = false
+    // Optional runtime lane. Base builds and tests must not load QuickShulker.
+    if (project.hasProperty('compat_quickshulker')) {
+        modRuntimeOnly('com.github.MoRanpcy:quickshulker:3.0.1-1.21.10') {
+            transitive = false
+        }
+        modRuntimeOnly('me.fallenbreath:conditional-mixin-fabric:0.6.4') {
+            transitive = false
+        }
     }
 
     modCompileOnly('me.shedaniel:RoughlyEnoughItems-api:21.9.813')
     modCompileOnly('mezz.jei:jei-1.21.10-fabric-api:26.3.0.31')
 
-    modImplementation 'fi.dy.masa.malilib:malilib-fabric-1.21.10:0.26.7'
+    modImplementation('fi.dy.masa.malilib:malilib-fabric-1.21.10:0.26.7') {
+        exclude group: 'net.fabricmc', module: 'fabric-loader'
+    }
 
     embed 'com.belerweb:pinyin4j:2.5.1'
     embed('com.github.Towdium:PinIn:1.6.0') {

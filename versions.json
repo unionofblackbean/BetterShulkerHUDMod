@@ -1,0 +1,254 @@
+{
+  "$schema": "./versions.schema.json",
+  "schemaVersion": 1,
+  "repository": {
+    "slug": "unionofblackbean/BetterShulkerHUDMod",
+    "defaultBranch": "master",
+    "releaseArtifactPrefix": "BetterShulkerHud"
+  },
+  "legacyRoot": {
+    "minecraft": "26.1.2",
+    "modVersion": "1.8.8",
+    "status": "historical-source-only",
+    "includedInCi": false,
+    "plannedPath": "legacy/26.1.2-1.8.8"
+  },
+  "versions": [
+    {
+      "id": "1.21.1",
+      "path": "versions/1.21.1",
+      "minecraft": { "build": "1.21.1", "range": "1.21.1" },
+      "modVersion": "2.1.2",
+      "java": 21,
+      "gradle": "9.5.1",
+      "loom": "1.15.5",
+      "loader": { "build": "0.19.3", "requirement": ">=0.16.14" },
+      "fabricApi": "0.116.15+1.21.1",
+      "malilib": "fi.dy.masa.malilib:malilib-fabric-1.21:0.21.10",
+      "optionalCompatibility": {
+        "quickShulker": "3.0.0-1.21.1",
+        "rei": "16.0.799",
+        "jei": "19.43.0.390",
+        "emi": "1.1.24+1.21.1+fabric"
+      },
+      "featureLevel": "2.1.x",
+      "featureSummary": "完整 2.1.x",
+      "maintenanceLevel": "active",
+      "tests": { "clientGameTest": false, "serverIntegration": false, "compatibilityProfiles": [] },
+      "release": {
+        "status": "stable",
+        "artifact": "BetterShulkerHud-1.21.1-2.1.2.jar",
+        "sourcesArtifact": "BetterShulkerHud-1.21.1-2.1.2-sources.jar"
+      }
+    },
+    {
+      "id": "1.21.4",
+      "path": "versions/1.21.4",
+      "minecraft": { "build": "1.21.4", "range": "1.21.4" },
+      "modVersion": "2.1.2",
+      "java": 21,
+      "gradle": "9.5.1",
+      "loom": "1.15.5",
+      "loader": { "build": "0.19.3", "requirement": ">=0.16.14" },
+      "fabricApi": "0.119.4+1.21.4",
+      "malilib": "fi.dy.masa.malilib:malilib-fabric-1.21.4:0.23.5",
+      "optionalCompatibility": {
+        "quickShulker": "3.0.1-1.21.4",
+        "rei": "18.0.815"
+      },
+      "featureLevel": "2.1.x",
+      "featureSummary": "完整 2.1.x",
+      "maintenanceLevel": "active",
+      "tests": { "clientGameTest": false, "serverIntegration": false, "compatibilityProfiles": [] },
+      "release": {
+        "status": "stable",
+        "artifact": "BetterShulkerHud-1.21.4-2.1.2.jar",
+        "sourcesArtifact": "BetterShulkerHud-1.21.4-2.1.2-sources.jar"
+      }
+    },
+    {
+      "id": "1.21.8",
+      "path": "versions/1.21.8",
+      "minecraft": { "build": "1.21.8", "range": ">=1.21.6 <=1.21.8" },
+      "modVersion": "2.1.1",
+      "java": 21,
+      "gradle": "9.5.1",
+      "loom": "1.15.5",
+      "loader": { "build": "0.19.3", "requirement": ">=0.16.14" },
+      "fabricApi": "0.136.1+1.21.8",
+      "malilib": "fi.dy.masa.malilib:malilib-fabric-1.21.8:0.25.7",
+      "optionalCompatibility": {
+        "quickShulker": "3.0.1-1.21.8",
+        "rei": "20.0.811",
+        "jei": "24.2.0.6"
+      },
+      "featureLevel": "2.1.x",
+      "featureSummary": "2.1.x（Issue #6 修复待发布）",
+      "maintenanceLevel": "active",
+      "tests": { "clientGameTest": false, "serverIntegration": false, "compatibilityProfiles": [] },
+      "release": {
+        "status": "held",
+        "blockingIssue": 6,
+        "artifact": "BetterShulkerHud-1.21.6-1.21.8-2.1.1.jar",
+        "sourcesArtifact": "BetterShulkerHud-1.21.6-1.21.8-2.1.1-sources.jar"
+      }
+    },
+    {
+      "id": "1.21.10",
+      "path": "versions/1.21.10",
+      "minecraft": { "build": "1.21.10", "range": ">=1.21.9 <=1.21.10" },
+      "modVersion": "2.1.2",
+      "java": 21,
+      "gradle": "9.5.1",
+      "loom": "1.15.5",
+      "loader": { "build": "0.19.3", "requirement": ">=0.16.14" },
+      "fabricApi": "0.138.4+1.21.10",
+      "malilib": "fi.dy.masa.malilib:malilib-fabric-1.21.10:0.26.7",
+      "optionalCompatibility": {
+        "quickShulker": "3.0.1-1.21.10",
+        "rei": "21.9.813",
+        "jei": "26.3.0.31"
+      },
+      "featureLevel": "2.1.x",
+      "featureSummary": "完整 2.1.x",
+      "maintenanceLevel": "active",
+      "tests": { "clientGameTest": false, "serverIntegration": false, "compatibilityProfiles": [] },
+      "release": {
+        "status": "stable",
+        "artifact": "BetterShulkerHud-1.21.9-1.21.10-2.1.2.jar",
+        "sourcesArtifact": "BetterShulkerHud-1.21.9-1.21.10-2.1.2-sources.jar"
+      }
+    },
+    {
+      "id": "1.21.11",
+      "path": "versions/1.21.11",
+      "minecraft": { "build": "1.21.11", "range": "1.21.11" },
+      "modVersion": "2.0.5",
+      "java": 21,
+      "gradle": "9.5.1",
+      "loom": "1.16.3",
+      "loader": { "build": "0.19.3", "requirement": ">=0.16.14" },
+      "fabricApi": "0.141.6+1.21.11",
+      "malilib": "fi.dy.masa.malilib:malilib-fabric-1.21.11:0.27.16",
+      "optionalCompatibility": {
+        "quickShulker": "3.0.1-1.21.11",
+        "rei": "21.11.816",
+        "jei": "27.22.0.64"
+      },
+      "featureLevel": "2.0.x",
+      "featureSummary": "稳定 2.0.x",
+      "maintenanceLevel": "maintenance",
+      "tests": {
+        "clientGameTest": true,
+        "serverIntegration": false,
+        "compatibilityProfiles": [
+          { "id": "quickshulker", "property": "compat_quickshulker", "ci": true }
+        ]
+      },
+      "release": {
+        "status": "stable",
+        "artifact": "BetterShulkerHud-1.21.11-2.0.5.jar",
+        "sourcesArtifact": "BetterShulkerHud-1.21.11-2.0.5-sources.jar"
+      }
+    },
+    {
+      "id": "26.1.1",
+      "path": "versions/26.1.1",
+      "minecraft": { "build": "26.1.1", "range": "26.1.1" },
+      "modVersion": "2.2.2",
+      "java": 25,
+      "gradle": "9.5.1",
+      "loom": "1.16.3",
+      "loader": { "build": "0.19.2", "requirement": ">=0.19.2" },
+      "fabricApi": "0.145.4+26.1.1",
+      "malilib": "fi.dy.masa.malilib:malilib-fabric-26.1.1:0.28.2",
+      "optionalCompatibility": {
+        "quickShulker": "3.0.1-26.1",
+        "rei": "26.1.819",
+        "jei": "29.4.0.23",
+        "itemScroller": "0.31.0"
+      },
+      "featureLevel": "2.2.x",
+      "featureSummary": "完整便携存储 2.2.x",
+      "maintenanceLevel": "active",
+      "tests": {
+        "clientGameTest": true,
+        "serverIntegration": true,
+        "compatibilityProfiles": [
+          { "id": "quickshulker", "property": "compat_quickshulker", "ci": true }
+        ]
+      },
+      "release": {
+        "status": "stable",
+        "artifact": "BetterShulkerHud-26.1.1-2.2.2.jar",
+        "sourcesArtifact": "BetterShulkerHud-26.1.1-2.2.2-sources.jar"
+      }
+    },
+    {
+      "id": "26.1.2",
+      "path": "versions/26.1.2",
+      "minecraft": { "build": "26.1.2", "range": "26.1.2" },
+      "modVersion": "2.0.5",
+      "java": 25,
+      "gradle": "9.5.1",
+      "loom": "1.16.3",
+      "loader": { "build": "0.19.2", "requirement": ">=0.18.4" },
+      "fabricApi": "0.155.2+26.1.2",
+      "malilib": "fi.dy.masa.malilib:malilib-fabric-26.1.2:0.28.9",
+      "optionalCompatibility": {
+        "quickShulker": "3.0.1-26.1",
+        "rei": "26.1.819",
+        "jei": "29.21.0.66"
+      },
+      "featureLevel": "2.0.x",
+      "featureSummary": "稳定 2.0.x",
+      "maintenanceLevel": "maintenance",
+      "tests": {
+        "clientGameTest": true,
+        "serverIntegration": false,
+        "compatibilityProfiles": [
+          { "id": "quickshulker", "property": "compat_quickshulker", "ci": true }
+        ]
+      },
+      "release": {
+        "status": "stable",
+        "artifact": "BetterShulkerHud-26.1.2-2.0.5.jar",
+        "sourcesArtifact": "BetterShulkerHud-26.1.2-2.0.5-sources.jar"
+      }
+    },
+    {
+      "id": "26.2",
+      "path": "versions/26.2",
+      "minecraft": { "build": "26.2", "range": ">=26.2 <26.3" },
+      "modVersion": "2.2.2",
+      "java": 25,
+      "gradle": "9.5.1",
+      "loom": "1.16.3",
+      "loader": { "build": "0.19.3", "requirement": ">=0.19.3" },
+      "fabricApi": "0.156.0+26.2",
+      "malilib": "fi.dy.masa.malilib:malilib-fabric-26.2:0.29.2",
+      "optionalCompatibility": {
+        "quickShulker": "3.0.2-26.2",
+        "rei": "26.2.821",
+        "jei": "30.15.0.118",
+        "itemScroller": "0.32.1"
+      },
+      "featureLevel": "2.2.x",
+      "featureSummary": "完整便携存储 2.2.x",
+      "maintenanceLevel": "active",
+      "tests": {
+        "clientGameTest": true,
+        "serverIntegration": true,
+        "compatibilityProfiles": [
+          { "id": "quickshulker", "property": "compat_quickshulker", "ci": true },
+          { "id": "itemscroller", "property": "itemscroller_test_jar", "ci": false, "requiresLocalArtifact": true }
+        ]
+      },
+      "release": {
+        "status": "stable",
+        "artifact": "BetterShulkerHud-26.2-2.2.2.jar",
+        "sourcesArtifact": "BetterShulkerHud-26.2-2.2.2-sources.jar"
+      }
+    }
+  ]
+}

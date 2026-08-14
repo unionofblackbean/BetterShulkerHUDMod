@@ -1,0 +1,102 @@
+name: PR checks
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate repository
+    runs-on: ubuntu-latest
+    outputs:
+      java21: ${{ steps.matrix.outputs.java21 }}
+      java25: ${{ steps.matrix.outputs.java25 }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate manifest, generated docs, and compatibility anchors
+        shell: pwsh
+        run: |
+          ./scripts/Test-VersionManifest.ps1
+          ./scripts/Test-CompatibilityAnchors.ps1
+      - id: matrix
+        name: Export Java build matrices
+        shell: pwsh
+        run: |
+          "java21=$(./scripts/Get-CiMatrix.ps1 -Mode build -Java 21)" >> $env:GITHUB_OUTPUT
+          "java25=$(./scripts/Get-CiMatrix.ps1 -Mode build -Java 25)" >> $env:GITHUB_OUTPUT
+
+  build-java21:
+    name: Build Java 21 / ${{ matrix.id }}
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.validate.outputs.java21) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Clean build
+        shell: pwsh
+        run: ./scripts/Build-Version.ps1 -Id '${{ matrix.id }}' -Clean
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr-${{ matrix.id }}
+          path: ${{ matrix.path }}/build/libs/*.jar
+          if-no-files-found: error
+          retention-days: 7
+
+  build-java25:
+    name: Build Java 25 / ${{ matrix.id }}
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.validate.outputs.java25) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Clean build
+        shell: pwsh
+        run: ./scripts/Build-Version.ps1 -Id '${{ matrix.id }}' -Clean
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr-${{ matrix.id }}
+          path: ${{ matrix.path }}/build/libs/*.jar
+          if-no-files-found: error
+          retention-days: 7
+
+  required:
+    name: Required PR checks
+    if: always()
+    needs: [validate, build-java21, build-java25]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every validation and build job
+        shell: bash
+        env:
+          VALIDATE_RESULT: ${{ needs.validate.result }}
+          JAVA21_RESULT: ${{ needs.build-java21.result }}
+          JAVA25_RESULT: ${{ needs.build-java25.result }}
+        run: |
+          test "$VALIDATE_RESULT" = success
+          test "$JAVA21_RESULT" = success
+          test "$JAVA25_RESULT" = success

@@ -7,6 +7,7 @@ import bettershulkerhud.util.ShulkerContentsHelper;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.gui.components.ImageButton;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
@@ -20,14 +21,21 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.ItemContainerContents;
 import org.lwjgl.glfw.GLFW;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
 public final class BetterShulkerHudClientGameTest implements FabricClientGameTest {
     private static final int OPERATION_TIMEOUT_TICKS = 20 * 15;
+    private static final Logger LOGGER = LoggerFactory.getLogger(
+            "better-shulker-hud-client-gametest");
 
     @Override
     public void runTest(ClientGameTestContext context) {
+        boolean quickShulkerProfile = FabricLoader.getInstance().isModLoaded("quickshulker");
+        LOGGER.info("BSH_CLIENT_GAMETEST_START profile={}",
+                quickShulkerProfile ? "quickshulker" : "base");
         context.runOnClient(client -> {
             Configs.Features.AUTO_RESTOCK.setBooleanValue(true);
             Configs.Features.SINGLE_ITEM_AUTO_RESTOCK.setBooleanValue(true);
@@ -39,17 +47,21 @@ public final class BetterShulkerHudClientGameTest implements FabricClientGameTes
         try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
             context.waitFor(client -> client.player != null);
             testHudToggleButtonScope(context);
-            testWaterBucketReplacement(context, singleplayer);
-            testFullInventoryLitematicaHandSwap(context, singleplayer);
-            testMainHandTotemRestock(context, singleplayer);
             testMovedMainHandTotemDoesNotRestock(context, singleplayer);
-            testManualStoreDoesNotRestock(context, singleplayer);
-            testHudOrderStableDuringContinuousExtraction(context, singleplayer);
-            testOffhandRestockToggle(context, singleplayer);
-            testTakeToOffhandHotkey(context, singleplayer);
-            testTakeToOffhandSwap(context, singleplayer);
+            if (quickShulkerProfile) {
+                testWaterBucketReplacement(context, singleplayer);
+                testFullInventoryLitematicaHandSwap(context, singleplayer);
+                testMainHandTotemRestock(context, singleplayer);
+                testManualStoreDoesNotRestock(context, singleplayer);
+                testHudOrderStableDuringContinuousExtraction(context, singleplayer);
+                testOffhandRestockToggle(context, singleplayer);
+                testTakeToOffhandHotkey(context, singleplayer);
+                testTakeToOffhandSwap(context, singleplayer);
+            }
             testRecipeBookCoexistsWithHud(context, singleplayer);
         }
+        LOGGER.info("BSH_CLIENT_GAMETEST_SUCCESS profile={}",
+                quickShulkerProfile ? "quickshulker" : "base");
     }
 
     private static void testHudToggleButtonScope(ClientGameTestContext context) {
