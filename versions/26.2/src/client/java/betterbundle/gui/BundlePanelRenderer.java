@@ -97,6 +97,8 @@ public final class BundlePanelRenderer {
     private static final Identifier SCROLLER_BACKGROUND_SPRITE =
             Identifier.withDefaultNamespace("widget/scroller_background");
     private static int scrollOffset = 0;
+    private static boolean scrollBarDragging;
+    private static double scrollBarDragOffsetY;
     private static boolean togglePositionAdjustMode;
     private static boolean toggleButtonDragging;
     private static double toggleButtonDragOffsetX;
@@ -301,13 +303,113 @@ public final class BundlePanelRenderer {
     public static void scrollBy(int delta) {
         Minecraft client = Minecraft.getInstance();
         if (!(client.gui.screen() instanceof AbstractContainerScreen<?> screen)) return;
-        List<FlatItem> items = getVisibleItems();
-        if (items.isEmpty()) { scrollOffset = 0; return; }
-        int columns = columnCount(screen.leftPos);
-        int rows = visibleRowCount(screen.topPos, screen.imageHeight);
-        int totalRows = (items.size() + columns - 1) / columns;
-        int maxScroll = Math.max(0, totalRows - rows);
+        int maxScroll = maxScroll(screen.leftPos, screen.topPos, screen.imageHeight);
         scrollOffset = Math.clamp(scrollOffset + delta, 0, maxScroll);
+    }
+
+    private static int maxScroll(int leftPos, int topPos, int imageHeight) {
+        List<FlatItem> items = getVisibleItems();
+        if (items.isEmpty()) return 0;
+        int columns = Math.max(1, columnCount(leftPos));
+        int rows = Math.max(1, visibleRowCount(topPos, imageHeight));
+        int totalRows = (items.size() + columns - 1) / columns;
+        return Math.max(0, totalRows - rows);
+    }
+
+    private static int scrollBarX(int leftPos) {
+        return gridX(leftPos) - SCROLL_BAR_WIDTH - SCROLL_GAP;
+    }
+
+    private static int scrollBarY(int topPos, int imageHeight) {
+        return gridY(topPos, imageHeight);
+    }
+
+    private static int scrollBarHeight(int topPos, int imageHeight) {
+        return gridHeight(topPos, imageHeight);
+    }
+
+    private static int scrollThumbHeight(int topPos, int imageHeight) {
+        return Math.min(15, scrollBarHeight(topPos, imageHeight));
+    }
+
+    private static int scrollThumbY(
+            int leftPos, int topPos, int imageHeight, int maxScroll) {
+        int barY = scrollBarY(topPos, imageHeight);
+        int travel = scrollBarHeight(topPos, imageHeight)
+                - scrollThumbHeight(topPos, imageHeight);
+        int clampedOffset = Math.clamp(scrollOffset, 0, Math.max(0, maxScroll));
+        return maxScroll <= 0 ? barY : barY + travel * clampedOffset / maxScroll;
+    }
+
+    public static boolean isMouseOverScrollBar(
+            double mouseX, double mouseY,
+            int leftPos, int topPos, int imageHeight) {
+        if (!hasRenderablePanel() || maxScroll(leftPos, topPos, imageHeight) <= 0) {
+            return false;
+        }
+        int x = scrollBarX(leftPos);
+        int y = scrollBarY(topPos, imageHeight);
+        int height = scrollBarHeight(topPos, imageHeight);
+        return mouseX >= x && mouseX < x + SCROLL_BAR_WIDTH
+                && mouseY >= y && mouseY < y + height;
+    }
+
+    public static boolean handleScrollBarClick(
+            double mouseX, double mouseY, int button,
+            int leftPos, int topPos, int imageHeight) {
+        if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT) return false;
+        if (!isMouseOverScrollBar(
+                mouseX, mouseY, leftPos, topPos, imageHeight)) {
+            scrollBarDragging = false;
+            return false;
+        }
+        int maxScroll = maxScroll(leftPos, topPos, imageHeight);
+        int thumbY = scrollThumbY(leftPos, topPos, imageHeight, maxScroll);
+        int thumbHeight = scrollThumbHeight(topPos, imageHeight);
+        scrollBarDragging = true;
+        if (mouseY >= thumbY && mouseY < thumbY + thumbHeight) {
+            scrollBarDragOffsetY = mouseY - thumbY;
+        } else {
+            scrollBarDragOffsetY = thumbHeight / 2.0;
+            updateScrollBarDrag(mouseY, leftPos, topPos, imageHeight);
+        }
+        return true;
+    }
+
+    public static boolean handleScrollBarDrag(
+            double mouseY, int button,
+            int leftPos, int topPos, int imageHeight) {
+        if (!scrollBarDragging) return false;
+        if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT
+                || !isEffectivelyVisible()) {
+            scrollBarDragging = false;
+            return false;
+        }
+        updateScrollBarDrag(mouseY, leftPos, topPos, imageHeight);
+        return true;
+    }
+
+    public static boolean handleScrollBarRelease(int button) {
+        if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT || !scrollBarDragging) {
+            return false;
+        }
+        scrollBarDragging = false;
+        return true;
+    }
+
+    private static void updateScrollBarDrag(
+            double mouseY, int leftPos, int topPos, int imageHeight) {
+        int maxScroll = maxScroll(leftPos, topPos, imageHeight);
+        int travel = scrollBarHeight(topPos, imageHeight)
+                - scrollThumbHeight(topPos, imageHeight);
+        if (maxScroll <= 0 || travel <= 0) {
+            scrollOffset = 0;
+            return;
+        }
+        double thumbTop = mouseY - scrollBarY(topPos, imageHeight)
+                - scrollBarDragOffsetY;
+        thumbTop = Math.max(0.0, Math.min(travel, thumbTop));
+        scrollOffset = (int) Math.round(thumbTop * maxScroll / travel);
     }
 
     public record ItemSource(
@@ -1202,15 +1304,15 @@ public final class BundlePanelRenderer {
         }
 
         // Scroll bar
-        int sbX = gridX - SCROLL_BAR_WIDTH - SCROLL_GAP;
-        int sbY = gridY;
-        int sbH = gridHeight;
+        int sbX = scrollBarX(leftPos);
+        int sbY = scrollBarY(topPos, imageHeight);
+        int sbH = scrollBarHeight(topPos, imageHeight);
 
         graphics.blitSprite(RenderPipelines.GUI_TEXTURED, SCROLLER_BACKGROUND_SPRITE,
                 sbX, sbY, SCROLL_BAR_WIDTH, sbH);
-        int thumbH = Math.min(15, sbH);
+        int thumbH = scrollThumbHeight(topPos, imageHeight);
         if (maxScroll > 0) {
-            int thumbY = sbY + (sbH - thumbH) * scrollOffset / maxScroll;
+            int thumbY = scrollThumbY(leftPos, topPos, imageHeight, maxScroll);
             graphics.blitSprite(RenderPipelines.GUI_TEXTURED, SCROLLER_SPRITE,
                     sbX, thumbY, SCROLL_BAR_WIDTH, thumbH);
         } else {

@@ -22,11 +22,19 @@ jobs:
       java25: ${{ steps.matrix.outputs.java25 }}
     steps:
       - uses: actions/checkout@v4
+      - name: Validate Minecraft and Mod version labels
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        env:
+          PR_BRANCH: ${{ github.head_ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: ./scripts/Test-PullRequestVersionLabels.ps1 -BranchName $env:PR_BRANCH -PullRequestTitle $env:PR_TITLE
       - name: Validate manifest, generated docs, and compatibility anchors
         shell: pwsh
         run: |
           ./scripts/Test-VersionManifest.ps1
           ./scripts/Test-CompatibilityAnchors.ps1
+          ./scripts/Test-ScrollbarInput.ps1
       - id: matrix
         name: Export Java build matrices
         shell: pwsh

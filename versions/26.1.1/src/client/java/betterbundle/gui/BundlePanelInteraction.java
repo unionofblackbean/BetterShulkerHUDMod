@@ -215,8 +215,9 @@ public final class BundlePanelInteraction {
     public static boolean handleScroll(
             double mouseX, double mouseY, double scrollDelta,
             int leftPos, int topPos, int imageHeight) {
-        if (!BundlePanelRenderer.isEffectivelyVisible()
-                || !isInsideGrid(mouseX, mouseY, leftPos, topPos, imageHeight)) return false;
+        if (scrollDelta == 0.0
+                || !BundlePanelRenderer.isMouseOverScrollBar(
+                mouseX, mouseY, leftPos, topPos, imageHeight)) return false;
         BundlePanelRenderer.scrollBy(scrollDelta > 0 ? -1 : 1);
         return true;
     }

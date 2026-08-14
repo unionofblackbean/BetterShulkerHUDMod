@@ -36,6 +36,7 @@ jobs:
         run: |
           ./scripts/Test-VersionManifest.ps1
           ./scripts/Test-CompatibilityAnchors.ps1
+          ./scripts/Test-ScrollbarInput.ps1
       - id: release
         name: Resolve release metadata
         shell: pwsh

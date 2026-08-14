@@ -24,6 +24,13 @@ public abstract class AbstractContainerScreenMixin {
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
         if (screen instanceof net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen) return;
 
+        if (BundlePanelRenderer.handleScrollBarClick(
+                mouseX, mouseY, button,
+                screen.leftPos, screen.topPos, screen.imageHeight)) {
+            cir.setReturnValue(true);
+            return;
+        }
+
         if (InventoryDragStoreController.capture(screen, hoveredSlot, button)) {
             cir.setReturnValue(true);
             return;
@@ -82,6 +89,12 @@ public abstract class AbstractContainerScreenMixin {
             double mouseX, double mouseY, int button, double dragX, double dragY,
             CallbackInfoReturnable<Boolean> cir) {
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
+        if (BundlePanelRenderer.handleScrollBarDrag(
+                mouseY, button,
+                screen.leftPos, screen.topPos, screen.imageHeight)) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (BundlePanelRenderer.handleToggleButtonDrag(
                 mouseX, mouseY, button)) {
             cir.setReturnValue(true);
@@ -97,6 +110,10 @@ public abstract class AbstractContainerScreenMixin {
     private void onMouseReleased(
             double mouseX, double mouseY, int button,
             CallbackInfoReturnable<Boolean> cir) {
+        if (BundlePanelRenderer.handleScrollBarRelease(button)) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (InventoryDragStoreController.finishGesture()) {
             cir.setReturnValue(true);
             return;

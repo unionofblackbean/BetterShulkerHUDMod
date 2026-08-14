@@ -86,15 +86,18 @@ function Find-BuiltArtifact {
         throw "Artifact search root is missing: $searchRoot"
     }
 
-    $versionPattern = [regex]::Escape([string]$VersionEntry.modVersion)
     $idPattern = [regex]::Escape([string]$VersionEntry.id)
+    $expectedName = if ($Sources) {
+        [string]$VersionEntry.release.sourcesArtifact
+    } else {
+        [string]$VersionEntry.release.artifact
+    }
     $candidates = @(Get-ChildItem -LiteralPath $searchRoot -Recurse -File -Filter '*.jar' |
         Where-Object {
-            $isSources = $_.Name.EndsWith('-sources.jar', [System.StringComparison]::OrdinalIgnoreCase)
-            $sourceMatches = $isSources -eq $Sources
-            $versionMatches = $_.Name -match ("-" + $versionPattern + "(?:-sources)?\.jar$")
+            $nameMatches = $_.Name.Equals(
+                $expectedName, [System.StringComparison]::Ordinal)
             $scopeMatches = [string]::IsNullOrWhiteSpace($ArtifactsRoot) -or $_.FullName -match ("(^|[\\/])" + $idPattern + "([\\/]|$)")
-            $sourceMatches -and $versionMatches -and $scopeMatches
+            $nameMatches -and $scopeMatches
         })
     if ($candidates.Count -ne 1) {
         $kind = if ($Sources) { 'sources' } else { 'main' }

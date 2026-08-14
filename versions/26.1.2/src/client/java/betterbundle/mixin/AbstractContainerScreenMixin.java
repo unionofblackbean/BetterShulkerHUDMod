@@ -28,6 +28,12 @@ public abstract class AbstractContainerScreenMixin {
         double mouseX = event.x();
         double mouseY = event.y();
 
+        if (BundlePanelRenderer.handleScrollBarClick(
+                mouseX, mouseY, event.button(),
+                screen.leftPos, screen.topPos, screen.imageHeight)) {
+            cir.setReturnValue(true);
+            return;
+        }
 
         if (InventoryDragStoreController.capture(screen, hoveredSlot, event.button())) {
             cir.setReturnValue(true);
@@ -97,6 +103,12 @@ public abstract class AbstractContainerScreenMixin {
             MouseButtonEvent event, double dragX, double dragY,
             CallbackInfoReturnable<Boolean> cir) {
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
+        if (BundlePanelRenderer.handleScrollBarDrag(
+                event.y(), event.button(),
+                screen.leftPos, screen.topPos, screen.imageHeight)) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (screen instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen
                 && BundlePanelRenderer.handleToggleButtonDrag(
                 event.x(), event.y(), event.button())) {
@@ -111,6 +123,10 @@ public abstract class AbstractContainerScreenMixin {
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true)
     private void onMouseReleased(MouseButtonEvent event, CallbackInfoReturnable<Boolean> cir) {
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
+        if (BundlePanelRenderer.handleScrollBarRelease(event.button())) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (screen instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen
                 && BundlePanelRenderer.handleToggleButtonRelease(
                 event.x(), event.y(), event.button())) {

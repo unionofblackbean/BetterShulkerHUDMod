@@ -84,13 +84,22 @@ foreach ($entry in $manifest.versions) {
         throw "$label does not exclude the transitive Fabric Loader from MaLiLib."
     }
 
-    $expectedSources = ([System.IO.Path]::GetFileNameWithoutExtension([string]$entry.release.artifact)) + '-sources.jar'
-    Assert-Equal $entry.release.sourcesArtifact $expectedSources "$label source artifact name"
-    if (-not ([string]$entry.release.artifact).StartsWith([string]$manifest.repository.releaseArtifactPrefix + '-')) {
-        throw "$label release artifact must use the repository artifact prefix."
+    if ([string]::IsNullOrWhiteSpace([string]$properties.artifact_minecraft_version)) {
+        throw "$label artifact_minecraft_version is missing."
     }
-    if ([string]$entry.release.artifact -notmatch ('-' + [regex]::Escape([string]$entry.modVersion) + '\.jar$')) {
-        throw "$label release artifact does not contain Mod version $($entry.modVersion)."
+    if (-not ([string]$properties.artifact_minecraft_version).Contains([string]$entry.minecraft.build)) {
+        throw "$label artifact_minecraft_version does not contain build version $($entry.minecraft.build)."
+    }
+    $expectedArtifact = '{0}-{1}+mc{2}.jar' -f
+        $manifest.repository.releaseArtifactPrefix,
+        $entry.modVersion,
+        $properties.artifact_minecraft_version
+    Assert-Equal $entry.release.artifact $expectedArtifact "$label release artifact name"
+    $expectedSources = ([System.IO.Path]::GetFileNameWithoutExtension($expectedArtifact)) + '-sources.jar'
+    Assert-Equal $entry.release.sourcesArtifact $expectedSources "$label source artifact name"
+    if ($build -notmatch 'archiveBaseName\.set\(''BetterShulkerHud''\)' -or
+            $build -notmatch 'archiveVersion\.set\(releaseArtifactVersion\)') {
+        throw "$label Gradle archives do not use the explicit Mod+Minecraft filename."
     }
 
     if ([bool]$entry.tests.clientGameTest) {
@@ -143,6 +152,9 @@ foreach ($releaseFile in $releaseManifests) {
     Assert-Equal ($releaseFile.BaseName) $train.train "$($releaseFile.Name) train"
     if ([string]$train.train -notmatch '^release-[0-9]{4}\.[0-9]{2}-r[0-9]+(?:-beta\.[0-9]+)?$') {
         throw "$($releaseFile.Name) has an invalid release train tag."
+    }
+    if ([string]$train.title -notmatch '^\[MC [^\]]+\]\[Mod [^\]]+\]\s+\S') {
+        throw "$($releaseFile.Name) title must use '[MC <Minecraft version>][Mod <Mod version>] <content>'."
     }
     $trainIds = @($train.versions)
     if (@($trainIds | Group-Object | Where-Object Count -gt 1).Count -gt 0) {
