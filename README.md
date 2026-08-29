@@ -15,11 +15,6 @@ Better Shulker HUD 是一个以 Fabric 客户端为主体的便携存储管理�
 <!-- generated:maintained-versions:start -->
 | Minecraft 游戏版本 | Better Shulker HUD Mod 版本 | 功能线 | 维护等级 | Java | 源码 |
 | --- | --- | --- | --- | --- | --- |
-| `1.21.1` | `2.1.3` | 完整 2.1.x | `active` | 21 | [`versions/1.21.1`](versions/1.21.1) |
-| `1.21.4` | `2.1.3` | 完整 2.1.x | `active` | 21 | [`versions/1.21.4`](versions/1.21.4) |
-| `>=1.21.6 <=1.21.8` | `2.1.2` | 2.1.x（Issue #6 修复待发布） | `active` | 21 | [`versions/1.21.8`](versions/1.21.8) |
-| `>=1.21.9 <=1.21.10` | `2.1.3` | 完整 2.1.x | `active` | 21 | [`versions/1.21.10`](versions/1.21.10) |
-| `1.21.11` | `2.0.6` | 稳定 2.0.x | `maintenance` | 21 | [`versions/1.21.11`](versions/1.21.11) |
 | `26.1.1` | `2.2.3` | 完整便携存储 2.2.x | `active` | 25 | [`versions/26.1.1`](versions/26.1.1) |
 | `26.1.2` | `2.0.6` | 稳定 2.0.x | `maintenance` | 25 | [`versions/26.1.2`](versions/26.1.2) |
 | `>=26.2 <26.3` | `2.2.3` | 完整便携存储 2.2.x | `active` | 25 | [`versions/26.2`](versions/26.2) |
@@ -29,7 +24,9 @@ Better Shulker HUD 是一个以 Fabric 客户端为主体的便携存储管理�
 
 ## 仓库结构
 
-- `versions/` 是当前维护源码的唯一入口，版本、依赖、测试和发布状态由 [`versions.json`](versions.json) 统一管理。
+- `versions/` 是当前维护源码的唯一入口，版本、依赖、测试和发布状态由 [`versions.json`](versions.json) 统一管理。2026-08-29 起收缩至**仅 26.x**。
+- `legacy/2.x/` 归档全部 1.21.x 维护线源码（最终发布 2.1.2 / 2.1.1 / 2.0.5），不参与 CI、不再发布。
+- `legacy/1.8.22/` 归档经典线 1.8.x 最终源码（已直接终止，不做任何后续修复）。
 - 仓库根目录的 Gradle 工程是历史 `Minecraft 26.1.2 / Mod 1.8.8` 源码，只用于追溯，不参与当前 CI，也不是 26.1 的新适配基础。
 - 历史根工程会在基础设施稳定后通过单独的机械迁移 PR 移到 `legacy/26.1.2-1.8.8`；当前阶段不改动其源码。
 - GitHub Release 使用 `release-YYYY.MM-rN` 发布列车标签；每个附件文件名和 JAR 内元数据仍保留真实 Mod 与 Minecraft 版本。
@@ -79,16 +76,22 @@ Better Shulker HUD 是一个以 Fabric 客户端为主体的便携存储管理�
 推荐在仓库根目录通过版本清单构建，脚本会检查所用 Java 大版本：
 
 ```powershell
-.\scripts\Build-Version.ps1 -Id 1.21.11 -JavaHome "<Java 21 目录>" -Clean
+.\scripts\Build-Version.ps1 -Id 26.1.2 -JavaHome "<Java 25 目录>" -Clean
 .\scripts\Build-Version.ps1 -Id 26.2 -JavaHome "<Java 25 目录>" -Clean
 ```
 
 Client GameTest 与可选 Mod 兼容通道：
 
 ```powershell
-.\scripts\Build-Version.ps1 -Id 1.21.11 -JavaHome "<Java 21 目录>" -GameTest
-.\scripts\Build-Version.ps1 -Id 1.21.11 -JavaHome "<Java 21 目录>" -GameTest -CompatibilityProfile quickshulker
+.\scripts\Build-Version.ps1 -Id 26.1.2 -JavaHome "<Java 25 目录>" -GameTest
+.\scripts\Build-Version.ps1 -Id 26.1.2 -JavaHome "<Java 25 目录>" -GameTest -CompatibilityProfile quickshulker
 .\scripts\Build-Version.ps1 -Id 26.2 -JavaHome "<Java 25 目录>" -GameTest -CompatibilityProfile itemscroller -LocalArtifact "<Item Scroller JAR>"
+```
+
+也可以一键构建全部维护线：
+
+```powershell
+.\scripts\Build-All.ps1 -JavaHome "<Java 25 目录>"
 ```
 
 也可以进入目标版本目录直接执行：
@@ -97,13 +100,12 @@ Client GameTest 与可选 Mod 兼容通道：
 .\gradlew.bat clean build
 ```
 
-- Minecraft `1.21.x` 使用 Java 21。
 - Minecraft `26.x` 使用 Java 25。
 - 构建结果位于目标工程的 `build/libs/`。
 
 ## 其他版本
 
-`1.21`、`1.21.2-1.21.3`、`1.21.5` 及更早版本仅保留历史构建，可能不会继续更新。需要继续维护时可自行 Fork 本仓库并从最接近的版本移植。
+2026-08-29 起项目收缩至仅制作 26.x。全部 `1.21.x` 维护线归档于 [`legacy/2.x/`](legacy/2.x)（最终发布 2.1.2 / 2.1.1 / 2.0.5，源码停留在已声明未发布的 2.1.3 / 2.0.6）；经典线 `1.8.x` 归档于 [`legacy/1.8.22/`](legacy/1.8.22) 并已直接终止。以上均不再更新；需要继续维护时请自行 Fork 并从最接近的版本移植。
 
 ## 许可证
 
