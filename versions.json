@@ -83,11 +83,11 @@
         "jei": "24.2.0.6"
       },
       "featureLevel": "2.1.x",
-      "featureSummary": "2.1.x（Issue #6 修复待发布）",
+      "featureSummary": "2.1.x（Issue #6 渲染层级修复，待人工验收）",
       "maintenanceLevel": "active",
       "tests": { "clientGameTest": false, "serverIntegration": false, "compatibilityProfiles": [] },
       "release": {
-        "status": "held",
+        "status": "beta",
         "blockingIssue": 6,
         "artifact": "BetterShulkerHud-2.1.2+mc1.21.6-1.21.8.jar",
         "sourcesArtifact": "BetterShulkerHud-2.1.2+mc1.21.6-1.21.8-sources.jar"

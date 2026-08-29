@@ -1,0 +1,10 @@
+{
+  "$schema": "./release.schema.json",
+  "schemaVersion": 1,
+  "train": "release-2026.08-r1-beta.1",
+  "title": "[MC 1.21.6-1.21.8][Mod 2.1.2] HUD tooltip 图层修复 beta.1",
+  "prerelease": true,
+  "versions": ["1.21.8"],
+  "notesFile": "release-trains/release-2026.08-r1-beta.1.md",
+  "includeManifest": true
+}

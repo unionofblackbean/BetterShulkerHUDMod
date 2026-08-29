@@ -17,8 +17,17 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(AbstractContainerScreen.class)
 public abstract class InventoryScreenMixin {
 
-    @Inject(method = "render", at = @At("TAIL"))
-    private void onRender(
+    /**
+     * Draw the HUD after the container contents, but before the vanilla tooltip.
+     *
+     * AbstractContainerScreen.render() calls renderContents() and then renders
+     * the tooltip.  Injecting at render's TAIL put our controls above the
+     * tooltip, which made item hints unreadable (and reproduced the 1.21.7
+     * report).  Keeping this entry point on the common container path also
+     * avoids a second render pass for recipe-book screens.
+     */
+    @Inject(method = "renderContents", at = @At("TAIL"))
+    private void onRenderContents(
             GuiGraphics graphics, int mouseX, int mouseY,
             float partialTick, CallbackInfo ci) {
         AbstractContainerScreen<?> self = (AbstractContainerScreen<?>) (Object) this;

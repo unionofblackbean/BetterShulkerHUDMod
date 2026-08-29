@@ -27,6 +27,7 @@ crash-reports/
 # Temp
 *.log
 *.zip
+.mimosa/
 
 # Local dependencies
 libs/

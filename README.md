@@ -17,7 +17,7 @@ Better Shulker HUD 是一个以 Fabric 客户端为主体的便携存储管理�
 | --- | --- | --- | --- | --- | --- |
 | `1.21.1` | `2.1.3` | 完整 2.1.x | `active` | 21 | [`versions/1.21.1`](versions/1.21.1) |
 | `1.21.4` | `2.1.3` | 完整 2.1.x | `active` | 21 | [`versions/1.21.4`](versions/1.21.4) |
-| `>=1.21.6 <=1.21.8` | `2.1.2` | 2.1.x（Issue #6 修复待发布） | `active` | 21 | [`versions/1.21.8`](versions/1.21.8) |
+| `>=1.21.6 <=1.21.8` | `2.1.2` | 2.1.x（Issue #6 渲染层级修复，待人工验收） | `active` | 21 | [`versions/1.21.8`](versions/1.21.8) |
 | `>=1.21.9 <=1.21.10` | `2.1.3` | 完整 2.1.x | `active` | 21 | [`versions/1.21.10`](versions/1.21.10) |
 | `1.21.11` | `2.0.6` | 稳定 2.0.x | `maintenance` | 21 | [`versions/1.21.11`](versions/1.21.11) |
 | `26.1.1` | `2.2.3` | 完整便携存储 2.2.x | `active` | 25 | [`versions/26.1.1`](versions/26.1.1) |
@@ -55,7 +55,7 @@ Better Shulker HUD 是一个以 Fabric 客户端为主体的便携存储管理�
 - 在背包仍打开且未切换页面时，只刷新数量和来源，不重新排序 HUD；连续点击同一坐标会继续取出原物品。
 - 真正关闭背包或切换页面时仍保留原有排序行为，避免改变用户主动触发的整理逻辑。
 - 本次公开同步覆盖 `1.21.1`、`1.21.4`、`1.21.9-1.21.10`、`1.21.11`、`26.1.1`、`26.1.2` 和 `26.2`。
-- `1.21.6-1.21.8` 暂留公开版 `2.1.1`：已确认 1.21.7 存在 HUD 按钮后绘制、遮挡原版 tooltip 的图层问题，修复并验证后单独发布。
+- `1.21.6-1.21.8` 清单版本为 `2.1.2`，目前暂缓正式发布：已确认 1.21.7 存在 HUD 按钮后绘制、遮挡原版 tooltip 的图层问题，需修复并完成人工验收后才发布。
 
 ## Mod 2.2.0 更新
 
@@ -81,6 +81,9 @@ Better Shulker HUD 是一个以 Fabric 客户端为主体的便携存储管理�
 ```powershell
 .\scripts\Build-Version.ps1 -Id 1.21.11 -JavaHome "<Java 21 目录>" -Clean
 .\scripts\Build-Version.ps1 -Id 26.2 -JavaHome "<Java 25 目录>" -Clean
+
+# 自动按版本选择 Java 21 / Java 25；也可以显式指定两个 JDK。
+.\scripts\Build-All.ps1 -Clean -Java21Home "<Java 21 目录>" -Java25Home "<Java 25 目录>"
 ```
 
 Client GameTest 与可选 Mod 兼容通道：
