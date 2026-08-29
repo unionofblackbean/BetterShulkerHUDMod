@@ -35,8 +35,9 @@ if ($Id) {
     }
 }
 
+$entryIds = ($entries | ForEach-Object { [string]$_.id }) -join ', '
 Write-Host ("Building {0} maintained source line(s) from versions.json: {1}" -f
-    $entries.Count, ($entries | ForEach-Object { $_.id } -join ', '))
+    $entries.Count, $entryIds)
 
 $results = [System.Collections.Generic.List[object]]::new()
 $failed = 0
