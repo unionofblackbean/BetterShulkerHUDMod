@@ -4,7 +4,6 @@ import bettershulkerhud.gui.BundlePanelRenderer;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -32,7 +31,6 @@ public abstract class InventoryScreenMixin {
             float partialTick, CallbackInfo ci) {
         AbstractContainerScreen<?> self = (AbstractContainerScreen<?>) (Object) this;
         if (self instanceof net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen) return;
-        if (self instanceof AbstractRecipeBookScreen) return;
         BundlePanelRenderer.renderOverlay(graphics, self, mouseX, mouseY);
     }
 

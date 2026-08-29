@@ -81,6 +81,9 @@ foreach ($entry in $manifest.versions) {
                 $inventoryMixin -match 'BundlePanelRenderer\.renderOverlay\s*\(') {
             throw "$label HUD still renders from render TAIL and can cover tooltips."
         }
+        if ($inventoryMixin -match 'instanceof\s+AbstractRecipeBookScreen') {
+            throw "$label common HUD renderer must not exclude recipe-book screens."
+        }
         $recipeMixinPath = Join-Path $clientRoot 'mixin/AbstractRecipeBookScreenMixin.java'
         $recipeMixin = Get-Content -LiteralPath $recipeMixinPath -Raw -Encoding utf8
         if ($recipeMixin -match '@Inject\(method = "render", at = @At\("TAIL"\)\)' -and
