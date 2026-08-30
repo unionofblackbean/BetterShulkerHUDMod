@@ -1,5 +1,13 @@
 # Release Notes
 
+## 26.x MaLiLib compatibility rebuild - 2026-08-30
+
+- `[MC 26.1.2][Mod 2.0.7]` now accepts MaLiLib `>=0.28.3 <0.29.0` and builds against the official minimum `0.28.3`.
+- `[MC 26.2][Mod 2.2.4]` now accepts MaLiLib `>=0.29.0 <0.30.0` and builds against the official minimum `0.29.0`.
+- 26.1.1 remains `[Mod 2.2.3]` with MaLiLib `>=0.28.2 <0.29.0`.
+- All three versions passed clean build and base Client GameTest with their minimum MaLiLib versions. No projection, restocking, storage protocol, or optional-mod logic was rewritten.
+- Replace the older same-Minecraft JAR instead of installing both copies. Current builds may still contain bugs; report them in QQ group `1093770867` with complete version information and logs.
+
 ## 2.1.2-beta.1 - 2026-08-29
 
 Minecraft `1.21.6-1.21.8` beta 候选，发布列车 `release-2026.08-r1-beta.1`。

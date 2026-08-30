@@ -21,8 +21,8 @@ Better Shulker HUD 是一个以 Fabric 客户端为主体的便携存储管理�
 | `>=1.21.9 <=1.21.10` | `2.1.3` | 完整 2.1.x | `active` | 21 | [`versions/1.21.10`](versions/1.21.10) |
 | `1.21.11` | `2.0.6` | 稳定 2.0.x | `maintenance` | 21 | [`versions/1.21.11`](versions/1.21.11) |
 | `26.1.1` | `2.2.3` | 完整便携存储 2.2.x | `active` | 25 | [`versions/26.1.1`](versions/26.1.1) |
-| `26.1.2` | `2.0.6` | 稳定 2.0.x | `maintenance` | 25 | [`versions/26.1.2`](versions/26.1.2) |
-| `>=26.2 <26.3` | `2.2.3` | 完整便携存储 2.2.x | `active` | 25 | [`versions/26.2`](versions/26.2) |
+| `26.1.2` | `2.0.7` | 稳定 2.0.x | `maintenance` | 25 | [`versions/26.1.2`](versions/26.1.2) |
+| `>=26.2 <26.3` | `2.2.4` | 完整便携存储 2.2.x | `active` | 25 | [`versions/26.2`](versions/26.2) |
 <!-- generated:maintained-versions:end -->
 
 详细差异见 [VERSION_MATRIX.md](VERSION_MATRIX.md)，更新记录见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。
