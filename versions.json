@@ -83,11 +83,11 @@
         "jei": "24.2.0.6"
       },
       "featureLevel": "2.1.x",
-      "featureSummary": "2.1.x（Issue #6 修复待发布）",
+      "featureSummary": "2.1.x（Issue #6 渲染层级修复，待人工验收）",
       "maintenanceLevel": "active",
       "tests": { "clientGameTest": false, "serverIntegration": false, "compatibilityProfiles": [] },
       "release": {
-        "status": "held",
+        "status": "beta",
         "blockingIssue": 6,
         "artifact": "BetterShulkerHud-2.1.2+mc1.21.6-1.21.8.jar",
         "sourcesArtifact": "BetterShulkerHud-2.1.2+mc1.21.6-1.21.8-sources.jar"
@@ -188,13 +188,13 @@
       "id": "26.1.2",
       "path": "versions/26.1.2",
       "minecraft": { "build": "26.1.2", "range": "26.1.2" },
-      "modVersion": "2.0.6",
+      "modVersion": "2.0.7",
       "java": 25,
       "gradle": "9.5.1",
       "loom": "1.16.3",
       "loader": { "build": "0.19.2", "requirement": ">=0.18.4" },
       "fabricApi": "0.155.2+26.1.2",
-      "malilib": "fi.dy.masa.malilib:malilib-fabric-26.1.2:0.28.9",
+      "malilib": "fi.dy.masa.malilib:malilib-fabric-26.1.2:0.28.3",
       "optionalCompatibility": {
         "quickShulker": "3.0.1-26.1",
         "rei": "26.1.819",
@@ -212,21 +212,21 @@
       },
       "release": {
         "status": "stable",
-        "artifact": "BetterShulkerHud-2.0.6+mc26.1.2.jar",
-        "sourcesArtifact": "BetterShulkerHud-2.0.6+mc26.1.2-sources.jar"
+        "artifact": "BetterShulkerHud-2.0.7+mc26.1.2.jar",
+        "sourcesArtifact": "BetterShulkerHud-2.0.7+mc26.1.2-sources.jar"
       }
     },
     {
       "id": "26.2",
       "path": "versions/26.2",
       "minecraft": { "build": "26.2", "range": ">=26.2 <26.3" },
-      "modVersion": "2.2.3",
+      "modVersion": "2.2.4",
       "java": 25,
       "gradle": "9.5.1",
       "loom": "1.16.3",
       "loader": { "build": "0.19.3", "requirement": ">=0.19.3" },
       "fabricApi": "0.156.0+26.2",
-      "malilib": "fi.dy.masa.malilib:malilib-fabric-26.2:0.29.2",
+      "malilib": "fi.dy.masa.malilib:malilib-fabric-26.2:0.29.0",
       "optionalCompatibility": {
         "quickShulker": "3.0.2-26.2",
         "rei": "26.2.821",
@@ -246,8 +246,8 @@
       },
       "release": {
         "status": "stable",
-        "artifact": "BetterShulkerHud-2.2.3+mc26.2.x.jar",
-        "sourcesArtifact": "BetterShulkerHud-2.2.3+mc26.2.x-sources.jar"
+        "artifact": "BetterShulkerHud-2.2.4+mc26.2.x.jar",
+        "sourcesArtifact": "BetterShulkerHud-2.2.4+mc26.2.x-sources.jar"
       }
     }
   ]

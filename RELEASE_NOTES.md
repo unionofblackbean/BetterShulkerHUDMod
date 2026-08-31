@@ -1,5 +1,21 @@
 # Release Notes
 
+## 26.x MaLiLib compatibility rebuild - 2026-08-30
+
+- `[MC 26.1.2][Mod 2.0.7]` now accepts MaLiLib `>=0.28.3 <0.29.0` and builds against the official minimum `0.28.3`.
+- `[MC 26.2][Mod 2.2.4]` now accepts MaLiLib `>=0.29.0 <0.30.0` and builds against the official minimum `0.29.0`.
+- 26.1.1 remains `[Mod 2.2.3]` with MaLiLib `>=0.28.2 <0.29.0`.
+- All three versions passed clean build and base Client GameTest with their minimum MaLiLib versions. No projection, restocking, storage protocol, or optional-mod logic was rewritten.
+- Replace the older same-Minecraft JAR instead of installing both copies. Current builds may still contain bugs; report them in QQ group `1093770867` with complete version information and logs.
+
+## 2.1.2-beta.1 - 2026-08-29
+
+Minecraft `1.21.6-1.21.8` beta 候选，发布列车 `release-2026.08-r1-beta.1`。
+
+- 将 HUD 从 `AbstractContainerScreen.render()` 尾部迁移到 `renderContents()` 尾部，使原版 tooltip 在 HUD 之后绘制，修复按钮遮挡提示框。
+- 配方书不再有重复的 HUD 尾部渲染入口；普通背包和配方书共用容器内容渲染路径。
+- 已通过 1.21.8 clean build、版本清单、兼容边界和滚动条输入门禁；请在 `1.21.7 + Fabric Loader 0.19.2` 下人工验收。
+
 ## GitHub 同步 - 2026-08-13
 
 本轮先同步除 Minecraft `1.21.6-1.21.8` 外的维护版本：

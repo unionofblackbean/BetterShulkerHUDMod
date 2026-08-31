@@ -59,14 +59,6 @@ public abstract class AbstractRecipeBookScreenMixin {
         }
     }
 
-    @Inject(method = "render", at = @At("TAIL"))
-    private void onRender(
-            GuiGraphics graphics, int mouseX, int mouseY,
-            float partialTick, CallbackInfo ci) {
-        BundlePanelRenderer.renderOverlay(
-                graphics, (AbstractContainerScreen<?>) (Object) this, mouseX, mouseY);
-    }
-
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void onMouseClicked(
             double mouseX, double mouseY, int button,

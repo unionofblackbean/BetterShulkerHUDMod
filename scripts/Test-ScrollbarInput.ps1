@@ -68,6 +68,30 @@ foreach ($entry in $manifest.versions) {
         }
     }
 
+    # 1.21.8 had a reported tooltip-layer regression: rendering the HUD from
+    # AbstractContainerScreen.render() at TAIL places it above vanilla tooltips.
+    # Keep the fix explicit so a future sync cannot silently reintroduce it.
+    if ($label -eq '1.21.8') {
+        $inventoryMixinPath = Join-Path $clientRoot 'mixin/InventoryScreenMixin.java'
+        $inventoryMixin = Get-Content -LiteralPath $inventoryMixinPath -Raw -Encoding utf8
+        if ($inventoryMixin -notmatch '@Inject\(method = "renderContents", at = @At\("TAIL"\)\)') {
+            throw "$label HUD must render from renderContents at TAIL before vanilla tooltip."
+        }
+        if ($inventoryMixin -match '@Inject\(method = "render", at = @At\("TAIL"\)\)' -and
+                $inventoryMixin -match 'BundlePanelRenderer\.renderOverlay\s*\(') {
+            throw "$label HUD still renders from render TAIL and can cover tooltips."
+        }
+        if ($inventoryMixin -match 'instanceof\s+AbstractRecipeBookScreen') {
+            throw "$label common HUD renderer must not exclude recipe-book screens."
+        }
+        $recipeMixinPath = Join-Path $clientRoot 'mixin/AbstractRecipeBookScreenMixin.java'
+        $recipeMixin = Get-Content -LiteralPath $recipeMixinPath -Raw -Encoding utf8
+        if ($recipeMixin -match '@Inject\(method = "render", at = @At\("TAIL"\)\)' -and
+                $recipeMixin -match 'BundlePanelRenderer\.renderOverlay\s*\(') {
+            throw "$label recipe-book HUD has a duplicate render TAIL entry."
+        }
+    }
+
     $recipeMixinPath = Join-Path $clientRoot 'mixin/AbstractRecipeBookScreenMixin.java'
     if (Test-Path -LiteralPath $recipeMixinPath -PathType Leaf) {
         $recipeMixin = Get-Content -LiteralPath $recipeMixinPath -Raw -Encoding utf8

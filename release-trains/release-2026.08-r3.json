@@ -1,0 +1,10 @@
+{
+  "$schema": "./release.schema.json",
+  "schemaVersion": 1,
+  "train": "release-2026.08-r3",
+  "title": "[MC 26.1.1 / 26.1.2 / 26.2][Mod 2.0.7 / 2.2.3 / 2.2.4] MaLiLib 最低版本兼容更新",
+  "prerelease": false,
+  "versions": ["26.1.1", "26.1.2", "26.2"],
+  "notesFile": "release-trains/release-2026.08-r3.md",
+  "includeManifest": true
+}

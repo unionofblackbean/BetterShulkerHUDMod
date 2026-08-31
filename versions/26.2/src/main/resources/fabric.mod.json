@@ -43,7 +43,7 @@
     "java": ">=25"
   },
   "recommends": {
-    "malilib": ">=0.29.2 <0.30.0"
+    "malilib": ">=0.29.0 <0.30.0"
   },
   "suggests": {
     "quickshulker": "3.0.2-26.2",
