@@ -185,6 +185,39 @@
       }
     },
     {
+      "id": "26.1",
+      "path": "versions/26.1",
+      "minecraft": { "build": "26.1", "range": "26.1" },
+      "modVersion": "2.2.3",
+      "java": 25,
+      "gradle": "9.5.1",
+      "loom": "1.16.3",
+      "loader": { "build": "0.19.2", "requirement": ">=0.19.2" },
+      "fabricApi": "0.145.1+26.1",
+      "malilib": "fi.dy.masa.malilib:malilib-fabric-26.1:0.28.1",
+      "optionalCompatibility": {
+        "quickShulker": "3.0.1-26.1",
+        "rei": "26.1.819",
+        "jei": "29.2.0.21",
+        "itemScroller": "0.31.0"
+      },
+      "featureLevel": "2.2.x",
+      "featureSummary": "完整便携存储 2.2.x",
+      "maintenanceLevel": "active",
+      "tests": {
+        "clientGameTest": true,
+        "serverIntegration": true,
+        "compatibilityProfiles": [
+          { "id": "quickshulker", "property": "compat_quickshulker", "ci": true }
+        ]
+      },
+      "release": {
+        "status": "stable",
+        "artifact": "BetterShulkerHud-2.2.3+mc26.1.jar",
+        "sourcesArtifact": "BetterShulkerHud-2.2.3+mc26.1-sources.jar"
+      }
+    },
+    {
       "id": "26.1.2",
       "path": "versions/26.1.2",
       "minecraft": { "build": "26.1.2", "range": "26.1.2" },

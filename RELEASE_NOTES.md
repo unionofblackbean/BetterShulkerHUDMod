@@ -1,5 +1,11 @@
 # Release Notes
 
+## Minecraft 26.1 build - 2026-09-14
+
+- 新增独立 `Minecraft 26.1 / Better Shulker HUD 2.2.3` 构建，完整沿用 26.1.1 的便携存储、HUD、QuickShulker、末影箱、收纳袋、Litematica 和滚轮交互功能。
+- 构建依赖锁定为 Fabric API `0.145.1+26.1`、MaLiLib `0.28.1`、Fabric Loader `0.19.2`、Java `25`。
+- 已通过 clean build 与基础 Client GameTest；没有新增或删减功能逻辑。
+
 ## 26.x MaLiLib compatibility rebuild - 2026-08-30
 
 - `[MC 26.1.2][Mod 2.0.7]` now accepts MaLiLib `>=0.28.3 <0.29.0` and builds against the official minimum `0.28.3`.
