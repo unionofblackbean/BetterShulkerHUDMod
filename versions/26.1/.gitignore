@@ -1,0 +1,32 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Java
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# Minecraft
+run/
+logs/
+crash-reports/
+
+# Temp
+*.log
+*.zip
+
+# Local dependencies
+libs/

@@ -1,4 +1,6 @@
-# Better Shulker HUD 2.0.5 for Minecraft 1.21.11
+# Better Shulker HUD 2.0.6 for Minecraft 1.21.11（停更）
+
+> 此 1.21.x 源码线已停更，仅保留供历史版本使用；不参与默认 CI 与批量构建。
 
 [简体中文](#简体中文) | [English](#english)
 

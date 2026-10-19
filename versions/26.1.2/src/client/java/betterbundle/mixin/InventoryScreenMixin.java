@@ -3,6 +3,7 @@ package bettershulkerhud.mixin;
 import bettershulkerhud.gui.BundlePanelRenderer;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.world.inventory.Slot;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -41,14 +42,44 @@ public abstract class InventoryScreenMixin {
             }
         }
 
+        BundlePanelRenderer.renderToggleButton(
+                graphics,
+                BundlePanelRenderer.toggleX(self.leftPos, self.imageWidth),
+                BundlePanelRenderer.toggleY(self.topPos),
+                mouseX,
+                mouseY);
+
         if (self instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen) {
-            BundlePanelRenderer.renderToggleButton(
-                    graphics,
-                    BundlePanelRenderer.toggleX(self.leftPos, self.imageWidth),
-                    BundlePanelRenderer.toggleY(self.topPos),
-                    mouseX,
-                    mouseY);
             BundlePanelRenderer.renderAdjustControls(graphics, mouseX, mouseY);
+        }
+    }
+
+    @Inject(method = "extractSlot", at = @At("HEAD"), cancellable = true)
+    private void betterShulkerHud$hideCursorStagingSlot(
+            GuiGraphicsExtractor graphics, Slot slot, int mouseX, int mouseY,
+            CallbackInfo ci) {
+        AbstractContainerScreen<?> self = (AbstractContainerScreen<?>) (Object) this;
+        if (self instanceof InventoryScreen
+                && betterShulkerHud$isCursorStagingSlot(slot)) {
+            ci.cancel();
+        }
+    }
+
+    @Inject(method = "extractTooltip", at = @At("HEAD"), cancellable = true)
+    private void betterShulkerHud$hideCursorStagingTooltip(
+            GuiGraphicsExtractor graphics, int mouseX, int mouseY, CallbackInfo ci) {
+        AbstractContainerScreen<?> self = (AbstractContainerScreen<?>) (Object) this;
+        if (self instanceof InventoryScreen
+                && betterShulkerHud$isCursorStagingSlot(self.hoveredSlot)) {
+            ci.cancel();
+        }
+    }
+
+    @Inject(method = "extractCarriedItem", at = @At("TAIL"))
+    private void betterShulkerHud$renderCursorTransferPreview(
+            GuiGraphicsExtractor graphics, int mouseX, int mouseY, CallbackInfo ci) {
+        if ((Object) this instanceof InventoryScreen) {
+            BundlePanelRenderer.renderCursorTransferPreview(graphics, mouseX, mouseY);
         }
     }
 
@@ -63,5 +94,16 @@ public abstract class InventoryScreenMixin {
             }
         }
         return null;
+    }
+
+    @Unique
+    private static boolean betterShulkerHud$isCursorStagingSlot(Slot slot) {
+        int stagingInventorySlot = bettershulkerhud.compat
+                .QuickShulkerExtractionController.getCursorStagingInventorySlot();
+        if (slot == null || stagingInventorySlot < 0
+                || net.minecraft.client.Minecraft.getInstance().player == null) return false;
+        var inventory = net.minecraft.client.Minecraft.getInstance().player.getInventory();
+        return slot.container == inventory
+                && slot.getContainerSlot() == stagingInventorySlot;
     }
 }

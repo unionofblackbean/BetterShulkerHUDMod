@@ -74,7 +74,7 @@
   "better-shulker-hud.config.feature.name.hudEnabled": "Show shulker HUD",
   "better-shulker-hud.config.feature.comment.hudEnabled": "Shows the interactive carried-shulker HUD in inventory and container screens.",
   "better-shulker-hud.config.feature.name.showHudToggleButton": "Show HUD toggle button",
-  "better-shulker-hud.config.feature.comment.showHudToggleButton": "Shows the shulker HUD button only in the player inventory opened with E; other container screens never show it. When hidden, assign a hotkey to Show Shulker HUD.",
+  "better-shulker-hud.config.feature.comment.showHudToggleButton": "Controls whether the shulker HUD button appears in the player inventory opened with E. It never appears in other container screens. When hidden, assign a hotkey to Show Shulker HUD to toggle the HUD without the button.",
   "better-shulker-hud.config.feature.name.hideRecipeBookButton": "Hide recipe book button",
   "better-shulker-hud.config.feature.comment.hideRecipeBookButton": "Hides the vanilla recipe book button in the player inventory without closing an open recipe book or affecting the shulker HUD.",
   "better-shulker-hud.config.feature.name.litematicaRestock": "Litematica easy-place restock",

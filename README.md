@@ -6,23 +6,27 @@ Better Shulker HUD 是一个以 Fabric 客户端为主体的便携存储管理�
 
 > 当前版本仍在测试，可能存在较多 Bug。反馈时请提供 Minecraft 版本、Mod 版本、Fabric Loader、Fabric API、复现步骤、疑似冲突 Mod 和 `latest.log`。QQ 群：`1093770867`。
 
-## 当前维护版本
+## 版本清单（26.x 维护，1.21.x 停更）
 
 每个 `versions/` 子目录都是可独立构建的完整 Gradle 工程。JAR 必须与 Minecraft 版本完全匹配，不能跨版本混用。
 
-版本号始终成对标注，例如 `Minecraft 26.2.x / Mod 2.2.3`。单独出现的 `26.2.x` 是 Minecraft 游戏版本，`2.2.3` 是 Better Shulker HUD 自身的 Mod 版本。JAR 使用 `BetterShulkerHud-<Mod版本>+mc<Minecraft版本>.jar`，例如 `BetterShulkerHud-2.2.3+mc26.2.x.jar`。
+版本号始终成对标注，例如 `Minecraft 26.2.x / Mod 2.2.5-beta.3`。单独出现的 `26.2.x` 是 Minecraft 游戏版本，`2.2.5-beta.3` 是 Better Shulker HUD 自身的 Mod 版本。JAR 使用 `BetterShulkerHud-<Mod版本>+mc<Minecraft版本>.jar`，例如 `BetterShulkerHud-2.2.5-beta.3+mc26.2.x.jar`。
+
+Minecraft 1.21.x 源码与已发布文件仅作历史保留，不再日常维护；默认 CI、批量构建和回归测试只覆盖五条 26.x 源码线。仍可用 `Build-Version.ps1 -Id <旧版本>` 或 `Build-All.ps1 -Id <旧版本>` 显式构建历史源码，但不代表恢复支持。
 
 <!-- generated:maintained-versions:start -->
 | Minecraft 游戏版本 | Better Shulker HUD Mod 版本 | 功能线 | 维护等级 | Java | 源码 |
 | --- | --- | --- | --- | --- | --- |
-| `1.21.1` | `2.1.3` | 完整 2.1.x | `active` | 21 | [`versions/1.21.1`](versions/1.21.1) |
-| `1.21.4` | `2.1.3` | 完整 2.1.x | `active` | 21 | [`versions/1.21.4`](versions/1.21.4) |
-| `>=1.21.6 <=1.21.8` | `2.1.2` | 2.1.x（Issue #6 渲染层级修复，待人工验收） | `active` | 21 | [`versions/1.21.8`](versions/1.21.8) |
-| `>=1.21.9 <=1.21.10` | `2.1.3` | 完整 2.1.x | `active` | 21 | [`versions/1.21.10`](versions/1.21.10) |
-| `1.21.11` | `2.0.6` | 稳定 2.0.x | `maintenance` | 21 | [`versions/1.21.11`](versions/1.21.11) |
-| `26.1.1` | `2.2.3` | 完整便携存储 2.2.x | `active` | 25 | [`versions/26.1.1`](versions/26.1.1) |
-| `26.1.2` | `2.0.7` | 稳定 2.0.x | `maintenance` | 25 | [`versions/26.1.2`](versions/26.1.2) |
-| `>=26.2 <26.3` | `2.2.4` | 完整便携存储 2.2.x | `active` | 25 | [`versions/26.2`](versions/26.2) |
+| `1.21.1` | `2.1.3` | 完整 2.1.x | `deprecated` | 21 | [`versions/1.21.1`](versions/1.21.1) |
+| `1.21.4` | `2.1.3` | 完整 2.1.x | `deprecated` | 21 | [`versions/1.21.4`](versions/1.21.4) |
+| `>=1.21.6 <=1.21.8` | `2.1.2` | 2.1.x（Issue #6 渲染层级修复，待人工验收） | `deprecated` | 21 | [`versions/1.21.8`](versions/1.21.8) |
+| `>=1.21.9 <=1.21.10` | `2.1.3` | 完整 2.1.x | `deprecated` | 21 | [`versions/1.21.10`](versions/1.21.10) |
+| `1.21.11` | `2.0.6` | 稳定 2.0.x | `deprecated` | 21 | [`versions/1.21.11`](versions/1.21.11) |
+| `26.1.1` | `2.2.5-beta.3` | 便携存储与 HUD 兼容修复 | `active` | 25 | [`versions/26.1.1`](versions/26.1.1) |
+| `26.1` | `2.2.5-beta.3` | 便携存储与 HUD 兼容修复 | `active` | 25 | [`versions/26.1`](versions/26.1) |
+| `26.1.2` | `2.2.5-beta.3` | 便携存储与 HUD 兼容修复 | `active` | 25 | [`versions/26.1.2`](versions/26.1.2) |
+| `>=26.2 <26.3` | `2.2.5-beta.3` | 便携存储与 HUD 兼容修复 | `active` | 25 | [`versions/26.2`](versions/26.2) |
+| `>=26.3 <26.4` | `2.2.5-beta.3` | 便携存储与 HUD 兼容修复（26.3 候选） | `active` | 25 | [`versions/26.3`](versions/26.3) |
 <!-- generated:maintained-versions:end -->
 
 详细差异见 [VERSION_MATRIX.md](VERSION_MATRIX.md)，更新记录见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。
@@ -46,8 +50,16 @@ Better Shulker HUD 是一个以 Fabric 客户端为主体的便携存储管理�
 - 可选适配 ModernUI、CozyUI+、REI、JEI、EMI 和 Litematica，具体支持范围以版本矩阵为准。
 - 末影箱和收纳袋的真实取放要求服务器安装同版本 Better Shulker HUD。潜影盒在服务器未安装本模组时仍可选择 QuickShulker 或 AxShulkers 后端；没有任何可用后端时只提供预览。
 - 使用 MaLiLib 原生设置界面管理 HUD、快捷键、补货、整理和诊断选项。
+- 点击配方书或 JEI 配方时，可从随身潜影盒提取缺少材料并让原版填入 2×2/3×3 合成格；成品仍由玩家手动取出。工作台 3×3 取料要求服务器安装同版本 Better Shulker HUD。
 
-## 最新修复（Mod 2.0.6 / 2.1.2 / 2.1.3 / 2.2.3）
+## 本地候选更新：Minecraft 26.1 / 26.1.1 / 26.1.2 / 26.2.x · Mod 2.2.5-beta.1
+
+四条 26.x 源码线以 Minecraft 26.1.1 / Mod 2.2.3 为基准统一。26.1.2 补齐便携存储功能；
+四版统一连续取物顺序、HUD 数量缓存和末影箱请求去重。游戏版本专用 API 和依赖保持独立。
+本轮按用户要求只编译，不运行游戏或自动测试，候选 JAR 供用户实测，**尚未发布为稳定版**。
+详细改动和边界见 [26.x 基准统一记录](docs/26x-baseline-debug.md)。
+
+## 前次修复（Mod 2.0.6 / 2.1.2 / 2.1.3 / 2.2.3）
 
 - 26.1.1、26.1.2 与 26.2 在“背包已满、目标潜影盒也满、无法常规腾位”时，可把当前手中整组物品与目标潜影盒槽位直接交换，轻松放置不再因没有临时空位而中断。
 - 整组交换复用 QuickShulker/AxShulkers 的真实容器，校验双方物品与数量、空光标及服务端同步；未改动 Litematica 投影或 Easy Place 根本判定。
@@ -82,7 +94,7 @@ Better Shulker HUD 是一个以 Fabric 客户端为主体的便携存储管理�
 .\scripts\Build-Version.ps1 -Id 1.21.11 -JavaHome "<Java 21 目录>" -Clean
 .\scripts\Build-Version.ps1 -Id 26.2 -JavaHome "<Java 25 目录>" -Clean
 
-# 自动按版本选择 Java 21 / Java 25；也可以显式指定两个 JDK。
+# 默认只构建 26.x，自动选择 Java 25；指定旧版本时需 Java 21。
 .\scripts\Build-All.ps1 -Clean -Java21Home "<Java 21 目录>" -Java25Home "<Java 25 目录>"
 ```
 

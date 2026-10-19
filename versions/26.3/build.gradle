@@ -1,0 +1,167 @@
+plugins {
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
+    id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+sourceSets.main.java.srcDir('../../shared-core/src/main/java')
+
+def releaseArtifactVersion = "${project.mod_version}+mc${project.artifact_minecraft_version}"
+tasks.withType(org.gradle.api.tasks.bundling.AbstractArchiveTask).configureEach {
+    archiveBaseName.set('BetterShulkerHud')
+    archiveVersion.set(releaseArtifactVersion)
+}
+
+repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+    maven { url 'https://maven.shedaniel.me' }
+    maven { url 'https://maven.blamejared.com' }
+    maven {
+        url 'https://masa.dy.fi/maven/sakura-ryoko'
+        content { includeGroupAndSubgroups 'fi.dy.masa' }
+    }
+    maven {
+        url 'https://maven.fallenbreath.me/releases'
+        content { includeGroupAndSubgroups 'me.fallenbreath' }
+    }
+}
+
+configurations {
+    embed
+    compileOnly.extendsFrom embed
+    runtimeOnly.extendsFrom embed
+}
+
+loom {
+    splitEnvironmentSourceSets()
+    accessWidenerPath = file("src/main/resources/better-shulker-hud.accesswidener")
+
+    mods {
+        "better-shulker-hud" {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
+        }
+    }
+}
+
+// Use Fabric API's test source set so optional Fabric mods pass through Loom's
+// remapper before the named development runtime loads their classTweakers.
+fabricApi {
+    configureTests {
+        createSourceSet = true
+        modId = "better-shulker-hud-client-gametest"
+        enableGameTests = false
+        enableClientGameTests = true
+        eula = true
+    }
+}
+
+sourceSets.gametest {
+    java.setSrcDirs(['src/clientGameTest/java'])
+    resources.setSrcDirs(['src/clientGameTest/resources'])
+    compileClasspath += sourceSets.client.output
+    runtimeClasspath += sourceSets.client.output
+}
+
+loom.runs.named("clientGameTest") {
+    property "fabric.client.gametest.testModResourcesPath",
+            file("src/clientGameTest/resources").absolutePath
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}@jar"
+
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+    compileOnly files('libs/quickshulker-3.1.1-26.3.jar')
+    // The Item Scroller lane also needs a real portable-storage backend to
+    // verify HUD wheel transfers. Keep both optional mods out of the base lane.
+    if (project.hasProperty('compat_quickshulker') ||
+            project.hasProperty('itemscroller_test_jar')) {
+        gametestRuntimeOnly files('libs/quickshulker-3.1.1-26.3.jar')
+        gametestRuntimeOnly('me.fallenbreath:conditional-mixin-fabric:0.6.4') {
+            transitive = false
+        }
+    }
+
+    compileOnly('me.shedaniel:RoughlyEnoughItems-api:26.3.824')
+    compileOnly('mezz.jei:jei-26.3-fabric-api:31.9.0.61')
+
+    // 0.30.2 is the latest MaLiLib release currently published for Minecraft 26.3.
+    clientImplementation('fi.dy.masa.malilib:malilib-fabric-26.3:0.30.2') {
+        exclude group: 'net.fabricmc', module: 'fabric-loader'
+    }
+
+    // Optional compatibility lane for local Client GameTest runs. Item Scroller
+    // remains an optional user-installed mod and is never bundled in our jar.
+    if (project.hasProperty('itemscroller_test_jar')) {
+        gametestRuntimeOnly files(project.property('itemscroller_test_jar'))
+    }
+
+    embed 'com.belerweb:pinyin4j:2.5.1'
+    embed('com.github.Towdium:PinIn:1.6.0') {
+        transitive = false
+    }
+}
+
+processResources {
+    def version = project.version
+    inputs.property "version", version
+
+    filesMatching("fabric.mod.json") {
+        expand "version": version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 25
+}
+
+java {
+    withSourcesJar()
+
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+}
+
+jar {
+    def projectName = project.name
+    inputs.property "projectName", projectName
+
+    from("LICENSE") {
+        rename { "${it}_$projectName"}
+    }
+    from("LICENSE-PinIn") {
+        into("META-INF/licenses")
+        rename { "PinIn-LICENSE.txt" }
+    }
+    from("LICENSE-Sakurastreet-BetterShulkerHUD") {
+        into("META-INF/licenses")
+        rename { "Sakurastreet-BetterShulkerHUD-MIT.txt" }
+    }
+
+    // Embed pinyin4j classes directly (not jar-in-jar)
+    from {
+        configurations.embed.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
+
+publishing {
+    publications {
+        create("mavenJava", MavenPublication) {
+            from components.java
+        }
+    }
+
+    repositories {
+    }
+}
+
+
+
+

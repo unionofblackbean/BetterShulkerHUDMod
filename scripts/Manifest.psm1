@@ -126,11 +126,15 @@ function Get-BuildMatrix {
     param(
         [Parameter(Mandatory = $true)]$Manifest,
         [ValidateSet('build', 'gametest', 'compat')][string]$Mode = 'build',
-        [int]$Java = 0
+        [int]$Java = 0,
+        [switch]$IncludeDeprecated
     )
 
     $rows = [System.Collections.Generic.List[object]]::new()
     foreach ($entry in $Manifest.versions) {
+        if (-not $IncludeDeprecated -and [string]$entry.maintenanceLevel -eq 'deprecated') {
+            continue
+        }
         if ($Java -ne 0 -and [int]$entry.java -ne $Java) {
             continue
         }

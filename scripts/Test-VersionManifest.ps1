@@ -172,4 +172,5 @@ if (-not $SkipGeneratedDocs) {
     & (Join-Path $PSScriptRoot 'Update-VersionDocs.ps1') -Check
 }
 
-Write-Host "versions.json is consistent with $($manifest.versions.Count) maintained source lines."
+$activeCount = @($manifest.versions | Where-Object { [string]$_.maintenanceLevel -ne 'deprecated' }).Count
+Write-Host "versions.json is consistent with $($manifest.versions.Count) recorded source lines ($activeCount active; $($manifest.versions.Count - $activeCount) deprecated)."

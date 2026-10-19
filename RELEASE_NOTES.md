@@ -1,5 +1,20 @@
 # Release Notes
 
+## [MC 26.x][Mod 2.2.5-beta.3] Bugfix candidate — 2026-10-19
+
+- Minecraft 26.1、26.1.1、26.1.2、26.2、26.3 分别提供对应 JAR，不可跨游戏版本混装。
+- 调整 HUD 与 JEI/REI 的避让区域：优先缩窄或重排 HUD，空间不足时折叠，降低物品列表覆盖 HUD、按钮和点击区域的风险。
+- 修复主手药水饮用后留下玻璃瓶时，可能错误补入空瓶而非同种药水的问题；主动移动或存入物品不作为消耗。
+- 修复 26.3 容器界面中已配置的 HUD“取到副手”按键输入入口，不改变其他区域的原版按键处理。
+- 五条 26.x 源码线均通过 Java 25 构建与 QuickShulker 客户端自动测试；JEI/REI 等实际组合仍需玩家验收。本版未加入潜影盒材料参与配方合成。
+- 此版本仍为 beta，可能存在较多 Bug。反馈时请提供 Minecraft、Mod、Loader 与 Fabric API 版本、复现步骤和 `latest.log`；QQ 群 `1093770867`。
+
+## Minecraft 26.1 build - 2026-09-14
+
+- 新增独立 `Minecraft 26.1 / Better Shulker HUD 2.2.3` 构建，完整沿用 26.1.1 的便携存储、HUD、QuickShulker、末影箱、收纳袋、Litematica 和滚轮交互功能。
+- 构建依赖锁定为 Fabric API `0.145.1+26.1`、MaLiLib `0.28.1`、Fabric Loader `0.19.2`、Java `25`。
+- 已通过 clean build 与基础 Client GameTest；没有新增或删减功能逻辑。
+
 ## 26.x MaLiLib compatibility rebuild - 2026-08-30
 
 - `[MC 26.1.2][Mod 2.0.7]` now accepts MaLiLib `>=0.28.3 <0.29.0` and builds against the official minimum `0.28.3`.

@@ -11,7 +11,8 @@
         "ClientPacketListenerMixin",
         "GuiScreenMixin",
         "ItemScrollerInputHandlerMixin",
-        "LitematicaInventoryUtilsMixin"
+        "LitematicaInventoryUtilsMixin",
+        "MultiPlayerGameModeMixin"
     ],
     "injectors": {
         "defaultRequire": 1
