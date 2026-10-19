@@ -1,10 +1,11 @@
-# Better Shulker HUD 2.2.2 for Minecraft 26.2
+# Better Shulker HUD 2.2.5-beta.3 for Minecraft 26.2
 
 [简体中文](#简体中文) | [English](#english)
 
 ## 简体中文
 
 Better Shulker HUD 是 Minecraft 26.2 Fabric 客户端物品管理模组。它集中显示玩家随身潜影盒中的物品，并通过 QuickShulker 或 AxShulkers 后端执行真实取放操作。
+
 
 ### 主要功能
 

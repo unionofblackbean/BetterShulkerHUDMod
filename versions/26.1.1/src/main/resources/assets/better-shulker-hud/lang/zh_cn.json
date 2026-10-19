@@ -34,7 +34,7 @@
   "message.better-shulker-hud.organize_complete": "整理完成，已确认移动 %s 个物品",
   "message.better-shulker-hud.nothing_to_organize": "没有可归还或可按同类整理的物品",
   "message.better-shulker-hud.organize_failed": "整理已中止；已确认移动 %s 个物品，剩余物品仍在背包中",
-  "message.better-shulker-hud.store_drop_target": "松开鼠标，将物品存入任意有空间的潜影盒",
+  "message.better-shulker-hud.store_drop_target": "松开鼠标，将物品存入当前选择的便携容器",
   "message.better-shulker-hud.search": "搜索物品...",
   "better-shulker-hud.category.overview": "总览",
   "better-shulker-hud.gui.title.configs": "Better Shulker HUD 配置界面 - %s",

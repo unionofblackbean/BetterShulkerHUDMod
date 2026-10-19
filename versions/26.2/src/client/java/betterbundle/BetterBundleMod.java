@@ -1,7 +1,7 @@
 package bettershulkerhud;
 
-import bettershulkerhud.compat.StorageClientNetwork;
 import fi.dy.masa.malilib.event.InitializationHandler;
+import bettershulkerhud.compat.StorageClientNetwork;
 import net.fabricmc.api.ClientModInitializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

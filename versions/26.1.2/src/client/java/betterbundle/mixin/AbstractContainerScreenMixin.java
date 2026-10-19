@@ -5,6 +5,7 @@ import bettershulkerhud.event.InventoryDragStoreController;
 import bettershulkerhud.gui.BundleCategory;
 import bettershulkerhud.gui.BundlePanelInteraction;
 import bettershulkerhud.gui.BundlePanelRenderer;
+import bettershulkerhud.gui.StorageView;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
 import net.minecraft.client.input.KeyEvent;
@@ -25,6 +26,10 @@ public abstract class AbstractContainerScreenMixin {
             MouseButtonEvent event, boolean doubleClick, CallbackInfoReturnable<Boolean> cir) {
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
         if (screen instanceof net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen) return;
+        if (QuickShulkerExtractionController.isCursorTransferInProgress()) {
+            cir.setReturnValue(true);
+            return;
+        }
         double mouseX = event.x();
         double mouseY = event.y();
 
@@ -42,25 +47,25 @@ public abstract class AbstractContainerScreenMixin {
 
         // Recipe-book screens receive these controls in their more specific mixin.
         if (!(((Object) this) instanceof AbstractRecipeBookScreen)) {
-            if (screen instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen) {
-                if (BundlePanelRenderer.handleAdjustModeClick(
-                        mouseX, mouseY, event.button(),
-                        screen.leftPos, screen.topPos, screen.imageWidth)) {
-                    cir.setReturnValue(true);
-                    return;
-                }
-                if (BundlePanelRenderer.handleToggleButtonClick(
-                        mouseX, mouseY, event.button(),
-                        screen.leftPos, screen.topPos, screen.imageWidth)) {
-                    cir.setReturnValue(true);
-                    return;
-                }
+            if (BundlePanelRenderer.handleAdjustModeClick(
+                    mouseX, mouseY, event.button(),
+                    screen.leftPos, screen.topPos, screen.imageWidth)) {
+                cir.setReturnValue(true);
+                return;
+            }
+            if (BundlePanelRenderer.handleToggleButtonClick(
+                    mouseX, mouseY, event.button(),
+                    screen.leftPos, screen.topPos, screen.imageWidth)) {
+                cir.setReturnValue(true);
+                return;
             }
 
-            if (BundlePanelRenderer.isMinimizeButtonHovered(
-                    mouseX, mouseY, screen.leftPos, screen.topPos, screen.imageHeight)) {
-                BundlePanelRenderer.playButtonClick();
-                BundlePanelRenderer.minimizeCurrentPreview();
+            StorageView storageView = BundlePanelRenderer.getStorageViewAt(
+                    mouseX, mouseY, screen.leftPos, screen.topPos, screen.imageHeight);
+            if (storageView != null) {
+                if (BundlePanelRenderer.selectStorageView(storageView)) {
+                    BundlePanelRenderer.playButtonClick();
+                }
                 cir.setReturnValue(true);
                 return;
             }
@@ -109,9 +114,18 @@ public abstract class AbstractContainerScreenMixin {
             cir.setReturnValue(true);
             return;
         }
-        if (screen instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen
-                && BundlePanelRenderer.handleToggleButtonDrag(
+        if (QuickShulkerExtractionController.isCursorTransferInProgress()) {
+            cir.setReturnValue(true);
+            return;
+        }
+        if (BundlePanelRenderer.handleToggleButtonDrag(
                 event.x(), event.y(), event.button())) {
+            cir.setReturnValue(true);
+            return;
+        }
+        if (BundlePanelInteraction.handlePanelDrag(
+                event.x(), event.y(), event.button(), event.modifiers(),
+                screen.leftPos, screen.topPos, screen.imageHeight)) {
             cir.setReturnValue(true);
             return;
         }
@@ -122,13 +136,16 @@ public abstract class AbstractContainerScreenMixin {
 
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true)
     private void onMouseReleased(MouseButtonEvent event, CallbackInfoReturnable<Boolean> cir) {
-        AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
+        BundlePanelInteraction.resetDrag();
         if (BundlePanelRenderer.handleScrollBarRelease(event.button())) {
             cir.setReturnValue(true);
             return;
         }
-        if (screen instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen
-                && BundlePanelRenderer.handleToggleButtonRelease(
+        if (QuickShulkerExtractionController.isCursorTransferInProgress()) {
+            cir.setReturnValue(true);
+            return;
+        }
+        if (BundlePanelRenderer.handleToggleButtonRelease(
                 event.x(), event.y(), event.button())) {
             cir.setReturnValue(true);
             return;
@@ -138,10 +155,11 @@ public abstract class AbstractContainerScreenMixin {
             return;
         }
         if (!BundlePanelRenderer.isEffectivelyVisible()) return;
+        AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
         if (!screen.getMenu().getCarried().isEmpty()
                 && BundlePanelRenderer.isInsidePanelBounds(
                 event.x(), event.y(), screen.leftPos, screen.topPos, screen.imageHeight)) {
-            QuickShulkerExtractionController.requestStoreCarried(screen);
+            BundlePanelInteraction.handleStoreCarried(screen);
             cir.setReturnValue(true);
             return;
         }
@@ -153,6 +171,10 @@ public abstract class AbstractContainerScreenMixin {
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
     private void onKeyPressed(KeyEvent event, CallbackInfoReturnable<Boolean> cir) {
+        if (QuickShulkerExtractionController.isCursorTransferInProgress()) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (BundlePanelRenderer.onSearchKeyPress(event.key(), event.modifiers())) {
             cir.setReturnValue(true);
         }
@@ -162,6 +184,10 @@ public abstract class AbstractContainerScreenMixin {
     private void onMouseScrolled(
             double mouseX, double mouseY, double scrollX, double scrollY,
             CallbackInfoReturnable<Boolean> cir) {
+        if (QuickShulkerExtractionController.isCursorTransferInProgress()) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (!BundlePanelRenderer.isEffectivelyVisible()) return;
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
         if (BundlePanelInteraction.handleScroll(

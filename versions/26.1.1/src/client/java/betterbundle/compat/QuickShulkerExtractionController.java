@@ -4,12 +4,14 @@ import bettershulkerhud.BetterBundleMod;
 import bettershulkerhud.config.Configs;
 import bettershulkerhud.event.InventoryDragStoreController;
 import bettershulkerhud.gui.BundlePanelRenderer;
+import bettershulkerhud.core.PotionRestockPolicy;
 import bettershulkerhud.util.ShulkerContentsHelper;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.HashedStack;
@@ -21,9 +23,13 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ShulkerBoxMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayDeque;
@@ -69,6 +75,7 @@ public final class QuickShulkerExtractionController {
     private static int extractionBucketSelectedSlot = -1;
     private static int extractionEmptyBucketDestination = -1;
     private static int extractionEmptyBucketDestinationBaseline;
+    private static ItemStack extractionReturnedContainer = ItemStack.EMPTY;
     private static final ArrayDeque<QueuedExtraction> queuedExtractions = new ArrayDeque<>();
     private static int queuedExtractionWaitTicks;
 
@@ -123,6 +130,9 @@ public final class QuickShulkerExtractionController {
     private static ItemStack rememberedMainWaterBucket = ItemStack.EMPTY;
     private static int rememberedMainWaterBucketSlot = -1;
     private static int rememberedMainWaterBucketLooseCount;
+    private static ItemStack rememberedMainPotion = ItemStack.EMPTY;
+    private static int rememberedMainPotionSlot = -1;
+    private static int rememberedMainPotionLooseCount;
     private static boolean preserveInventoryScreenDuringContainerClose;
 
     private static final List<OriginRecord> originRecords = new ArrayList<>();
@@ -143,12 +153,20 @@ public final class QuickShulkerExtractionController {
     private static int returnConfirmationTicks;
     private static ItemStack pendingLitematicaSelection = ItemStack.EMPTY;
     private static PendingLitematicaSwap pendingLitematicaSwap;
+    private static PendingEasyPlace pendingEasyPlace;
+    private static boolean pendingEasyPlaceReady;
+    private static int pendingEasyPlaceDelay;
+    private static int pendingEasyPlaceWaitTicks;
 
     private QuickShulkerExtractionController() {}
 
     public static void onClientTick(Minecraft client) {
         updateRememberedHandItems(client);
+        if (pendingEasyPlace != null && !sameEasyPlaceContext(client, pendingEasyPlace)) {
+            clearPendingEasyPlace();
+        }
         tick(client);
+        tickPendingEasyPlace(client);
     }
 
     public static void onContainerSync(int containerId) {
@@ -187,7 +205,9 @@ public final class QuickShulkerExtractionController {
         rememberedMainWaterBucket = ItemStack.EMPTY;
         rememberedMainWaterBucketSlot = -1;
         rememberedMainWaterBucketLooseCount = 0;
+        clearRememberedMainPotion();
         pendingLitematicaSelection = ItemStack.EMPTY;
+        clearPendingEasyPlace();
         containerSyncVersion = 0;
         containerSyncVersions.clear();
         organizeAvailabilityFingerprint = Long.MIN_VALUE;
@@ -516,7 +536,7 @@ public final class QuickShulkerExtractionController {
         diagnostic(operationId, "packet-sent open-shulker");
     }
 
-    public static void requestLitematicaRestock(ItemStack required) {
+    public static void requestLitematicaRestock(ItemStack required, BlockPos pos) {
         Minecraft client = Minecraft.getInstance();
         if (!Configs.Features.LITEMATICA_RESTOCK.getBooleanValue()
                 || required == null || required.isEmpty() || client.player == null
@@ -530,6 +550,21 @@ public final class QuickShulkerExtractionController {
         diagnostic(operationId, "request type=litematica-restock item=%s",
                 itemId(required));
         startLitematicaExtraction(client, required.copyWithCount(1), true, operationId);
+        if (isBusy() && client.screen == null && pos != null
+                && required.getItem() instanceof BlockItem
+                && LitematicaEasyPlaceCompat.isHandlingEasyPlace()) {
+            BlockState schematicState = LitematicaEasyPlaceCompat.schematicStateAt(pos);
+            if (schematicState != null) {
+                pendingEasyPlace = new PendingEasyPlace(
+                        required.copyWithCount(1), pos.immutable(), client.level,
+                        client.level.getBlockState(pos), schematicState,
+                        client.player.getEyePosition(), client.player.getYRot(),
+                        client.player.getXRot(), client.level.getGameTime());
+                pendingEasyPlaceReady = false;
+                pendingEasyPlaceDelay = 0;
+                pendingEasyPlaceWaitTicks = 0;
+            }
+        }
     }
 
     private static void startLitematicaExtraction(
@@ -1431,6 +1466,21 @@ public final class QuickShulkerExtractionController {
             rememberedMainWaterBucketLooseCount = 0;
         }
 
+        if (isPotion(mainHand)) {
+            rememberedMainPotion = mainHand.copyWithCount(1);
+            rememberedMainPotionSlot = selectedSlot;
+            rememberedMainPotionLooseCount = countMatchingLoosePlayerItems(
+                    inventory, rememberedMainPotion);
+        } else if (!rememberedMainPotion.isEmpty()
+                && !PotionRestockPolicy.wasConsumed(
+                        rememberedMainPotionLooseCount,
+                        countMatchingLoosePlayerItems(inventory, rememberedMainPotion),
+                        rememberedMainPotionSlot == selectedSlot,
+                        client.screen != null,
+                        mainHand.isEmpty() || mainHand.is(Items.GLASS_BOTTLE))) {
+            clearRememberedMainPotion();
+        }
+
         ItemStack offhand = inventory.getItem(Inventory.SLOT_OFFHAND);
         if (isSingleItemRestockable(offhand)) {
             rememberedOffhandSingleItem = offhand.copyWithCount(1);
@@ -1452,6 +1502,17 @@ public final class QuickShulkerExtractionController {
                 && stack.has(DataComponents.DEATH_PROTECTION);
     }
 
+    private static boolean isPotion(ItemStack stack) {
+        return stack.is(Items.POTION) || stack.is(Items.SPLASH_POTION)
+                || stack.is(Items.LINGERING_POTION);
+    }
+
+    private static void clearRememberedMainPotion() {
+        rememberedMainPotion = ItemStack.EMPTY;
+        rememberedMainPotionSlot = -1;
+        rememberedMainPotionLooseCount = 0;
+    }
+
     private static int findStoredMainHandMemorySlot(
             Inventory inventory, ItemStack prototype, int sourceInventorySlot) {
         if (inventory == null || prototype == null || prototype.isEmpty()) return -1;
@@ -1465,6 +1526,11 @@ public final class QuickShulkerExtractionController {
         if (rememberedMainWaterBucketSlot == selectedSlot
                 && !rememberedMainWaterBucket.isEmpty()
                 && ItemStack.isSameItemSameComponents(rememberedMainWaterBucket, prototype)) {
+            return selectedSlot;
+        }
+        if (rememberedMainPotionSlot == selectedSlot
+                && !rememberedMainPotion.isEmpty()
+                && ItemStack.isSameItemSameComponents(rememberedMainPotion, prototype)) {
             return selectedSlot;
         }
         return -1;
@@ -1489,6 +1555,11 @@ public final class QuickShulkerExtractionController {
             rememberedMainWaterBucket = ItemStack.EMPTY;
             rememberedMainWaterBucketSlot = -1;
             rememberedMainWaterBucketLooseCount = 0;
+        }
+        if (rememberedMainPotionSlot == memorySlot
+                && !rememberedMainPotion.isEmpty()
+                && ItemStack.isSameItemSameComponents(rememberedMainPotion, prototype)) {
+            clearRememberedMainPotion();
         }
     }
 
@@ -1536,6 +1607,19 @@ public final class QuickShulkerExtractionController {
                             client, rememberedMainWaterBucket, selectedSlot, 0)) {
                 return true;
             }
+        }
+        if (rememberedMainPotionSlot == selectedSlot
+                && !rememberedMainPotion.isEmpty()) {
+            if (mainHand.is(Items.GLASS_BOTTLE) && mainHand.getCount() == 1
+                    && startContainerReplacement(client, rememberedMainPotion,
+                            selectedSlot, Items.GLASS_BOTTLE)) {
+                return true;
+            }
+            if (mainHand.isEmpty()
+                    && startMainHandRestock(client, rememberedMainPotion, selectedSlot, 0)) {
+                return true;
+            }
+            if (mainHand.is(Items.GLASS_BOTTLE)) return false;
         }
         if (isLowStack(mainHand)
                 && startMainHandRestock(client, mainHand, selectedSlot, mainHand.getCount())) {
@@ -1616,6 +1700,12 @@ public final class QuickShulkerExtractionController {
             Minecraft client, ItemStack required, int selectedSlot) {
         if (client.player == null || required.isEmpty()
                 || required.getItem() != Items.WATER_BUCKET) return false;
+        return startContainerReplacement(client, required, selectedSlot, Items.BUCKET);
+    }
+
+    private static boolean startContainerReplacement(
+            Minecraft client, ItemStack required, int selectedSlot, Item returnedContainer) {
+        if (client.player == null || required.isEmpty()) return false;
         Inventory inventory = client.player.getInventory();
         AbstractContainerMenu menu = client.player.containerMenu;
         ResolvedSource source = findRestockSource(menu, inventory, required);
@@ -1624,7 +1714,8 @@ public final class QuickShulkerExtractionController {
                 menu, inventory, required, source.inventorySlot());
         if (staging == null) return false;
         BucketDestination emptyBucketDestination = findEmptyBucketDestination(
-                menu, inventory, selectedSlot, staging.inventorySlot(), source.inventorySlot());
+                menu, inventory, selectedSlot, staging.inventorySlot(),
+                source.inventorySlot(), returnedContainer);
         if (emptyBucketDestination == null) return false;
 
         long operationId = nextDiagnosticOperationId();
@@ -1636,6 +1727,7 @@ public final class QuickShulkerExtractionController {
         extractionBucketSelectedSlot = selectedSlot;
         extractionEmptyBucketDestination = emptyBucketDestination.inventorySlot();
         extractionEmptyBucketDestinationBaseline = emptyBucketDestination.baselineCount();
+        extractionReturnedContainer = new ItemStack(returnedContainer);
         extractionOperationId = operationId;
         extractionWaitTicks = 0;
         extractionMenuId = -1;
@@ -1657,16 +1749,16 @@ public final class QuickShulkerExtractionController {
 
     private static BucketDestination findEmptyBucketDestination(
             AbstractContainerMenu menu, Inventory inventory, int selectedSlot,
-            int stagingSlot, int sourceShulkerSlot) {
+            int stagingSlot, int sourceShulkerSlot, Item returnedContainer) {
         BucketDestination empty = null;
         for (Slot slot : menu.slots) {
             int inventorySlot = slot.getContainerSlot();
             if (slot.container != inventory || inventorySlot < 0 || inventorySlot >= 36
                     || inventorySlot == selectedSlot || inventorySlot == stagingSlot
                     || inventorySlot == sourceShulkerSlot
-                    || !slot.mayPlace(new ItemStack(Items.BUCKET))) continue;
+                    || !slot.mayPlace(new ItemStack(returnedContainer))) continue;
             ItemStack current = slot.getItem();
-            if (current.getItem() == Items.BUCKET
+            if (current.getItem() == returnedContainer
                     && current.getCount() < slot.getMaxStackSize(current)) {
                 return new BucketDestination(inventorySlot, current.getCount());
             }
@@ -2716,6 +2808,7 @@ public final class QuickShulkerExtractionController {
         int expectedWaterCount = pendingBucketTransfer.stagingBaselineCount()
                 + pendingBucketTransfer.extractedAmount();
         int expectedEmptyBucketCount = pendingBucketTransfer.emptyBucketBaselineCount() + 1;
+        ItemStack returnedContainer = pendingBucketTransfer.returnedContainer();
 
         if (bucketTransferAwaitingSync) {
             boolean confirmed = menu.getCarried().isEmpty()
@@ -2724,7 +2817,7 @@ public final class QuickShulkerExtractionController {
                     && isExpectedCount(selected, pendingBucketTransfer.prototype(),
                             pendingBucketTransfer.extractedAmount())
                     && isExpectedCount(emptyBucketDestination,
-                            new ItemStack(Items.BUCKET), expectedEmptyBucketCount);
+                            returnedContainer, expectedEmptyBucketCount);
             boolean synced = hasContainerSyncAfter(
                     menu.containerId, bucketTransferMoveSyncVersion);
             if (confirmed && (synced
@@ -2745,9 +2838,10 @@ public final class QuickShulkerExtractionController {
 
         boolean validInitialState = menu.getCarried().isEmpty()
                 && isExpectedCount(staged, pendingBucketTransfer.prototype(), expectedWaterCount)
-                && selected.getItem() == Items.BUCKET && selected.getCount() == 1
+                && ItemStack.isSameItemSameComponents(selected, returnedContainer)
+                && selected.getCount() == 1
                 && isExpectedCount(emptyBucketDestination,
-                        new ItemStack(Items.BUCKET),
+                        returnedContainer,
                         pendingBucketTransfer.emptyBucketBaselineCount());
         if (!validInitialState) {
             if (++bucketTransferWaitTicks > OPEN_TIMEOUT_TICKS) {
@@ -2764,7 +2858,7 @@ public final class QuickShulkerExtractionController {
         if (!menu.getCarried().isEmpty()
                 || !menu.getSlot(selectedMenuSlot).getItem().isEmpty()
                 || !isExpectedCount(menu.getSlot(emptyBucketMenuSlot).getItem(),
-                        new ItemStack(Items.BUCKET), expectedEmptyBucketCount)) {
+                        returnedContainer, expectedEmptyBucketCount)) {
             failBucketTransfer(client, "empty-bucket-relocation-failed");
             return;
         }
@@ -3621,6 +3715,7 @@ public final class QuickShulkerExtractionController {
                     !background);
         }
         if (automaticRestock) pauseAxAutomaticRestock();
+        clearPendingEasyPlace();
         clearExtraction();
     }
 
@@ -3644,6 +3739,7 @@ public final class QuickShulkerExtractionController {
         int bucketSelectedSlot = extractionBucketSelectedSlot;
         int emptyBucketDestination = extractionEmptyBucketDestination;
         int emptyBucketDestinationBaseline = extractionEmptyBucketDestinationBaseline;
+        ItemStack returnedContainer = extractionReturnedContainer.copy();
         boolean background = litematicaRestock || handRestock || offhandBackground;
         boolean continuedInOpenMenu = !background && !cursorPickup && !offhandTransfer
                 && client.player != null
@@ -3692,7 +3788,7 @@ public final class QuickShulkerExtractionController {
                     completedExtraction.expectedStack().copyWithCount(1),
                     completedExtraction.targetBaselineCount(), extractionMovedItemCount,
                     bucketSelectedSlot, emptyBucketDestination,
-                    emptyBucketDestinationBaseline);
+                    emptyBucketDestinationBaseline, returnedContainer);
             bucketTransferOperationId = completedOperationId;
             bucketTransferWaitTicks = 0;
             bucketTransferMoveSyncVersion = 0;
@@ -3712,7 +3808,17 @@ public final class QuickShulkerExtractionController {
             if (handRestock) pauseAxAutomaticRestock();
         }
         if (!continuedInOpenMenu) clearExtraction();
-        if (litematicaRestock) selectLitematicaItem(client, selected);
+        if (litematicaRestock) {
+            selectLitematicaItem(client, selected);
+            if (pendingEasyPlace != null
+                    && ItemStack.isSameItemSameComponents(
+                    pendingEasyPlace.required(), selected)) {
+                pendingEasyPlaceReady = true;
+                pendingEasyPlaceDelay = 1;
+            } else {
+                clearPendingEasyPlace();
+            }
+        }
     }
 
     private static boolean continueQueuedExtractionInCurrentMenu(
@@ -3776,6 +3882,7 @@ public final class QuickShulkerExtractionController {
         extractionBucketSelectedSlot = -1;
         extractionEmptyBucketDestination = -1;
         extractionEmptyBucketDestinationBaseline = 0;
+        extractionReturnedContainer = ItemStack.EMPTY;
         long menuSync = containerSyncVersions.getOrDefault(menu.containerId, containerSyncVersion);
         extractionOpenSyncVersion = menuSync - 1;
         extractionMoveSyncVersion = 0;
@@ -3797,6 +3904,47 @@ public final class QuickShulkerExtractionController {
         }
     }
 
+    private static boolean sameEasyPlaceContext(Minecraft client, PendingEasyPlace attempt) {
+        if (client.player == null || client.level == null || client.level != attempt.level()
+                || !Configs.Features.LITEMATICA_RESTOCK.getBooleanValue()
+                || client.level.getGameTime() - attempt.requestTick() > 40
+                || client.player.getEyePosition().distanceToSqr(attempt.eyePosition()) > 0.0001
+                || Math.abs(client.player.getYRot() - attempt.yaw()) > 0.01F
+                || Math.abs(client.player.getXRot() - attempt.pitch()) > 0.01F
+                || !client.level.getBlockState(attempt.pos()).equals(attempt.worldState())) {
+            return false;
+        }
+        BlockState schematicState = LitematicaEasyPlaceCompat.schematicStateAt(attempt.pos());
+        return schematicState != null && schematicState.equals(attempt.schematicState());
+    }
+
+    private static void tickPendingEasyPlace(Minecraft client) {
+        if (pendingEasyPlace == null || !pendingEasyPlaceReady) return;
+        if (pendingEasyPlaceDelay-- > 0) return;
+        if (client.screen != null || client.player == null
+                || client.player.containerMenu != client.player.inventoryMenu
+                || isBusy()) {
+            clearPendingEasyPlace();
+            return;
+        }
+        if (!ItemStack.isSameItemSameComponents(
+                client.player.getMainHandItem(), pendingEasyPlace.required())) {
+            if (++pendingEasyPlaceWaitTicks <= 5) return;
+            clearPendingEasyPlace();
+            return;
+        }
+        // Consume before replay: a reentrant pick-block callback must not schedule another click.
+        clearPendingEasyPlace();
+        LitematicaEasyPlaceCompat.replayEasyPlace();
+    }
+
+    private static void clearPendingEasyPlace() {
+        pendingEasyPlace = null;
+        pendingEasyPlaceReady = false;
+        pendingEasyPlaceDelay = 0;
+        pendingEasyPlaceWaitTicks = 0;
+    }
+
     private static void clearExtraction() {
         pendingExtraction = null;
         pendingLitematicaSelection = ItemStack.EMPTY;
@@ -3815,6 +3963,7 @@ public final class QuickShulkerExtractionController {
         extractionBucketSelectedSlot = -1;
         extractionEmptyBucketDestination = -1;
         extractionEmptyBucketDestinationBaseline = 0;
+        extractionReturnedContainer = ItemStack.EMPTY;
         extractionOperationId = 0;
     }
 
@@ -4268,6 +4417,11 @@ public final class QuickShulkerExtractionController {
             boolean handRestock, boolean cursorPickup, int targetInventorySlot,
             int requestedAmount, int targetBaselineCount) {}
 
+    private record PendingEasyPlace(
+            ItemStack required, BlockPos pos, Level level, BlockState worldState,
+            BlockState schematicState, Vec3 eyePosition, float yaw, float pitch,
+            long requestTick) {}
+
     private record PendingCursorPickup(
             int inventorySlot, ItemStack prototype,
             int baselineCount, int extractedAmount) {}
@@ -4281,7 +4435,7 @@ public final class QuickShulkerExtractionController {
             int stagingInventorySlot, ItemStack prototype,
             int stagingBaselineCount, int extractedAmount,
             int selectedInventorySlot, int emptyBucketInventorySlot,
-            int emptyBucketBaselineCount) {}
+            int emptyBucketBaselineCount, ItemStack returnedContainer) {}
 
     private record PendingLitematicaSwap(
             int handInventorySlot, ItemStack originalHeld) {}

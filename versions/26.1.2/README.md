@@ -1,10 +1,10 @@
-# Better Shulker HUD 2.0.5 for Minecraft 26.1.2
+# Better Shulker HUD 2.2.5-beta.3 for Minecraft 26.1.2
 
 [简体中文](#简体中文) | [English](#english)
 
 ## 简体中文
 
-Better Shulker HUD 是 Minecraft 26.1.x Fabric 客户端物品管理模组。2.0.5 针对 Minecraft 26.1.2 构建，使用 MaLiLib 提供与 Tweakeroo 一致的原生配置界面，并通过 QuickShulker 或 AxShulkers 服务端后端完成真实物品转移。
+Better Shulker HUD 是 Minecraft 26.1.x Fabric 客户端物品管理模组。2.2.5-beta.3 针对 Minecraft 26.1.2 构建，使用 MaLiLib 提供与 Tweakeroo 一致的原生配置界面，并通过 QuickShulker 或 AxShulkers 服务端后端完成真实物品转移。
 
 作者：`BF_skt`
 
@@ -57,7 +57,7 @@ HUD 设计与交互方式参考了 zeroowo24 的 BetterBundleHUD；本项目针�
 
 ### 依赖
 
-客户端：Minecraft 26.1.2、Fabric Loader、Fabric API、MaLiLib 0.28.9 和 Better Shulker HUD。使用 QuickShulker 后端时还需安装 QuickShulker 3.0.0-26.1 至 3.0.1-26.1。
+客户端：Minecraft 26.1.2、Fabric Loader、Fabric API、MaLiLib 0.28.3 和 Better Shulker HUD。使用 QuickShulker 后端时还需安装 QuickShulker 3.0.0-26.1 至 3.0.1-26.1。
 
 服务端需要 QuickShulker 3.0.0-26.1 至 3.0.1-26.1，或兼容的 AxShulkers 服务端插件。Litematica 为可选客户端依赖。
 
@@ -68,7 +68,7 @@ $env:JAVA_HOME='Java 25 路径'
 
 ## English
 
-Better Shulker HUD is a Fabric client inventory manager for Minecraft 26.1.x. Version 2.0.5 targets Minecraft 26.1.2. It uses MaLiLib for the native configuration UI and either QuickShulker or an AxShulkers server backend for authoritative item transfers.
+Better Shulker HUD is a Fabric client inventory manager for Minecraft 26.1.x. Version 2.2.5-beta.3 targets Minecraft 26.1.2. It uses MaLiLib for the native configuration UI and either QuickShulker or an AxShulkers server backend for authoritative item transfers.
 
 Author: `BF_skt`
 
@@ -120,7 +120,7 @@ Enable **Diagnostic logging** on the General tab of the MaLiLib config screen, r
 
 ### Requirements
 
-Client: Minecraft 26.1.2, Fabric Loader, Fabric API, MaLiLib 0.28.9, and Better Shulker HUD. QuickShulker 3.0.0-26.1 through 3.0.1-26.1 is also required when using the QuickShulker backend.
+Client: Minecraft 26.1.2, Fabric Loader, Fabric API, MaLiLib 0.28.3, and Better Shulker HUD. QuickShulker 3.0.0-26.1 through 3.0.1-26.1 is also required when using the QuickShulker backend.
 
 Server: QuickShulker 3.0.0-26.1 through 3.0.1-26.1, or a compatible AxShulkers server plugin. Litematica is an optional client dependency.
 

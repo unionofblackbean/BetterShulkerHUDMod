@@ -33,13 +33,6 @@ public abstract class ItemScrollerInputHandlerMixin {
         }
     }
 
-    /**
-     * Item Scroller normally resolves the hovered vanilla Slot itself. HUD
-     * entries are virtual, so translate its wheel action into the HUD's
-     * server-authoritative extraction queue before Item Scroller sees a null
-     * Slot. This injection point is reached only after Item Scroller has
-     * enabled its functionality and ruled out its recipe-view path.
-     */
     @Inject(
             method = "handleInputImpl",
             at = @At(
@@ -57,20 +50,15 @@ public abstract class ItemScrollerInputHandlerMixin {
                 || !BundlePanelRenderer.isEffectivelyVisible()) return;
 
         boolean moveStack = betterShulkerHud$isHotkeyHeld("MODIFIER_MOVE_STACK");
-        // Matching/everything have semantics over multiple vanilla slots. Do
-        // not consume those combinations until they can be mapped losslessly
-        // to the HUD's aggregated sources.
         if (!moveStack && (betterShulkerHud$isHotkeyHeld("MODIFIER_MOVE_MATCHING")
                 || betterShulkerHud$isHotkeyHeld("MODIFIER_MOVE_EVERYTHING"))) return;
-
         if (!betterShulkerHud$getToggle(
                 moveStack ? "SCROLL_STACKS" : "SCROLL_SINGLE", true)) return;
 
         boolean scrollingUp = wheelDelta > 0;
         boolean moveToOtherInventory = scrollingUp;
-        if (betterShulkerHud$getGeneric("SLOT_POSITION_AWARE_SCROLL_DIRECTION", false)) {
-            // Treat the HUD as the external inventory panel, analogous to the
-            // upper container slots in Item Scroller's position-aware mode.
+        if (betterShulkerHud$getGeneric(
+                "SLOT_POSITION_AWARE_SCROLL_DIRECTION", false)) {
             moveToOtherInventory = !scrollingUp;
         }
         if (betterShulkerHud$getGeneric(
@@ -80,10 +68,8 @@ public abstract class ItemScrollerInputHandlerMixin {
         }
         if (!moveToOtherInventory) return;
 
-        int mouseX = InputUtils.getMouseX();
-        int mouseY = InputUtils.getMouseY();
         if (BundlePanelInteraction.handleItemScrollerWheel(
-                mouseX, mouseY, moveStack,
+                InputUtils.getMouseX(), InputUtils.getMouseY(), moveStack,
                 screen.leftPos, screen.topPos, screen.imageHeight)) {
             cir.setReturnValue(true);
         }
@@ -92,14 +78,11 @@ public abstract class ItemScrollerInputHandlerMixin {
     @Unique
     private static boolean betterShulkerHud$isHotkeyHeld(String fieldName) {
         try {
-            Class<?> hotkeys = Class.forName(
-                    "fi.dy.masa.itemscroller.config.Hotkeys");
+            Class<?> hotkeys = Class.forName("fi.dy.masa.itemscroller.config.Hotkeys");
             Object value = hotkeys.getField(fieldName).get(null);
             return value instanceof ConfigHotkey hotkey
                     && hotkey.getKeybind().isKeybindHeld();
         } catch (ReflectiveOperationException | LinkageError ignored) {
-            // If a future Item Scroller changes its config API, leave the
-            // original input handler in charge instead of stealing input.
             return false;
         }
     }

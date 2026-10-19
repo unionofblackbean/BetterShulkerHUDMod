@@ -4,6 +4,7 @@ import bettershulkerhud.config.Configs;
 import bettershulkerhud.gui.BundleCategory;
 import bettershulkerhud.gui.BundlePanelInteraction;
 import bettershulkerhud.gui.BundlePanelRenderer;
+import bettershulkerhud.gui.StorageView;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.ImageButton;
 import net.minecraft.client.gui.navigation.ScreenPosition;
@@ -75,28 +76,28 @@ public abstract class AbstractRecipeBookScreenMixin {
         double mouseX = event.x();
         double mouseY = event.y();
 
-        if (self instanceof InventoryScreen) {
-            if (BundlePanelRenderer.handleAdjustModeClick(
-                    mouseX, mouseY, event.button(),
-                    self.leftPos, self.topPos, self.imageWidth)) {
-                cir.setReturnValue(true);
-                return;
-            }
+        if (BundlePanelRenderer.handleAdjustModeClick(
+                mouseX, mouseY, event.button(),
+                self.leftPos, self.topPos, self.imageWidth)) {
+            cir.setReturnValue(true);
+            return;
+        }
 
-            // Toggle button
-            if (BundlePanelRenderer.handleToggleButtonClick(
-                    mouseX, mouseY, event.button(),
-                    self.leftPos, self.topPos, self.imageWidth)) {
-                cir.setReturnValue(true);
-                return;
-            }
+        // Toggle button
+        if (BundlePanelRenderer.handleToggleButtonClick(
+                mouseX, mouseY, event.button(),
+                self.leftPos, self.topPos, self.imageWidth)) {
+            cir.setReturnValue(true);
+            return;
         }
 
 
-        if (BundlePanelRenderer.isMinimizeButtonHovered(
-                mouseX, mouseY, self.leftPos, self.topPos, self.imageHeight)) {
-            BundlePanelRenderer.playButtonClick();
-            BundlePanelRenderer.minimizeCurrentPreview();
+        StorageView storageView = BundlePanelRenderer.getStorageViewAt(
+                mouseX, mouseY, self.leftPos, self.topPos, self.imageHeight);
+        if (storageView != null) {
+            if (BundlePanelRenderer.selectStorageView(storageView)) {
+                BundlePanelRenderer.playButtonClick();
+            }
             cir.setReturnValue(true);
             return;
         }
@@ -123,6 +124,24 @@ public abstract class AbstractRecipeBookScreenMixin {
         }
 
         BundlePanelRenderer.searchFocused = false;
+    }
+
+    @Inject(method = "mouseDragged", at = @At("HEAD"), cancellable = true)
+    private void onMouseDragged(
+            MouseButtonEvent event, double dragX, double dragY,
+            CallbackInfoReturnable<Boolean> cir) {
+        AbstractContainerScreen<?> screen =
+                (AbstractContainerScreen<?>) (Object) this;
+        if (BundlePanelRenderer.handleScrollBarDrag(
+                event.y(), event.button(),
+                screen.leftPos, screen.topPos, screen.imageHeight)) {
+            cir.setReturnValue(true);
+            return;
+        }
+        if (BundlePanelRenderer.handleToggleButtonDrag(
+                event.x(), event.y(), event.button())) {
+            cir.setReturnValue(true);
+        }
     }
 
     @Inject(method = "charTyped", at = @At("HEAD"), cancellable = true)

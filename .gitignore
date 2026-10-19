@@ -31,3 +31,6 @@ crash-reports/
 
 # Local dependencies
 libs/
+
+!versions/26.3/libs/
+!versions/26.3/libs/quickshulker-3.1.1-26.3.jar

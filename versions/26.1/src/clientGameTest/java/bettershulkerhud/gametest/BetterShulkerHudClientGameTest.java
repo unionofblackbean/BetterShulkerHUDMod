@@ -5,6 +5,7 @@ import bettershulkerhud.compat.LitematicaEasyPlaceCompatAssertions;
 import bettershulkerhud.compat.QuickShulkerExtractionController;
 import bettershulkerhud.compat.StorageClientNetwork;
 import bettershulkerhud.gui.BundlePanelRenderer;
+import bettershulkerhud.core.HudOverlayLayout;
 import bettershulkerhud.gui.StorageView;
 import bettershulkerhud.server.EnderChestStorageAccess;
 import bettershulkerhud.util.ShulkerContentsHelper;
@@ -14,17 +15,33 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.client.gui.components.ImageButton;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.CraftingScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.gui.screens.inventory.ShulkerBoxScreen;
 import net.minecraft.core.NonNullList;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.inventory.ShulkerBoxMenu;
+import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.item.Item;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.inventory.ContainerLevelAccess;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.display.RecipeDisplayId;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.item.component.BundleContents;
 import org.lwjgl.glfw.GLFW;
@@ -32,6 +49,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class BetterShulkerHudClientGameTest implements FabricClientGameTest {
     private static final int OPERATION_TIMEOUT_TICKS = 20 * 15;
@@ -40,6 +58,7 @@ public final class BetterShulkerHudClientGameTest implements FabricClientGameTes
 
     @Override
     public void runTest(ClientGameTestContext context) {
+        testOverlayLayoutPolicy();
         boolean quickShulkerProfile = FabricLoader.getInstance().isModLoaded("quickshulker");
         LOGGER.info("BSH_CLIENT_GAMETEST_START profile={}",
                 quickShulkerProfile ? "quickshulker" : "base");
@@ -58,6 +77,8 @@ public final class BetterShulkerHudClientGameTest implements FabricClientGameTes
             testMovedMainHandTotemDoesNotRestock(context, singleplayer);
             if (quickShulkerProfile) {
                 testWaterBucketReplacement(context, singleplayer);
+                testPotionContainerReplacement(context, singleplayer);
+                testManualPotionMoveDoesNotRestock(context, singleplayer);
                 testFullInventoryLitematicaHandSwap(context, singleplayer);
                 testMainHandTotemRestock(context, singleplayer);
                 testManualStoreDoesNotRestock(context, singleplayer);
@@ -74,6 +95,18 @@ public final class BetterShulkerHudClientGameTest implements FabricClientGameTes
         }
         LOGGER.info("BSH_CLIENT_GAMETEST_SUCCESS profile={}",
                 quickShulkerProfile ? "quickshulker" : "base");
+    }
+
+    private static void testOverlayLayoutPolicy() {
+        assertTrue(HudOverlayLayout.choose(420, 150, 176, 110, false, true, false).side()
+                        == HudOverlayLayout.Side.LEFT,
+                "JEI should keep the wider right side and place the HUD on the left");
+        assertTrue(HudOverlayLayout.choose(320, 90, 176, 110, false, true, false).side()
+                        == HudOverlayLayout.Side.HIDDEN,
+                "the HUD must fold when it cannot fit beside JEI");
+        assertTrue(HudOverlayLayout.choose(560, 200, 176, 110, true, true, false).side()
+                        == HudOverlayLayout.Side.RIGHT,
+                "the recipe book requires the HUD on the right when room remains");
     }
 
     private static void testPortableStorageViewsAndTransfers(
@@ -382,6 +415,60 @@ public final class BetterShulkerHudClientGameTest implements FabricClientGameTes
                     "server must confirm the replacement water bucket in the selected slot");
             assertEquals(1, countItem(inventory, Items.BUCKET),
                     "server must retain exactly one used empty bucket");
+        });
+    }
+
+    private static void testPotionContainerReplacement(
+            ClientGameTestContext context, TestSingleplayerContext singleplayer) {
+        for (Item potionItem : List.of(Items.POTION, Items.SPLASH_POTION,
+                Items.LINGERING_POTION)) {
+            resetRememberedItems(context, singleplayer);
+            ItemStack potion = new ItemStack(potionItem);
+            potion.set(DataComponents.CUSTOM_NAME, Component.literal("potion-identity"));
+            setInventory(singleplayer, inventory -> {
+                inventory.setSelectedSlot(0);
+                inventory.setItem(0, potion.copy());
+                inventory.setItem(1, shulkerWithStack(potion));
+            });
+            context.waitTicks(5);
+            setInventorySlot(singleplayer, 0,
+                    potionItem == Items.POTION
+                            ? new ItemStack(Items.GLASS_BOTTLE) : ItemStack.EMPTY);
+            context.waitFor(client -> client.player != null
+                    && (potionItem == Items.POTION
+                            ? client.player.getInventory().getSelectedItem()
+                                    .is(Items.GLASS_BOTTLE)
+                            : client.player.getInventory().getSelectedItem().isEmpty()));
+            context.waitFor(client -> client.player != null
+                    && ItemStack.isSameItemSameComponents(
+                            client.player.getInventory().getSelectedItem(), potion)
+                    && !QuickShulkerExtractionController.hasActiveOperation(),
+                    OPERATION_TIMEOUT_TICKS);
+            context.runOnClient(client -> {
+                Inventory inventory = client.player.getInventory();
+                assertEquals(potionItem == Items.POTION ? 1 : 0,
+                        countItem(inventory, Items.GLASS_BOTTLE),
+                        "a consumed potion must not replenish glass bottles");
+            });
+        }
+    }
+
+    private static void testManualPotionMoveDoesNotRestock(
+            ClientGameTestContext context, TestSingleplayerContext singleplayer) {
+        resetRememberedItems(context, singleplayer);
+        setInventory(singleplayer, inventory -> {
+            inventory.setSelectedSlot(0);
+            inventory.setItem(0, new ItemStack(Items.POTION));
+            inventory.setItem(1, shulkerWith(Items.POTION, 1));
+        });
+        context.waitTicks(5);
+        moveInventorySlot(singleplayer, 0, 2);
+        context.waitTicks(35);
+        context.runOnClient(client -> {
+            assertTrue(client.player.getInventory().getSelectedItem().isEmpty(),
+                    "moving a potion must not refill its former slot");
+            assertEquals(1, countShulkerItem(client.player.getInventory(), Items.POTION),
+                    "manual movement must not extract another potion");
         });
     }
 
@@ -935,6 +1022,15 @@ public final class BetterShulkerHudClientGameTest implements FabricClientGameTes
         NonNullList<ItemStack> contents = NonNullList.withSize(
                 ShulkerContentsHelper.SHULKER_SIZE, ItemStack.EMPTY);
         contents.set(0, new ItemStack(item, count));
+        ItemStack shulker = new ItemStack(Items.SHULKER_BOX);
+        shulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(contents));
+        return shulker;
+    }
+
+    private static ItemStack shulkerWithStack(ItemStack content) {
+        NonNullList<ItemStack> contents = NonNullList.withSize(
+                ShulkerContentsHelper.SHULKER_SIZE, ItemStack.EMPTY);
+        contents.set(0, content.copy());
         ItemStack shulker = new ItemStack(Items.SHULKER_BOX);
         shulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(contents));
         return shulker;

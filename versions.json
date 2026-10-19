@@ -33,7 +33,7 @@
       },
       "featureLevel": "2.1.x",
       "featureSummary": "完整 2.1.x",
-      "maintenanceLevel": "active",
+      "maintenanceLevel": "deprecated",
       "tests": { "clientGameTest": false, "serverIntegration": false, "compatibilityProfiles": [] },
       "release": {
         "status": "stable",
@@ -58,7 +58,7 @@
       },
       "featureLevel": "2.1.x",
       "featureSummary": "完整 2.1.x",
-      "maintenanceLevel": "active",
+      "maintenanceLevel": "deprecated",
       "tests": { "clientGameTest": false, "serverIntegration": false, "compatibilityProfiles": [] },
       "release": {
         "status": "stable",
@@ -84,7 +84,7 @@
       },
       "featureLevel": "2.1.x",
       "featureSummary": "2.1.x（Issue #6 渲染层级修复，待人工验收）",
-      "maintenanceLevel": "active",
+      "maintenanceLevel": "deprecated",
       "tests": { "clientGameTest": false, "serverIntegration": false, "compatibilityProfiles": [] },
       "release": {
         "status": "beta",
@@ -111,7 +111,7 @@
       },
       "featureLevel": "2.1.x",
       "featureSummary": "完整 2.1.x",
-      "maintenanceLevel": "active",
+      "maintenanceLevel": "deprecated",
       "tests": { "clientGameTest": false, "serverIntegration": false, "compatibilityProfiles": [] },
       "release": {
         "status": "stable",
@@ -137,7 +137,7 @@
       },
       "featureLevel": "2.0.x",
       "featureSummary": "稳定 2.0.x",
-      "maintenanceLevel": "maintenance",
+      "maintenanceLevel": "deprecated",
       "tests": {
         "clientGameTest": true,
         "serverIntegration": false,
@@ -155,7 +155,7 @@
       "id": "26.1.1",
       "path": "versions/26.1.1",
       "minecraft": { "build": "26.1.1", "range": "26.1.1" },
-      "modVersion": "2.2.3",
+      "modVersion": "2.2.5-beta.3",
       "java": 25,
       "gradle": "9.5.1",
       "loom": "1.16.3",
@@ -169,7 +169,7 @@
         "itemScroller": "0.31.0"
       },
       "featureLevel": "2.2.x",
-      "featureSummary": "完整便携存储 2.2.x",
+      "featureSummary": "便携存储与 HUD 兼容修复",
       "maintenanceLevel": "active",
       "tests": {
         "clientGameTest": true,
@@ -179,16 +179,16 @@
         ]
       },
       "release": {
-        "status": "stable",
-        "artifact": "BetterShulkerHud-2.2.3+mc26.1.1.jar",
-        "sourcesArtifact": "BetterShulkerHud-2.2.3+mc26.1.1-sources.jar"
+        "status": "beta",
+        "artifact": "BetterShulkerHud-2.2.5-beta.3+mc26.1.1.jar",
+        "sourcesArtifact": "BetterShulkerHud-2.2.5-beta.3+mc26.1.1-sources.jar"
       }
     },
     {
       "id": "26.1",
       "path": "versions/26.1",
       "minecraft": { "build": "26.1", "range": "26.1" },
-      "modVersion": "2.2.3",
+      "modVersion": "2.2.5-beta.3",
       "java": 25,
       "gradle": "9.5.1",
       "loom": "1.16.3",
@@ -202,7 +202,7 @@
         "itemScroller": "0.31.0"
       },
       "featureLevel": "2.2.x",
-      "featureSummary": "完整便携存储 2.2.x",
+      "featureSummary": "便携存储与 HUD 兼容修复",
       "maintenanceLevel": "active",
       "tests": {
         "clientGameTest": true,
@@ -212,16 +212,16 @@
         ]
       },
       "release": {
-        "status": "stable",
-        "artifact": "BetterShulkerHud-2.2.3+mc26.1.jar",
-        "sourcesArtifact": "BetterShulkerHud-2.2.3+mc26.1-sources.jar"
+        "status": "beta",
+        "artifact": "BetterShulkerHud-2.2.5-beta.3+mc26.1.jar",
+        "sourcesArtifact": "BetterShulkerHud-2.2.5-beta.3+mc26.1-sources.jar"
       }
     },
     {
       "id": "26.1.2",
       "path": "versions/26.1.2",
       "minecraft": { "build": "26.1.2", "range": "26.1.2" },
-      "modVersion": "2.0.7",
+      "modVersion": "2.2.5-beta.3",
       "java": 25,
       "gradle": "9.5.1",
       "loom": "1.16.3",
@@ -231,29 +231,30 @@
       "optionalCompatibility": {
         "quickShulker": "3.0.1-26.1",
         "rei": "26.1.819",
-        "jei": "29.21.0.66"
+        "jei": "29.21.0.66",
+        "itemScroller": "0.31.0"
       },
-      "featureLevel": "2.0.x",
-      "featureSummary": "稳定 2.0.x",
-      "maintenanceLevel": "maintenance",
+      "featureLevel": "2.2.x",
+      "featureSummary": "便携存储与 HUD 兼容修复",
+      "maintenanceLevel": "active",
       "tests": {
         "clientGameTest": true,
-        "serverIntegration": false,
+        "serverIntegration": true,
         "compatibilityProfiles": [
           { "id": "quickshulker", "property": "compat_quickshulker", "ci": true }
         ]
       },
       "release": {
-        "status": "stable",
-        "artifact": "BetterShulkerHud-2.0.7+mc26.1.2.jar",
-        "sourcesArtifact": "BetterShulkerHud-2.0.7+mc26.1.2-sources.jar"
+        "status": "beta",
+        "artifact": "BetterShulkerHud-2.2.5-beta.3+mc26.1.2.jar",
+        "sourcesArtifact": "BetterShulkerHud-2.2.5-beta.3+mc26.1.2-sources.jar"
       }
     },
     {
       "id": "26.2",
       "path": "versions/26.2",
       "minecraft": { "build": "26.2", "range": ">=26.2 <26.3" },
-      "modVersion": "2.2.4",
+      "modVersion": "2.2.5-beta.3",
       "java": 25,
       "gradle": "9.5.1",
       "loom": "1.16.3",
@@ -267,7 +268,7 @@
         "itemScroller": "0.32.1"
       },
       "featureLevel": "2.2.x",
-      "featureSummary": "完整便携存储 2.2.x",
+      "featureSummary": "便携存储与 HUD 兼容修复",
       "maintenanceLevel": "active",
       "tests": {
         "clientGameTest": true,
@@ -278,9 +279,43 @@
         ]
       },
       "release": {
-        "status": "stable",
-        "artifact": "BetterShulkerHud-2.2.4+mc26.2.x.jar",
-        "sourcesArtifact": "BetterShulkerHud-2.2.4+mc26.2.x-sources.jar"
+        "status": "beta",
+        "artifact": "BetterShulkerHud-2.2.5-beta.3+mc26.2.x.jar",
+        "sourcesArtifact": "BetterShulkerHud-2.2.5-beta.3+mc26.2.x-sources.jar"
+      }
+    },
+    {
+      "id": "26.3",
+      "path": "versions/26.3",
+      "minecraft": { "build": "26.3", "range": ">=26.3 <26.4" },
+      "modVersion": "2.2.5-beta.3",
+      "java": 25,
+      "gradle": "9.5.1",
+      "loom": "1.16.3",
+      "loader": { "build": "0.19.5", "requirement": ">=0.19.5" },
+      "fabricApi": "0.160.5+26.3",
+      "malilib": "fi.dy.masa.malilib:malilib-fabric-26.3:0.30.2",
+      "optionalCompatibility": {
+        "quickShulker": "3.1.1-26.3",
+        "rei": "26.3.824",
+        "jei": "31.9.0.61",
+        "itemScroller": "unverified"
+      },
+      "featureLevel": "2.2.x",
+      "featureSummary": "便携存储与 HUD 兼容修复（26.3 候选）",
+      "maintenanceLevel": "active",
+      "tests": {
+        "clientGameTest": true,
+        "serverIntegration": true,
+        "compatibilityProfiles": [
+          { "id": "quickshulker", "property": "compat_quickshulker", "ci": false },
+          { "id": "itemscroller", "property": "itemscroller_test_jar", "ci": false, "requiresLocalArtifact": true }
+        ]
+      },
+      "release": {
+        "status": "beta",
+        "artifact": "BetterShulkerHud-2.2.5-beta.3+mc26.3.jar",
+        "sourcesArtifact": "BetterShulkerHud-2.2.5-beta.3+mc26.3-sources.jar"
       }
     }
   ]

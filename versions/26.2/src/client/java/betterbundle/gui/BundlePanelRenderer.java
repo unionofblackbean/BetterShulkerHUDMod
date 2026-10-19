@@ -1,7 +1,9 @@
 package bettershulkerhud.gui;
 
-import bettershulkerhud.compat.StorageClientNetwork;
 import bettershulkerhud.config.Configs;
+import bettershulkerhud.core.StableOrder;
+import bettershulkerhud.core.HudOverlayLayout;
+import bettershulkerhud.compat.StorageClientNetwork;
 import net.sourceforge.pinyin4j.PinyinHelper;
 import net.sourceforge.pinyin4j.format.HanyuPinyinOutputFormat;
 import net.sourceforge.pinyin4j.format.HanyuPinyinToneType;
@@ -15,15 +17,15 @@ import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.Slot;
-import net.minecraft.world.item.BundleItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.BundleItem;
 import net.minecraft.world.item.component.BundleContents;
 
 import java.util.ArrayList;
@@ -112,9 +114,8 @@ public final class BundlePanelRenderer {
     private static Player cachedPlayer;
     private static Object cachedScreen;
     private static boolean sortPreparedAfterClose;
-    private static int cachedInventoryRevision = Integer.MIN_VALUE;
-    private static long cachedActiveContentsFingerprint = Long.MIN_VALUE;
-    private static boolean contentsCacheDirty = true;
+    private static long cachedInventoryFingerprint = Long.MIN_VALUE;
+    private static int lastContentsCheckTick = Integer.MIN_VALUE;
     private static List<ShulkerSlotEntry> cachedAllShulkers = List.of();
     private static List<ShulkerSlotEntry> cachedNonEmptyShulkers = List.of();
     private static List<FlatItem> cachedFlatItems = List.of();
@@ -134,15 +135,20 @@ public final class BundlePanelRenderer {
 
     public record ShulkerSlotEntry(int inventorySlot, ItemStack shulkerStack, List<ItemStack> contents) {}
 
-    public static int columnCount(int leftPos) {
+    private static HudOverlayLayout.Placement overlayPlacement(int leftPos) {
         Minecraft client = Minecraft.getInstance();
-        int screenWidth = client.getWindow().getGuiScaledWidth();
         int imageWidth = client.gui.screen() instanceof AbstractContainerScreen<?> screen
                 ? screen.imageWidth : 176;
-        int leftSpace = leftPos - SCREEN_MARGIN - PANEL_GAP;
-        int rightSpace = screenWidth - (leftPos + imageWidth)
-                - SCREEN_MARGIN - PANEL_GAP;
-        int available = isRecipeBookOpen() ? rightSpace : Math.max(leftSpace, rightSpace);
+        int fixedWidth = PADDING + CAT_BAR_WIDTH + CATEGORY_GAP
+                + SCROLL_BAR_WIDTH + SCROLL_GAP + PADDING;
+        return HudOverlayLayout.choose(client.getWindow().getGuiScaledWidth(),
+                leftPos, imageWidth, fixedWidth + SLOT_SIZE,
+                isRecipeBookOpen(), FabricLoader.getInstance().isModLoaded("jei"),
+                FabricLoader.getInstance().isModLoaded("roughlyenoughitems"));
+    }
+
+    public static int columnCount(int leftPos) {
+        int available = overlayPlacement(leftPos).availableWidth();
         int fixedWidth = PADDING + CAT_BAR_WIDTH + CATEGORY_GAP
                 + SCROLL_BAR_WIDTH + SCROLL_GAP + PADDING;
         int columns = (available - fixedWidth + SLOT_SPACING)
@@ -195,6 +201,9 @@ public final class BundlePanelRenderer {
         int width = panelWidth(leftPos);
         int right = leftPos + imageWidth + PANEL_GAP;
         int immediateLeft = leftPos - width - PANEL_GAP;
+        HudOverlayLayout.Side side = overlayPlacement(leftPos).side();
+        if (side == HudOverlayLayout.Side.LEFT) return immediateLeft;
+        if (side == HudOverlayLayout.Side.RIGHT) return right;
         int leftSpace = leftPos - SCREEN_MARGIN;
         int rightSpace = screenWidth - (leftPos + imageWidth) - SCREEN_MARGIN;
 
@@ -469,28 +478,19 @@ public final class BundlePanelRenderer {
 
     private static List<FlatItem> updateFlatItemsKeepingOrder(
             List<FlatItem> previous, List<FlatItem> current) {
-        if (previous.isEmpty()) return current;
+        return StableOrder.refresh(previous, current, item -> new StackKey(item.stack()));
+    }
 
-        Map<StackKey, FlatItem> currentByKey = new LinkedHashMap<>();
-        for (FlatItem item : current) {
-            currentByKey.put(new StackKey(item.stack()), item);
-        }
+    private static List<FlatItem> sortedFlatItems(List<FlatItem> items) {
+        List<FlatItem> sorted = new ArrayList<>(items);
+        sortFlatItems(sorted);
+        return List.copyOf(sorted);
+    }
 
-        List<FlatItem> ordered = new ArrayList<>(current.size());
-        Set<StackKey> used = new HashSet<>();
-        for (FlatItem previousItem : previous) {
-            StackKey key = new StackKey(previousItem.stack());
-            FlatItem refreshed = currentByKey.get(key);
-            if (refreshed != null && used.add(key)) {
-                ordered.add(refreshed);
-            }
-        }
-        for (FlatItem item : current) {
-            if (used.add(new StackKey(item.stack()))) {
-                ordered.add(item);
-            }
-        }
-        return ordered;
+    private static void sortCachedStorageItems() {
+        cachedFlatItems = sortedFlatItems(cachedFlatItems);
+        cachedBundleFlatItems = sortedFlatItems(cachedBundleFlatItems);
+        cachedEnderFlatItems = sortedFlatItems(getEnderFlatItems());
     }
 
     public static List<FlatItem> getVisibleItems() {
@@ -528,6 +528,8 @@ public final class BundlePanelRenderer {
             return false;
         }
         if (storageView == selected) return true;
+        // Changing the storage page explicitly ends the current stable-order session.
+        sortCachedStorageItems();
         storageView = selected;
         scrollOffset = 0;
         searchFocused = false;
@@ -621,7 +623,8 @@ public final class BundlePanelRenderer {
                     StorageView.ENDER_CHEST, -1, slot, stack.copy(),
                     new ItemStack(Items.ENDER_CHEST)));
         }
-        cachedEnderFlatItems = finishSources(aggregated);
+        cachedEnderFlatItems = updateFlatItemsKeepingOrder(
+                cachedEnderFlatItems, finishSources(aggregated));
         cachedEnderRevision = revision;
         return cachedEnderFlatItems;
     }
@@ -733,9 +736,8 @@ public final class BundlePanelRenderer {
         cachedPlayer = null;
         cachedScreen = null;
         sortPreparedAfterClose = false;
-        cachedInventoryRevision = Integer.MIN_VALUE;
-        cachedActiveContentsFingerprint = Long.MIN_VALUE;
-        contentsCacheDirty = true;
+        cachedInventoryFingerprint = Long.MIN_VALUE;
+        lastContentsCheckTick = Integer.MIN_VALUE;
         cachedAllShulkers = List.of();
         cachedNonEmptyShulkers = List.of();
         cachedFlatItems = List.of();
@@ -759,11 +761,7 @@ public final class BundlePanelRenderer {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null) return;
         ensureCache();
-        if (!cachedFlatItems.isEmpty()) {
-            List<FlatItem> sorted = new ArrayList<>(cachedFlatItems);
-            sortFlatItems(sorted);
-            cachedFlatItems = List.copyOf(sorted);
-        }
+        sortCachedStorageItems();
         cachedScreen = null;
         sortPreparedAfterClose = true;
         cachedVisibleItems = List.of();
@@ -795,7 +793,8 @@ public final class BundlePanelRenderer {
      * the current container screen was opened.
      */
     public static void invalidateContentsCache() {
-        contentsCacheDirty = true;
+        cachedInventoryFingerprint = Long.MIN_VALUE;
+        lastContentsCheckTick = Integer.MIN_VALUE;
         cachedVisibleItems = List.of();
         cachedSearchQuery = null;
         cachedCategory = null;
@@ -809,6 +808,12 @@ public final class BundlePanelRenderer {
             invalidateCache();
             return;
         }
+        // A render pass calls this from many widgets. Hash nested contents once per
+        // client tick, not once per widget. Packet updates explicitly invalidate it,
+        // so a same-tick server reply still refreshes counts immediately.
+        if (cachedPlayer == player && cachedScreen == client.gui.screen()
+                && lastContentsCheckTick == player.tickCount) return;
+        lastContentsCheckTick = player.tickCount;
         Inventory inv = player.getInventory();
         QuickShulkerExtractionController.ActiveShulkerContents liveContents =
                 QuickShulkerExtractionController.getActiveShulkerContents();
@@ -822,12 +827,22 @@ public final class BundlePanelRenderer {
         }
         ActiveContentsSnapshot contentsOverride = activeContentsSnapshot;
 
-        int inventoryRevision = inv.getTimesChanged();
-        long activeContentsFingerprint = activeContentsFingerprint(contentsOverride);
+        long fingerprint = 1;
+        for (int i = 0; i < 36; i++) {
+            ItemStack stack = inv.getItem(i);
+            fingerprint = 31L * fingerprint + ItemStack.hashItemAndComponents(stack);
+            fingerprint = 31L * fingerprint + stack.getCount();
+        }
+        if (contentsOverride != null) {
+            fingerprint = 31L * fingerprint + 0x41585348L;
+            fingerprint = 31L * fingerprint + contentsOverride.inventorySlot();
+            for (ItemStack stack : contentsOverride.contents()) {
+                fingerprint = 31L * fingerprint + ItemStack.hashItemAndComponents(stack);
+                fingerprint = 31L * fingerprint + stack.getCount();
+            }
+        }
         boolean newContainerScreen = cachedPlayer != player || cachedScreen != client.gui.screen();
-        if (!newContainerScreen && !contentsCacheDirty
-                && cachedInventoryRevision == inventoryRevision
-                && cachedActiveContentsFingerprint == activeContentsFingerprint) return;
+        if (!newContainerScreen && cachedInventoryFingerprint == fingerprint) return;
 
         List<ShulkerSlotEntry> all = new ArrayList<>();
         List<ShulkerSlotEntry> nonEmpty = new ArrayList<>();
@@ -859,12 +874,18 @@ public final class BundlePanelRenderer {
         }
         cachedPlayer = player;
         cachedScreen = client.gui.screen();
-        cachedInventoryRevision = inventoryRevision;
-        cachedActiveContentsFingerprint = activeContentsFingerprint;
-        contentsCacheDirty = false;
+        cachedInventoryFingerprint = fingerprint;
         cachedAllShulkers = List.copyOf(all);
         cachedNonEmptyShulkers = List.copyOf(nonEmpty);
-        cachedBundleFlatItems = buildBundleFlatItems(inv);
+        List<FlatItem> rebuiltBundles = buildBundleFlatItems(inv);
+        if (newContainerScreen && !sortPreparedAfterClose) {
+            cachedBundleFlatItems = rebuiltBundles;
+            cachedEnderFlatItems = List.of();
+            cachedEnderRevision = Long.MIN_VALUE;
+        } else {
+            cachedBundleFlatItems = updateFlatItemsKeepingOrder(
+                    cachedBundleFlatItems, rebuiltBundles);
+        }
         cachedVisibleItems = List.of();
         cachedSearchQuery = null;
         cachedCategory = null;
@@ -876,16 +897,6 @@ public final class BundlePanelRenderer {
         List<ItemStack> copy = new ArrayList<>(stacks.size());
         for (ItemStack stack : stacks) copy.add(stack.copy());
         return List.copyOf(copy);
-    }
-
-    private static long activeContentsFingerprint(ActiveContentsSnapshot snapshot) {
-        if (snapshot == null) return Long.MIN_VALUE;
-        long fingerprint = 31L + snapshot.inventorySlot();
-        for (ItemStack stack : snapshot.contents()) {
-            fingerprint = 31L * fingerprint + ItemStack.hashItemAndComponents(stack);
-            fingerprint = 31L * fingerprint + stack.getCount();
-        }
-        return fingerprint;
     }
 
     private record ActiveContentsSnapshot(
@@ -935,13 +946,16 @@ public final class BundlePanelRenderer {
         return Configs.Features.HUD_ENABLED.getBooleanValue()
                 && !isCreativeInventoryScreen();
     }
-
     public static boolean hasRenderablePanel() {
         if (!isEffectivelyVisible()) return false;
+        Minecraft client = Minecraft.getInstance();
+        if (!(client.gui.screen() instanceof AbstractContainerScreen<?> screen)
+                || overlayPlacement(screen.leftPos).side() == HudOverlayLayout.Side.HIDDEN) {
+            return false;
+        }
         ensureCache();
         return hasAnyPortableStorage();
     }
-
     public static void toggleVisible() {
         Configs.Features.HUD_ENABLED.setBooleanValue(
                 !Configs.Features.HUD_ENABLED.getBooleanValue());

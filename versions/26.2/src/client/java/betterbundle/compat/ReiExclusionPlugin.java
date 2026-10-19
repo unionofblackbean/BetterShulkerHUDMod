@@ -21,7 +21,7 @@ public final class ReiExclusionPlugin implements REIClientPlugin {
                     BundlePanelRenderer.TOGGLE_WIDTH + 4,
                     BundlePanelRenderer.TOGGLE_HEIGHT + 4));
             }
-            if (BundlePanelRenderer.isEffectivelyVisible()) {
+            if (BundlePanelRenderer.hasRenderablePanel()) {
                 exclusions.add(new Rectangle(
                         BundlePanelRenderer.exclusionX(screen.leftPos),
                         BundlePanelRenderer.exclusionY(screen.topPos, screen.imageHeight),

@@ -18,13 +18,14 @@ if (-not (Test-Path -LiteralPath $buildScript -PathType Leaf)) {
 Import-Module (Join-Path $PSScriptRoot 'Manifest.psm1') -Force
 $manifest = Read-VersionManifest
 
-$entries = @($manifest.versions)
+$entries = @($manifest.versions | Where-Object { [string]$_.maintenanceLevel -ne 'deprecated' })
 if ($Id) {
     $wanted = [System.Collections.Generic.HashSet[string]]::new()
     foreach ($value in $Id) {
         [void]$wanted.Add($value)
     }
-    $entries = @($entries | Where-Object { $wanted.Contains([string]$_.id) })
+    # An explicit ID can still build archived 1.21.x source lines.
+    $entries = @($manifest.versions | Where-Object { $wanted.Contains([string]$_.id) })
     $missing = @()
     foreach ($value in $Id) {
         $found = @($manifest.versions | Where-Object { [string]$_.id -eq $value })

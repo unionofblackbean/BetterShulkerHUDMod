@@ -1,10 +1,10 @@
-# Better Shulker HUD 2.2.2 for Minecraft 26.1.1
+# Better Shulker HUD 2.2.5-beta.3 for Minecraft 26.1
 
 [简体中文](#简体中文) | [English](#english)
 
 ## 简体中文
 
-Better Shulker HUD 是 Minecraft 26.1.x Fabric 客户端物品管理模组。2.2.2 针对 Minecraft 26.1.1 构建，使用 MaLiLib 提供与 Tweakeroo 一致的原生配置界面，并通过 QuickShulker 或 AxShulkers 服务端后端完成真实物品转移。
+Better Shulker HUD 是 Minecraft 26.1 Fabric 客户端物品管理模组。2.2.5-beta.3 针对 Minecraft 26.1 构建，使用 MaLiLib 提供与 Tweakeroo 一致的原生配置界面，并通过 QuickShulker 或 AxShulkers 服务端后端完成真实物品转移。
 
 作者：`BF_skt`
 
@@ -71,7 +71,7 @@ $env:JAVA_HOME='Java 25 路径'
 
 ## English
 
-Better Shulker HUD is a Fabric client inventory manager for Minecraft 26.1.x. Version 2.2.2 targets Minecraft 26.1.1. It uses MaLiLib for the native configuration UI and either QuickShulker or an AxShulkers server backend for authoritative item transfers.
+Better Shulker HUD is a Fabric client inventory manager for Minecraft 26.1. Version 2.2.5-beta.3 targets Minecraft 26.1. It uses MaLiLib for the native configuration UI and either QuickShulker or an AxShulkers server backend for authoritative item transfers.
 
 Author: `BF_skt`
 
