@@ -1,6 +1,7 @@
 package bettershulkerhud.mixin;
 
 import bettershulkerhud.compat.QuickShulkerExtractionController;
+import bettershulkerhud.compat.RecipePreparationController;
 import bettershulkerhud.gui.BundlePanelRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -18,6 +19,10 @@ public abstract class MinecraftScreenMixin {
     private void betterShulkerHud$hideTransientShulkerScreen(
             Screen screen, CallbackInfo ci) {
         Minecraft client = (Minecraft) (Object) this;
+        if (RecipePreparationController.shouldKeepCraftingScreenVisible(screen)) {
+            ci.cancel();
+            return;
+        }
         boolean transientShulker = screen instanceof ShulkerBoxScreen
                 && QuickShulkerExtractionController.shouldHideQuickShulkerScreen();
         if (transientShulker) {
@@ -32,12 +37,14 @@ public abstract class MinecraftScreenMixin {
             return;
         }
         if (client.screen != screen) {
+            bettershulkerhud.gui.HudPanelLayoutEditor.onScreenChanging(screen);
             BundlePanelRenderer.resetToggleButtonInteraction();
         }
         if (client.screen instanceof AbstractContainerScreen<?>
                 && client.screen != screen) {
             if (QuickShulkerExtractionController
-                    .shouldPreserveHudOrderOnScreenTransition()) {
+                    .shouldPreserveHudOrderOnScreenTransition()
+                    || RecipePreparationController.isRecipeSupplyPending()) {
                 BundlePanelRenderer.prepareOrderAfterTransientContainerClose();
             } else {
                 BundlePanelRenderer.prepareSortAfterContainerClose();

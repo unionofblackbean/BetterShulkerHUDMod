@@ -1,6 +1,7 @@
 package bettershulkerhud.mixin;
 
 import bettershulkerhud.gui.BundlePanelRenderer;
+import bettershulkerhud.gui.HudPanelLayoutEditor;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.input.MouseButtonEvent;
 import org.spongepowered.asm.mixin.Mixin;
@@ -13,6 +14,10 @@ public abstract class PlayerInventoryScreenMixin {
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true)
     private void onMouseReleased(
             MouseButtonEvent event, CallbackInfoReturnable<Boolean> cir) {
+        if (HudPanelLayoutEditor.mouseReleased(event.button())) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (BundlePanelRenderer.handleToggleButtonRelease(
                 event.x(), event.y(), event.button())) {
             cir.setReturnValue(true);

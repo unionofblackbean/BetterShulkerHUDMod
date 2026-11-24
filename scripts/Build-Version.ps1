@@ -134,10 +134,12 @@ try {
         # unobfuscated 26.x. Mappings are removed in the outer finally block.
         $reservedLetters = [System.Collections.Generic.HashSet[string]]::new(
             [System.StringComparer]::OrdinalIgnoreCase)
+        # Keep the repository hierarchy: version builds reference ../../shared-core.
+        # Mapping only a project to a drive root loses those parents.
         $projectSubstDrive = New-ShortPathDrive `
-            -TargetPath $projectPath -ReservedLetters $reservedLetters
+            -TargetPath (Get-RepositoryRoot) -ReservedLetters $reservedLetters
 
-        $executionProjectPath = "$projectSubstDrive\"
+        $executionProjectPath = Join-Path "$projectSubstDrive/" ([string]$entry.path)
         if ([int]$entry.java -lt 25) {
             $gradleUserHome = if ([string]::IsNullOrWhiteSpace($env:GRADLE_USER_HOME)) {
                 Join-Path $env:USERPROFILE '.gradle'

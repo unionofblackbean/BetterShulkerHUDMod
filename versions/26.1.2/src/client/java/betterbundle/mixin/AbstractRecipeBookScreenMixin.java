@@ -4,6 +4,8 @@ import bettershulkerhud.config.Configs;
 import bettershulkerhud.gui.BundleCategory;
 import bettershulkerhud.gui.BundlePanelInteraction;
 import bettershulkerhud.gui.BundlePanelRenderer;
+import bettershulkerhud.gui.HudPanelLayoutEditor;
+import bettershulkerhud.gui.StorageView;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.ImageButton;
 import net.minecraft.client.gui.navigation.ScreenPosition;
@@ -71,32 +73,36 @@ public abstract class AbstractRecipeBookScreenMixin {
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void onMouseClicked(MouseButtonEvent event, boolean doubleClick, CallbackInfoReturnable<Boolean> cir) {
+        if (HudPanelLayoutEditor.mouseClicked(event.x(), event.y(), event.button())) {
+            cir.setReturnValue(true);
+            return;
+        }
         AbstractContainerScreen<?> self = (AbstractContainerScreen<?>) (Object) this;
         double mouseX = event.x();
         double mouseY = event.y();
 
-        if (self instanceof InventoryScreen) {
-            if (BundlePanelRenderer.handleAdjustModeClick(
-                    mouseX, mouseY, event.button(),
-                    self.leftPos, self.topPos, self.imageWidth)) {
-                cir.setReturnValue(true);
-                return;
-            }
+        if (BundlePanelRenderer.handleAdjustModeClick(
+                mouseX, mouseY, event.button(),
+                self.leftPos, self.topPos, self.imageWidth)) {
+            cir.setReturnValue(true);
+            return;
+        }
 
-            // Toggle button
-            if (BundlePanelRenderer.handleToggleButtonClick(
-                    mouseX, mouseY, event.button(),
-                    self.leftPos, self.topPos, self.imageWidth)) {
-                cir.setReturnValue(true);
-                return;
-            }
+        // Toggle button
+        if (BundlePanelRenderer.handleToggleButtonClick(
+                mouseX, mouseY, event.button(),
+                self.leftPos, self.topPos, self.imageWidth)) {
+            cir.setReturnValue(true);
+            return;
         }
 
 
-        if (BundlePanelRenderer.isMinimizeButtonHovered(
-                mouseX, mouseY, self.leftPos, self.topPos, self.imageHeight)) {
-            BundlePanelRenderer.playButtonClick();
-            BundlePanelRenderer.minimizeCurrentPreview();
+        StorageView storageView = BundlePanelRenderer.getStorageViewAt(
+                mouseX, mouseY, self.leftPos, self.topPos, self.imageHeight);
+        if (storageView != null) {
+            if (BundlePanelRenderer.selectStorageView(storageView)) {
+                BundlePanelRenderer.playButtonClick();
+            }
             cir.setReturnValue(true);
             return;
         }
@@ -125,8 +131,34 @@ public abstract class AbstractRecipeBookScreenMixin {
         BundlePanelRenderer.searchFocused = false;
     }
 
+    @Inject(method = "mouseDragged", at = @At("HEAD"), cancellable = true)
+    private void onMouseDragged(
+            MouseButtonEvent event, double dragX, double dragY,
+            CallbackInfoReturnable<Boolean> cir) {
+        if (HudPanelLayoutEditor.mouseDragged(event.x(), event.y(), event.button())) {
+            cir.setReturnValue(true);
+            return;
+        }
+        AbstractContainerScreen<?> screen =
+                (AbstractContainerScreen<?>) (Object) this;
+        if (BundlePanelRenderer.handleScrollBarDrag(
+                event.y(), event.button(),
+                screen.leftPos, screen.topPos, screen.imageHeight)) {
+            cir.setReturnValue(true);
+            return;
+        }
+        if (BundlePanelRenderer.handleToggleButtonDrag(
+                event.x(), event.y(), event.button())) {
+            cir.setReturnValue(true);
+        }
+    }
+
     @Inject(method = "charTyped", at = @At("HEAD"), cancellable = true)
     private void onCharTyped(CharacterEvent event, CallbackInfoReturnable<Boolean> cir) {
+        if (HudPanelLayoutEditor.isActive()) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (BundlePanelRenderer.onCharTyped(event.codepoint())) {
             cir.setReturnValue(true);
         }
@@ -134,6 +166,10 @@ public abstract class AbstractRecipeBookScreenMixin {
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
     private void onKeyPressed(KeyEvent event, CallbackInfoReturnable<Boolean> cir) {
+        if (HudPanelLayoutEditor.keyPressed(event.key())) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (BundlePanelRenderer.onSearchKeyPress(event.key(), event.modifiers())) {
             cir.setReturnValue(true);
         }

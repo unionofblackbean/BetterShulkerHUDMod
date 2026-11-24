@@ -1,14 +1,18 @@
 package bettershulkerhud.event;
 
 import bettershulkerhud.compat.QuickShulkerExtractionController;
+import bettershulkerhud.compat.StorageClientNetwork;
 import bettershulkerhud.config.Configs;
 import bettershulkerhud.config.Hotkeys;
+import bettershulkerhud.gui.BundlePanelRenderer;
+import bettershulkerhud.gui.StorageView;
 import bettershulkerhud.util.ShulkerContentsHelper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.BundleContents;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayDeque;
@@ -40,19 +44,59 @@ public final class InventoryDragStoreController {
         int inventorySlot = hoveredSlot.getContainerSlot();
         if (inventorySlot < 0 || inventorySlot >= 36) return false;
         ItemStack stack = hoveredSlot.getItem();
-        if (stack.isEmpty() || ShulkerContentsHelper.isShulker(stack)) return false;
+        if (stack.isEmpty()) return false;
+
+        StorageView storageView = BundlePanelRenderer.getStorageView();
+        if (storageView == StorageView.SHULKERS
+                && ShulkerContentsHelper.isShulker(stack)) return false;
+        if (storageView == StorageView.BUNDLES
+                && !BundleContents.canItemBeInBundle(stack)) return false;
 
         if (!gestureActive) {
             gestureActive = true;
             VISITED_SLOTS.clear();
         }
         if (VISITED_SLOTS.add(inventorySlot)) {
+            boolean oneItem = mouseButton == GLFW.GLFW_MOUSE_BUTTON_RIGHT;
+            if (trySmoothStore(
+                    client, storageView, inventorySlot, stack, oneItem)) {
+                return true;
+            }
+            if (storageView != StorageView.SHULKERS) {
+                StorageClientNetwork.showServerRequired();
+                return true;
+            }
             QUEUE.addLast(new QueuedStoreRequest(
                     inventorySlot,
-                    mouseButton == GLFW.GLFW_MOUSE_BUTTON_RIGHT,
+                    oneItem,
                     stack.copyWithCount(1)));
         }
         return true;
+    }
+
+    private static boolean trySmoothStore(
+            Minecraft client, StorageView storageView, int inventorySlot,
+            ItemStack stack, boolean oneItem) {
+        if (!StorageClientNetwork.hasStorageServer()
+                || QuickShulkerExtractionController.hasActiveOperation()) {
+            return false;
+        }
+        return switch (storageView) {
+            case ENDER_CHEST -> StorageClientNetwork.storeEnderInventorySlot(
+                    inventorySlot, oneItem, stack);
+            case BUNDLES -> StorageClientNetwork.storeBundleInventorySlot(
+                    inventorySlot, oneItem, stack);
+            case SHULKERS -> {
+                // The selected hand slot and items with remembered origins
+                // remain on the existing transaction path. That path owns
+                // hand-restock suppression and source-aware returns.
+                boolean safe = inventorySlot
+                        != client.player.getInventory().getSelectedSlot()
+                        && !QuickShulkerExtractionController.hasOriginFor(stack);
+                yield safe && StorageClientNetwork.storeShulkerInventorySlot(
+                        inventorySlot, oneItem, stack);
+            }
+        };
     }
 
     public static boolean finishGesture() {

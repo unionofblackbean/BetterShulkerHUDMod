@@ -4,12 +4,18 @@
     "compatibilityLevel": "JAVA_25",
     "client": [
         "InventoryScreenMixin",
+        "PlayerInventoryScreenMixin",
         "AbstractContainerScreenMixin",
         "AbstractRecipeBookScreenMixin",
+        "RecipeBookComponentMixin",
+        "StackedItemContentsMixin",
+        "RecipeBookComponentAccessor",
         "ContainerEventHandlerMixin",
         "ClientPacketListenerMixin",
+        "ItemScrollerInputHandlerMixin",
         "MinecraftScreenMixin",
-        "LitematicaInventoryUtilsMixin"
+        "LitematicaInventoryUtilsMixin",
+        "MultiPlayerGameModeMixin"
     ],
     "injectors": {
         "defaultRequire": 1

@@ -17,6 +17,7 @@
   "license": ["CC0-1.0", "MIT"],
   "environment": "*",
   "entrypoints": {
+    "modmenu": ["bettershulkerhud.compat.ModMenuIntegration"],
     "main": ["bettershulkerhud.BetterShulkerHudCommon"],
     "client": ["bettershulkerhud.BetterBundleMod"],
     "rei_client": ["bettershulkerhud.compat.ReiExclusionPlugin"]
@@ -31,11 +32,9 @@
   "depends": {
     "fabricloader": ">=0.19.2",
     "fabric-api": "*",
+    "malilib": ">=0.28.2 <0.29.0",
     "minecraft": "26.1.1",
     "java": ">=25"
-  },
-  "recommends": {
-    "malilib": ">=0.28.2 <0.29.0"
   },
   "suggests": {
     "quickshulker": "3.0.1-26.1",

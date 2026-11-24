@@ -1,0 +1,16 @@
+{
+  "$schema": "./release.schema.json",
+  "schemaVersion": 1,
+  "train": "release-2026.11-r1-beta.1",
+  "title": "[MC 26.1 / 26.1.1 / 26.1.2 / 26.2.x / 26.3][Mod 2.2.5-beta.5.ux.3 / 2.2.5-beta.7.ux.3] 五版 UX 预览",
+  "prerelease": true,
+  "versions": [
+    "26.1",
+    "26.1.1",
+    "26.1.2",
+    "26.2",
+    "26.3"
+  ],
+  "notesFile": "release-trains/release-2026.11-r1-beta.1.md",
+  "includeManifest": true
+}

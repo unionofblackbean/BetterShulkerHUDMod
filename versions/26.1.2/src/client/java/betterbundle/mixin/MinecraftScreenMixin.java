@@ -32,6 +32,7 @@ public abstract class MinecraftScreenMixin {
             return;
         }
         if (client.screen != screen) {
+            bettershulkerhud.gui.HudPanelLayoutEditor.onScreenChanging(screen);
             BundlePanelRenderer.resetToggleButtonInteraction();
         }
         if (client.screen instanceof AbstractContainerScreen<?>

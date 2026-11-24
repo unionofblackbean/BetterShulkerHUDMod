@@ -5,6 +5,7 @@ import bettershulkerhud.event.InventoryDragStoreController;
 import bettershulkerhud.gui.BundleCategory;
 import bettershulkerhud.gui.BundlePanelInteraction;
 import bettershulkerhud.gui.BundlePanelRenderer;
+import bettershulkerhud.gui.HudPanelLayoutEditor;
 import bettershulkerhud.gui.StorageView;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
@@ -24,6 +25,10 @@ public abstract class AbstractContainerScreenMixin {
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void onMouseClicked(
             MouseButtonEvent event, boolean doubleClick, CallbackInfoReturnable<Boolean> cir) {
+        if (HudPanelLayoutEditor.mouseClicked(event.x(), event.y(), event.button())) {
+            cir.setReturnValue(true);
+            return;
+        }
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
         if (screen instanceof net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen) return;
         if (QuickShulkerExtractionController.isCursorTransferInProgress()) {
@@ -107,6 +112,10 @@ public abstract class AbstractContainerScreenMixin {
     private void onMouseDragged(
             MouseButtonEvent event, double dragX, double dragY,
             CallbackInfoReturnable<Boolean> cir) {
+        if (HudPanelLayoutEditor.mouseDragged(event.x(), event.y(), event.button())) {
+            cir.setReturnValue(true);
+            return;
+        }
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
         if (BundlePanelRenderer.handleScrollBarDrag(
                 event.y(), event.button(),
@@ -136,6 +145,10 @@ public abstract class AbstractContainerScreenMixin {
 
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true)
     private void onMouseReleased(MouseButtonEvent event, CallbackInfoReturnable<Boolean> cir) {
+        if (HudPanelLayoutEditor.mouseReleased(event.button())) {
+            cir.setReturnValue(true);
+            return;
+        }
         BundlePanelInteraction.resetDrag();
         if (BundlePanelRenderer.handleScrollBarRelease(event.button())) {
             cir.setReturnValue(true);
@@ -171,6 +184,10 @@ public abstract class AbstractContainerScreenMixin {
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
     private void onKeyPressed(KeyEvent event, CallbackInfoReturnable<Boolean> cir) {
+        if (HudPanelLayoutEditor.keyPressed(event.key())) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (QuickShulkerExtractionController.isCursorTransferInProgress()) {
             cir.setReturnValue(true);
             return;
@@ -184,6 +201,10 @@ public abstract class AbstractContainerScreenMixin {
     private void onMouseScrolled(
             double mouseX, double mouseY, double scrollX, double scrollY,
             CallbackInfoReturnable<Boolean> cir) {
+        if (HudPanelLayoutEditor.isActive()) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (QuickShulkerExtractionController.isCursorTransferInProgress()) {
             cir.setReturnValue(true);
             return;

@@ -30,6 +30,14 @@ public final class Configs implements IConfigHandler {
     public static final class General {
         private static final String PREFIX = Reference.MOD_ID + ".config.general";
 
+        public static final ConfigInteger HUD_PANEL_X =
+                new ConfigInteger("hudPanelX", -1, -1, 10000).apply(PREFIX);
+        public static final ConfigInteger HUD_PANEL_Y =
+                new ConfigInteger("hudPanelY", -1, -1, 10000).apply(PREFIX);
+        public static final ConfigBoolean COMPACT_COUNTS =
+                new ConfigBoolean("compactCounts", true).apply(PREFIX);
+        public static final ConfigBoolean SHOW_SOURCE_DETAILS =
+                new ConfigBoolean("showSourceDetails", true).apply(PREFIX);
         public static final ConfigInteger HUD_MAX_COLUMNS =
                 new ConfigInteger("hudMaxColumns", 6, 2, 12).apply(PREFIX);
         public static final ConfigInteger HUD_MAX_ROWS =
@@ -62,6 +70,10 @@ public final class Configs implements IConfigHandler {
                 new ConfigBoolean("diagnosticLogging", false).apply(PREFIX);
 
         public static final List<IConfigBase> OPTIONS = List.of(
+                HUD_PANEL_X,
+                HUD_PANEL_Y,
+                COMPACT_COUNTS,
+                SHOW_SOURCE_DETAILS,
                 HUD_MAX_COLUMNS,
                 HUD_MAX_ROWS,
                 SHULKER_OPEN_BACKEND,

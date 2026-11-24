@@ -20,6 +20,8 @@ public final class StorageClientNetwork {
     private static boolean initialized;
     private static boolean enderLoaded;
     private static boolean enderRequestPending;
+    private static int enderRequestTick;
+    private static final int ENDER_REQUEST_TIMEOUT_TICKS = 40;
     private static long enderRevision;
     private static int serverRequiredMessageUntilTick;
 
@@ -36,6 +38,7 @@ public final class StorageClientNetwork {
     public static void clearWorldState() {
         enderLoaded = false;
         enderRequestPending = false;
+        enderRequestTick = 0;
         for (int slot = 0; slot < ENDER_CONTENTS.size(); slot++) {
             ENDER_CONTENTS.set(slot, ItemStack.EMPTY);
         }
@@ -77,8 +80,12 @@ public final class StorageClientNetwork {
             enderRequestPending = false;
             return false;
         }
+        // Tab changes must not send the same request every frame. If a server
+        // never replies, allow a later request instead of getting stuck forever.
+        if (isEnderRequestPending()) return true;
         ClientPlayNetworking.send(EnderChestRequestPayload.INSTANCE);
         enderRequestPending = true;
+        enderRequestTick = Minecraft.getInstance().player.tickCount;
         return true;
     }
 
@@ -87,6 +94,11 @@ public final class StorageClientNetwork {
     }
 
     public static boolean isEnderRequestPending() {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null || client.player.tickCount - enderRequestTick
+                >= ENDER_REQUEST_TIMEOUT_TICKS) {
+            enderRequestPending = false;
+        }
         return enderRequestPending;
     }
 

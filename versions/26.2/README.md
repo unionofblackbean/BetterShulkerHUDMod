@@ -1,10 +1,11 @@
-# Better Shulker HUD 2.2.2 for Minecraft 26.2
+# Better Shulker HUD 2.2.5-beta.5.ux.3 for Minecraft 26.2
 
 [简体中文](#简体中文) | [English](#english)
 
 ## 简体中文
 
 Better Shulker HUD 是 Minecraft 26.2 Fabric 客户端物品管理模组。它集中显示玩家随身潜影盒中的物品，并通过 QuickShulker 或 AxShulkers 后端执行真实取放操作。
+选中原版配方书或 JEI 配方后，客户端可从随身潜影盒取出缺少材料，再由原版流程填入背包 2×2 或工作台 3×3 合成格；工作台关闭后通过原版交互重新打开，不需要本模组的服务器端配方协议。物品转移仍依赖当前服务器上 QuickShulker/AxShulkers 后端实际提供的能力。为避免误放置物品，重开工作台时会临时选择空快捷栏位；没有空位时安全中止。成品仍由玩家手动取出。
 
 ### 主要功能
 
@@ -44,7 +45,7 @@ Better Shulker HUD 是 Minecraft 26.2 Fabric 客户端物品管理模组。它�
 - Java `25`
 - Fabric Loader `0.19.3` 或更高版本
 - Fabric API `0.156.0+26.2`
-- MaLiLib `0.29.2`
+- MaLiLib `>=0.29.0 <0.30.0`（编译用 `0.29.5`）
 
 使用 QuickShulker 后端时，客户端和服务端应使用 QuickShulker `3.0.2-26.2`。也可以选择兼容的 AxShulkers 服务端插件后端。Litematica、REI、JEI 和 ModernUI 均为可选项。
 
@@ -58,9 +59,11 @@ $env:JAVA_HOME='path to Java 25'
 
 客户端 GameTest 覆盖水桶补货、主手和副手补货、物品移动不误补货、满背包/满潜影盒整组交换、手动存入、副手交换、HUD 按钮拖动和配方书共存。
 
+2026-11-24 验证：26.2 的基础、QuickShulker `3.0.2-26.2`、匹配版 Mod Menu `20.0.3` 三个客户端 GameTest 配置均 PASS。本次联测未包含 26.2 和 26.3 的确切版本 Item Scroller JAR；用户整合包和真实服务器尚未完成验收。
+
 ## English
 
-Better Shulker HUD is a Fabric client inventory manager for Minecraft 26.2. It aggregates items stored in carried shulker boxes and performs authoritative transfers through QuickShulker or an AxShulkers server backend.
+Better Shulker HUD is a Fabric client inventory manager for Minecraft 26.2. Selecting a vanilla recipe-book or JEI recipe can pull only the missing ingredients from carried shulker boxes, then let vanilla fill the 2x2 inventory or 3x3 crafting-table grid. After extraction closes a crafting table, the client reopens it with vanilla interaction; no Better Shulker HUD recipe-specific server protocol is used. Actual item transfer still depends on the capabilities of the QuickShulker/AxShulkers backend available on the server. The client temporarily selects an empty hotbar slot to avoid using or placing the held item, and safely aborts if none is available. The player takes the result manually.
 
 ### Highlights
 
@@ -78,9 +81,11 @@ Better Shulker HUD is a Fabric client inventory manager for Minecraft 26.2. It a
 - Java `25`
 - Fabric Loader `0.19.3` or newer
 - Fabric API `0.156.0+26.2`
-- MaLiLib `0.29.2`
+- MaLiLib `>=0.29.0 <0.30.0` (compiled against `0.29.5`)
 - QuickShulker `3.0.2-26.2` on client and server when using the QuickShulker backend
 
 Litematica, REI, JEI, ModernUI, and the AxShulkers backend are optional integrations.
+
+Validation on 2026-11-24: the 26.2 base, QuickShulker `3.0.2-26.2`, and matching Mod Menu `20.0.3` client GameTest lanes all passed. Exact-version Item Scroller JARs for 26.2 and 26.3 were not included in this joint test. User modpacks and real servers have not completed acceptance validation.
 
 The project is released under CC0-1.0. BetterBundleHUD and its original author zeroowo24 are credited as the HUD design reference. Pinyin search uses PinIn and pinyin4j; see `LICENSE-PinIn`.

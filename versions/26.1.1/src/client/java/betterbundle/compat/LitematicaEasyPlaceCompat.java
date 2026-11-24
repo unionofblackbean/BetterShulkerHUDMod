@@ -2,9 +2,12 @@ package bettershulkerhud.compat;
 
 import bettershulkerhud.BetterBundleMod;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -17,6 +20,10 @@ public final class LitematicaEasyPlaceCompat {
     private static Object easyPlaceMode;
     private static Method getBooleanValue;
     private static Method isHandling;
+    private static boolean replayInitialized;
+    private static boolean replayAvailable;
+    private static Method handleEasyPlaceWithMessage;
+    private static Method getSchematicWorld;
 
     private LitematicaEasyPlaceCompat() {}
 
@@ -68,6 +75,72 @@ public final class LitematicaEasyPlaceCompat {
     static boolean shouldPreserveEmptyBucketSelection(
             boolean easyPlaceHandling, boolean waterBucketRequired, boolean emptyBucketHeld) {
         return easyPlaceHandling && waterBucketRequired && emptyBucketHeld;
+    }
+
+    public static boolean isHandlingEasyPlace() {
+        initialize();
+        if (!available) return false;
+        try {
+            return (boolean) getBooleanValue.invoke(easyPlaceMode)
+                    && (boolean) isHandling.invoke(null);
+        } catch (ReflectiveOperationException | RuntimeException exception) {
+            disableAfterError(exception);
+            return false;
+        }
+    }
+
+    public static BlockState schematicStateAt(BlockPos pos) {
+        if (pos == null || !initializeReplay()) return null;
+        try {
+            Object world = getSchematicWorld.invoke(null);
+            return world instanceof Level level ? level.getBlockState(pos) : null;
+        } catch (ReflectiveOperationException | RuntimeException exception) {
+            disableReplayAfterError(exception);
+            return null;
+        }
+    }
+
+    public static void replayEasyPlace() {
+        if (!initializeReplay()) return;
+        try {
+            if ((boolean) getBooleanValue.invoke(easyPlaceMode)
+                    && !(boolean) isHandling.invoke(null)) {
+                // Litematica performs its own ray trace, projection checks and placement.
+                handleEasyPlaceWithMessage.invoke(null);
+            }
+        } catch (ReflectiveOperationException | RuntimeException exception) {
+            disableReplayAfterError(exception);
+        }
+    }
+
+    private static void disableAfterError(Exception exception) {
+        available = false;
+        BetterBundleMod.LOGGER.warn("Disabling Litematica easy-place guard after a compatibility error", exception);
+    }
+
+    private static void disableReplayAfterError(Exception exception) {
+        replayAvailable = false;
+        BetterBundleMod.LOGGER.warn("Disabling Litematica one-click replay after a compatibility error", exception);
+    }
+
+    private static synchronized boolean initializeReplay() {
+        initialize();
+        if (!available) return false;
+        if (!replayInitialized) {
+            replayInitialized = true;
+            try {
+                handleEasyPlaceWithMessage = Class.forName(
+                        "fi.dy.masa.litematica.util.EasyPlaceUtils")
+                        .getMethod("handleEasyPlaceWithMessage");
+                getSchematicWorld = Class.forName(
+                        "fi.dy.masa.litematica.world.SchematicWorldHandler")
+                        .getMethod("getSchematicWorld");
+                replayAvailable = true;
+            } catch (ReflectiveOperationException | LinkageError exception) {
+                BetterBundleMod.LOGGER.warn("Litematica one-click replay is unavailable", exception);
+            }
+        }
+        return replayAvailable;
     }
 
     private static synchronized void initialize() {

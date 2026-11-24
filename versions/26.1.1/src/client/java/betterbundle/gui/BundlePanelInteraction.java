@@ -270,8 +270,7 @@ public final class BundlePanelInteraction {
     public static boolean isInsidePanel(
             double mouseX, double mouseY,
             int leftPos, int topPos, int imageHeight) {
-        return BundlePanelRenderer.isReturnButtonHovered(
-                mouseX, mouseY, leftPos, topPos, imageHeight)
-                || isInsideGrid(mouseX, mouseY, leftPos, topPos, imageHeight);
+        return BundlePanelRenderer.isInsidePanelBounds(
+                mouseX, mouseY, leftPos, topPos, imageHeight);
     }
 }
