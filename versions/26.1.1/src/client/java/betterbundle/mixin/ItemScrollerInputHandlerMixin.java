@@ -28,9 +28,11 @@ public abstract class ItemScrollerInputHandlerMixin {
     private void betterShulkerHud$pauseDuringCursorTransfer(
             int keyCode, boolean keyState, double wheelDelta, Minecraft client,
             CallbackInfoReturnable<Boolean> cir) {
-        if (QuickShulkerExtractionController.isCursorTransferInProgress()) {
-            cir.setReturnValue(true);
-        }
+        Boolean result = bettershulkerhud.core.HudInputRouting.externalHandlerResult(
+                bettershulkerhud.gui.HudPanelLayoutEditor.isActive(),
+                QuickShulkerExtractionController.isCursorTransferInProgress());
+        // false cancels Item Scroller only; true also consumes the screen event in MaLiLib.
+        if (result != null) cir.setReturnValue(result);
     }
 
     @Inject(

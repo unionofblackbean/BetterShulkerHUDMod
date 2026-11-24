@@ -1,6 +1,7 @@
 package bettershulkerhud.mixin;
 
 import bettershulkerhud.gui.BundlePanelRenderer;
+import bettershulkerhud.gui.HudPanelLayoutEditor;
 import net.minecraft.client.gui.components.events.ContainerEventHandler;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
@@ -14,6 +15,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public interface ContainerEventHandlerMixin {
     @Inject(method = "charTyped", at = @At("HEAD"), cancellable = true)
     private void onCharTyped(CharacterEvent event, CallbackInfoReturnable<Boolean> cir) {
+        if (HudPanelLayoutEditor.isActive()) {
+            cir.setReturnValue(true);
+            return;
+        }
         Object handler = this;
         if (!(handler instanceof AbstractContainerScreen<?>)) return;
         if (handler instanceof AbstractRecipeBookScreen<?>) return;

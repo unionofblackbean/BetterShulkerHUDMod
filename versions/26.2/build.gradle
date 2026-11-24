@@ -6,6 +6,8 @@ plugins {
 version = project.mod_version
 group = project.maven_group
 
+sourceSets.main.java.srcDir('../../shared-core/src/main/java')
+
 def releaseArtifactVersion = "${project.mod_version}+mc${project.artifact_minecraft_version}"
 tasks.withType(org.gradle.api.tasks.bundling.AbstractArchiveTask).configureEach {
     archiveBaseName.set('BetterShulkerHud')
@@ -14,6 +16,7 @@ tasks.withType(org.gradle.api.tasks.bundling.AbstractArchiveTask).configureEach 
 
 repositories {
     mavenCentral()
+    maven { url 'https://maven.terraformersmc.com/releases' }
     maven { url 'https://jitpack.io' }
     maven { url 'https://maven.shedaniel.me' }
     maven { url 'https://maven.blamejared.com' }
@@ -72,9 +75,17 @@ loom.runs.named("clientGameTest") {
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
 
-    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}@jar"
 
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+    // Optional Mod Menu config-screen entrypoint; never bundled or required at runtime.
+    clientCompileOnly('com.terraformersmc:modmenu:18.0.0') { transitive = false }
+    gametestCompileOnly('com.terraformersmc:modmenu:18.0.0') { transitive = false }
+    // Explicit optional integration lane; the base profile has no Mod Menu runtime.
+    if (project.hasProperty('modmenu_test_jar')) {
+        gametestRuntimeOnly files(project.property('modmenu_test_jar'))
+    }
 
     compileOnly('com.github.MoRanpcy:quickshulker:3.0.2-26.2') {
         transitive = false
@@ -93,9 +104,14 @@ dependencies {
 
     compileOnly('me.shedaniel:RoughlyEnoughItems-api:26.2.821')
     compileOnly('mezz.jei:jei-26.2-fabric-api:30.15.0.118')
+    if (project.hasProperty('compat_jei')) {
+        gametestRuntimeOnly('mezz.jei:jei-26.2-fabric:30.15.0.118') {
+            transitive = false
+        }
+    }
 
-    // 0.29.0 is the first MaLiLib release built for Minecraft 26.2.
-    clientImplementation('fi.dy.masa.malilib:malilib-fabric-26.2:0.29.0') {
+    // Use a currently published MaLiLib artifact for Minecraft 26.2.
+    clientImplementation('fi.dy.masa.malilib:malilib-fabric-26.2:0.29.5') {
         exclude group: 'net.fabricmc', module: 'fabric-loader'
     }
 

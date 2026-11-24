@@ -6,11 +6,15 @@ Better Shulker HUD 是一个以 Fabric 客户端为主体的便携存储管理�
 
 > 当前版本仍在测试，可能存在较多 Bug。反馈时请提供 Minecraft 版本、Mod 版本、Fabric Loader、Fabric API、复现步骤、疑似冲突 Mod 和 `latest.log`。QQ 群：`1093770867`。
 
+## 26.x ux.3 预览更新
+
+26.1、26.1.1、26.1.2、26.2.x、26.3 的五版预览含整块 HUD 拖动、真实容量和来源提示；本轮还修复页脚标签遮挡、配方书避让、分类悬停名称、空网格常驻灰字、MaLiLib 模组名与 Mod Menu 配置入口。26.1.2 此次从旧 2.0.x 升级至 2.2.x 完整便携存储功能线，而不只是视觉调整。各版更新与适配差异见 [更新记录](RELEASE_NOTES.md)，测试证据和未覆盖项见 [ux.3 验证说明](docs/ux3/VALIDATION-UX3.md)。这仍是 beta 预览，26.2/26.3 Item Scroller 精确版本联测以及你的实际整合包/联机环境未被本次自动测试覆盖。
+
 ## 当前维护版本
 
 每个 `versions/` 子目录都是可独立构建的完整 Gradle 工程。JAR 必须与 Minecraft 版本完全匹配，不能跨版本混用。
 
-版本号始终成对标注，例如 `Minecraft 26.2.x / Mod 2.2.3`。单独出现的 `26.2.x` 是 Minecraft 游戏版本，`2.2.3` 是 Better Shulker HUD 自身的 Mod 版本。JAR 使用 `BetterShulkerHud-<Mod版本>+mc<Minecraft版本>.jar`，例如 `BetterShulkerHud-2.2.3+mc26.2.x.jar`。
+版本号始终成对标注，例如 `Minecraft 26.2.x / Mod 2.2.5-beta.5.ux.3`。单独出现的 `26.2.x` 是 Minecraft 游戏版本，`2.2.5-beta.5.ux.3` 是 Better Shulker HUD 自身的 Mod 版本。JAR 使用 `BetterShulkerHud-<Mod版本>+mc<Minecraft版本>.jar`，例如 `BetterShulkerHud-2.2.5-beta.5.ux.3+mc26.2.x.jar`。
 
 <!-- generated:maintained-versions:start -->
 | Minecraft 游戏版本 | Better Shulker HUD Mod 版本 | 功能线 | 维护等级 | Java | 源码 |
@@ -20,9 +24,11 @@ Better Shulker HUD 是一个以 Fabric 客户端为主体的便携存储管理�
 | `>=1.21.6 <=1.21.8` | `2.1.2` | 2.1.x（Issue #6 渲染层级修复，待人工验收） | `active` | 21 | [`versions/1.21.8`](versions/1.21.8) |
 | `>=1.21.9 <=1.21.10` | `2.1.3` | 完整 2.1.x | `active` | 21 | [`versions/1.21.10`](versions/1.21.10) |
 | `1.21.11` | `2.0.6` | 稳定 2.0.x | `maintenance` | 21 | [`versions/1.21.11`](versions/1.21.11) |
-| `26.1.1` | `2.2.3` | 完整便携存储 2.2.x | `active` | 25 | [`versions/26.1.1`](versions/26.1.1) |
-| `26.1.2` | `2.0.7` | 稳定 2.0.x | `maintenance` | 25 | [`versions/26.1.2`](versions/26.1.2) |
-| `>=26.2 <26.3` | `2.2.4` | 完整便携存储 2.2.x | `active` | 25 | [`versions/26.2`](versions/26.2) |
+| `26.1.1` | `2.2.5-beta.7.ux.3` | 便携存储与潜影盒配方供料（背包2×2、工作台3×3；单击一份、Shift整组；取料期间保持合成界面可见） | `active` | 25 | [`versions/26.1.1`](versions/26.1.1) |
+| `26.1` | `2.2.5-beta.5.ux.3` | 便携存储与潜影盒配方供料（背包2×2、工作台3×3） | `active` | 25 | [`versions/26.1`](versions/26.1) |
+| `26.1.2` | `2.2.5-beta.5.ux.3` | 便携存储与潜影盒配方供料（背包2×2、工作台3×3） | `active` | 25 | [`versions/26.1.2`](versions/26.1.2) |
+| `>=26.2 <26.3` | `2.2.5-beta.5.ux.3` | 便携存储与潜影盒配方供料（背包2×2、工作台3×3） | `active` | 25 | [`versions/26.2`](versions/26.2) |
+| `>=26.3 <26.4` | `2.2.5-beta.5.ux.3` | 便携存储与潜影盒配方供料（背包2×2、工作台3×3；26.3 候选） | `active` | 25 | [`versions/26.3`](versions/26.3) |
 <!-- generated:maintained-versions:end -->
 
 详细差异见 [VERSION_MATRIX.md](VERSION_MATRIX.md)，更新记录见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。
@@ -47,14 +53,14 @@ Better Shulker HUD 是一个以 Fabric 客户端为主体的便携存储管理�
 - 末影箱和收纳袋的真实取放要求服务器安装同版本 Better Shulker HUD。潜影盒在服务器未安装本模组时仍可选择 QuickShulker 或 AxShulkers 后端；没有任何可用后端时只提供预览。
 - 使用 MaLiLib 原生设置界面管理 HUD、快捷键、补货、整理和诊断选项。
 
-## 最新修复（Mod 2.0.6 / 2.1.2 / 2.1.3 / 2.2.3）
+## 此前修复（Mod 2.0.6 / 2.1.2 / 2.1.3 / 2.2.3）
 
 - 26.1.1、26.1.2 与 26.2 在“背包已满、目标潜影盒也满、无法常规腾位”时，可把当前手中整组物品与目标潜影盒槽位直接交换，轻松放置不再因没有临时空位而中断。
 - 整组交换复用 QuickShulker/AxShulkers 的真实容器，校验双方物品与数量、空光标及服务端同步；未改动 Litematica 投影或 Easy Place 根本判定。
 - 修复从 HUD 连续取出物品时，QuickShulker/AxShulkers 的临时容器界面切换被误判为玩家关闭背包的问题。
 - 在背包仍打开且未切换页面时，只刷新数量和来源，不重新排序 HUD；连续点击同一坐标会继续取出原物品。
 - 真正关闭背包或切换页面时仍保留原有排序行为，避免改变用户主动触发的整理逻辑。
-- 本次公开同步覆盖 `1.21.1`、`1.21.4`、`1.21.9-1.21.10`、`1.21.11`、`26.1.1`、`26.1.2` 和 `26.2`。
+- 当时公开同步覆盖 `1.21.1`、`1.21.4`、`1.21.9-1.21.10`、`1.21.11`、`26.1.1`、`26.1.2` 和 `26.2`；本轮 ux.3 的范围见上方及版本清单。
 - `1.21.6-1.21.8` 清单版本为 `2.1.2`，当前以 beta 候选发布：HUD 已迁移到 tooltip 之前的渲染阶段，仍需在 1.21.7 + Fabric Loader 0.19.2 下完成人工验收后转为正式版。
 
 ## Mod 2.2.0 更新

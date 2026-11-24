@@ -19,6 +19,7 @@
   "license": ["CC0-1.0", "MIT"],
   "environment": "*",
   "entrypoints": {
+    "modmenu": ["bettershulkerhud.compat.ModMenuIntegration"],
     "main": [
       "bettershulkerhud.BetterShulkerHudCommon"
     ],
@@ -39,11 +40,9 @@
   "depends": {
     "fabricloader": ">=0.19.3",
     "fabric-api": "*",
+    "malilib": ">=0.29.0 <0.30.0",
     "minecraft": ">=26.2 <26.3",
     "java": ">=25"
-  },
-  "recommends": {
-    "malilib": ">=0.29.0 <0.30.0"
   },
   "suggests": {
     "quickshulker": "3.0.2-26.2",

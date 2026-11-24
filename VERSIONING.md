@@ -10,7 +10,7 @@
 
 `BetterShulkerHud-<mod-semver>+mc<minecraft-version-or-range>.jar`
 
-源码包为同名 `-sources.jar`。Git tag 只含 mod 版本（`v2.2.3`），不含 MC 版本。
+源码包为同名 `-sources.jar`。当前多版本发布使用发布列车标签 `release-YYYY.MM-rN[-beta.N]`，不能用同一 Mod 版本的 `v*` 标签代替多 Minecraft 构建；旧 `v*` 仅属历史命名。
 
 ### 命名迁移映射（历史 → 现行）
 
@@ -24,7 +24,7 @@
 
 ## 版本语义
 
-- MC 版本只表达兼容性，不改变 mod 版本；同一功能集在所有 MC 版本上使用同一 mod 版本。
+- MC 版本只表达兼容性，不决定 mod 版本。同一功能线可因各 Minecraft 适配成熟度而采用不同的 beta 补丁号；以版本清单和每版 JAR 内元数据为准。
 - PATCH = 兼容性 bug 修复；MINOR = 兼容性新功能；MAJOR = 不兼容的工作流/配置变更。
 - 预发布用 SemVer 后缀（`2.3.0-beta.1`）。
 
@@ -32,9 +32,9 @@
 
 | 线 | 状态 | 说明 |
 |----|------|------|
-| `2.2.x` | active（26.1.1、26.2） | 含完整 Storage 网络协议：潜影盒/末影箱/收纳袋服务端校验存取、整组交换回退、Portable Return 追踪、Client GameTest |
+| `2.2.x` | active（26.1、26.1.1、26.1.2、26.2、26.3 的 ux.3 预览） | 含完整 Storage 网络协议：潜影盒/末影箱/收纳袋服务端校验存取、整组交换回退、Portable Return 追踪、Client GameTest；26.1.2 从旧 2.0.x 经移植和测试后主动升级此线 |
 | `2.1.x` | active（1.21.1/1.21.4/1.21.9-1.21.10）、beta（1.21.6-1.21.8） | 2.2.x 的 1.21.x 适配层；1.21.6-1.21.8 已完成 tooltip 遮挡修复，等待 1.21.7 人工验收 |
-| `2.0.x` | maintenance（1.21.11、26.1.2） | 仅安全修复，不加新功能 |
+| `2.0.x` | maintenance（1.21.11） | 仅安全修复，不加新功能；26.1.2 的旧 2.0.x 为历史版本 |
 | `1.8.x` | **legacy，已终结** | 经典功能集。最终版 1.8.22；源码仅存于 `legacy/1.8.22/`（无 2.x 继任者的三个 MC 范围）与归档 `-sources.jar`。只接受致命安全问题的定点修复，且修复后以 `1.8.23` 发布 |
 | `1.8.22-container-safe` | **已废弃** | HUD 容器保留变体（26.2）。其客户端-服务端容器同步语义已被 2.2.x `StorageActionPayload`/`StorageServerUtil` 协议正式实现并超越（服务端校验、更多存储类型、回归测试）。不再维护，用户迁移至 2.2.x |
 
@@ -51,7 +51,7 @@
 ## 发布流程
 
 1. 修改代码于对应 `versions/<mc>/`。
-2. 在 `versions.json` 提升该功能线所有版本的 `modVersion`（同功能集同号）。
+2. 在 `versions.json` 更新受影响版本的 `modVersion`、状态及真实适配矩阵；同功能线的不同 beta 补丁号须在更新记录中说明。
 3. `scripts/Build-All.ps1`（或 CI matrix）构建全部维护线。
 4. `scripts/Test-VersionManifest.ps1` 必须通过。
 5. `scripts/New-ReleaseBundle.ps1` 生成 release train，产物落入唯一出口目录

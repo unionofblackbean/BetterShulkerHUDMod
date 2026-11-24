@@ -1,10 +1,10 @@
-# Better Shulker HUD 2.2.2 for Minecraft 26.1.1
+# Better Shulker HUD 2.2.5-beta.7.ux.3 for Minecraft 26.1.1
 
 [简体中文](#简体中文) | [English](#english)
 
 ## 简体中文
 
-Better Shulker HUD 是 Minecraft 26.1.x Fabric 客户端物品管理模组。2.2.2 针对 Minecraft 26.1.1 构建，使用 MaLiLib 提供与 Tweakeroo 一致的原生配置界面，并通过 QuickShulker 或 AxShulkers 服务端后端完成真实物品转移。
+Better Shulker HUD 是 Minecraft 26.1.x Fabric 客户端物品管理模组。2.2.5-beta.7 针对 Minecraft 26.1.1 构建。选中原版配方书或 JEI 配方后，客户端可从随身潜影盒取出缺少材料，再由原版流程填入背包 2×2 或工作台 3×3 合成格。普通单击只填一份材料；Shift 单击按最多可完成次数填格，每个合成格不超过一组，材料不足时只填完整配方所需的数量。Shift 取料按盒内来源物品堆批量转移，不再逐件排队。取料期间会隐藏临时潜影盒界面，并在工作台重开前保留工作台画面；为防止旧界面向临时容器发送错误操作，这段时间不接受点击。内部仍通过 QuickShulker/AxShulkers 后端取料，并通过原版交互重开工作台；不需要本模组的服务器端配方协议，但物品转移仍依赖服务器上后端实际提供的能力。重开工作台时会临时选择空快捷栏位；没有空位时安全中止。成品仍由玩家手动取出。
 
 作者：`BF_skt`
 
@@ -69,9 +69,11 @@ $env:JAVA_HOME='Java 25 路径'
 .\gradlew.bat clean build
 ```
 
+2026-11-24：隔离工作副本的基础、QuickShulker、对应 Mod Menu 三条客户端 GameTest 均通过；本发布检出仅重新构建并校验清单，实际整合包、联机服务端未验收。详见 [五版验证记录](../../docs/ux3/VALIDATION-UX3.md)。
+
 ## English
 
-Better Shulker HUD is a Fabric client inventory manager for Minecraft 26.1.x. Version 2.2.2 targets Minecraft 26.1.1. It uses MaLiLib for the native configuration UI and either QuickShulker or an AxShulkers server backend for authoritative item transfers.
+Better Shulker HUD is a Fabric client inventory manager for Minecraft 26.1.1. Selecting a vanilla recipe-book or JEI recipe can pull only the missing ingredients from carried shulker boxes, then let vanilla fill the 2x2 inventory or 3x3 crafting-table grid. An ordinary click fills one craft; Shift-click fills as many complete crafts as possible up to one stack per grid slot. Shift supply transfers exact amounts from each shulker source stack instead of queuing individual items. The temporary shulker screen is hidden during recipe supply, and the crafting-table screen stays visible until vanilla reopens the table. Input is blocked while that retained screen refers to an old menu. No Better Shulker HUD recipe-specific server protocol is used, but actual item transfer still depends on the QuickShulker/AxShulkers backend available on the server. The client temporarily selects an empty hotbar slot to avoid using or placing the held item, and safely aborts if none is available. The player takes the result manually.
 
 Author: `BF_skt`
 
@@ -134,5 +136,7 @@ Server: QuickShulker 3.0.0-26.1 through 3.0.1-26.1, or a compatible AxShulkers s
 $env:JAVA_HOME='path to Java 25'
 .\gradlew.bat clean build
 ```
+
+Validation on 2026-11-24: the isolated source passed base, QuickShulker, and matching Mod Menu client GameTest lanes. This publication checkout was rebuilt and manifest-checked; user modpacks and live servers remain unverified. See [validation details](../../docs/ux3/VALIDATION-UX3.md).
 
 The project is released under CC0-1.0. BetterBundleHUD and its original author zeroowo24 are credited as the HUD design reference. Pinyin search uses PinIn and pinyin4j; see `LICENSE-PinIn`.

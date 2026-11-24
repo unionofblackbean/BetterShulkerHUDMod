@@ -1,10 +1,10 @@
-# Better Shulker HUD 2.0.5 for Minecraft 26.1.2
+# Better Shulker HUD 2.2.5-beta.5.ux.3 for Minecraft 26.1.2
 
 [简体中文](#简体中文) | [English](#english)
 
 ## 简体中文
 
-Better Shulker HUD 是 Minecraft 26.1.x Fabric 客户端物品管理模组。2.0.5 针对 Minecraft 26.1.2 构建，使用 MaLiLib 提供与 Tweakeroo 一致的原生配置界面，并通过 QuickShulker 或 AxShulkers 服务端后端完成真实物品转移。
+Better Shulker HUD 是 Minecraft 26.1.x Fabric 客户端物品管理模组。2.2.5-beta.5 针对 Minecraft 26.1.2 构建。选中原版配方书或 JEI 配方后，客户端可从随身潜影盒取出缺少材料，再由原版流程填入背包 2×2 或工作台 3×3 合成格；工作台关闭后通过原版交互重新打开，不需要本模组的服务器端配方协议。物品转移仍依赖当前服务器上 QuickShulker/AxShulkers 后端实际提供的能力。为避免误放置物品，重开工作台时会临时选择空快捷栏位；没有空位时安全中止。成品仍由玩家手动取出。
 
 作者：`BF_skt`
 
@@ -57,7 +57,7 @@ HUD 设计与交互方式参考了 zeroowo24 的 BetterBundleHUD；本项目针�
 
 ### 依赖
 
-客户端：Minecraft 26.1.2、Fabric Loader、Fabric API、MaLiLib 0.28.9 和 Better Shulker HUD。使用 QuickShulker 后端时还需安装 QuickShulker 3.0.0-26.1 至 3.0.1-26.1。
+客户端：Minecraft 26.1.2、Fabric Loader、Fabric API、MaLiLib 0.28.3 和 Better Shulker HUD。使用 QuickShulker 后端时还需安装 QuickShulker 3.0.0-26.1 至 3.0.1-26.1。
 
 服务端需要 QuickShulker 3.0.0-26.1 至 3.0.1-26.1，或兼容的 AxShulkers 服务端插件。Litematica 为可选客户端依赖。
 
@@ -66,9 +66,11 @@ $env:JAVA_HOME='Java 25 路径'
 .\gradlew.bat clean build
 ```
 
+2026-11-24：隔离工作副本的基础、QuickShulker、对应 Mod Menu 三条客户端 GameTest 均通过；本发布检出仅重新构建并校验清单，实际整合包、联机服务端未验收。详见 [五版验证记录](../../docs/ux3/VALIDATION-UX3.md)。
+
 ## English
 
-Better Shulker HUD is a Fabric client inventory manager for Minecraft 26.1.x. Version 2.0.5 targets Minecraft 26.1.2. It uses MaLiLib for the native configuration UI and either QuickShulker or an AxShulkers server backend for authoritative item transfers.
+Better Shulker HUD is a Fabric client inventory manager for Minecraft 26.1.2. Selecting a vanilla recipe-book or JEI recipe can pull only the missing ingredients from carried shulker boxes, then let vanilla fill the 2x2 inventory or 3x3 crafting-table grid. After extraction closes a crafting table, the client reopens it with vanilla interaction; no Better Shulker HUD recipe-specific server protocol is used. Actual item transfer still depends on the capabilities of the QuickShulker/AxShulkers backend available on the server. The client temporarily selects an empty hotbar slot to avoid using or placing the held item, and safely aborts if none is available. The player takes the result manually.
 
 Author: `BF_skt`
 
@@ -120,7 +122,7 @@ Enable **Diagnostic logging** on the General tab of the MaLiLib config screen, r
 
 ### Requirements
 
-Client: Minecraft 26.1.2, Fabric Loader, Fabric API, MaLiLib 0.28.9, and Better Shulker HUD. QuickShulker 3.0.0-26.1 through 3.0.1-26.1 is also required when using the QuickShulker backend.
+Client: Minecraft 26.1.2, Fabric Loader, Fabric API, MaLiLib 0.28.3, and Better Shulker HUD. QuickShulker 3.0.0-26.1 through 3.0.1-26.1 is also required when using the QuickShulker backend.
 
 Server: QuickShulker 3.0.0-26.1 through 3.0.1-26.1, or a compatible AxShulkers server plugin. Litematica is an optional client dependency.
 
@@ -128,5 +130,7 @@ Server: QuickShulker 3.0.0-26.1 through 3.0.1-26.1, or a compatible AxShulkers s
 $env:JAVA_HOME='path to Java 25'
 .\gradlew.bat clean build
 ```
+
+Validation on 2026-11-24: the isolated source passed base, QuickShulker, and matching Mod Menu client GameTest lanes. This publication checkout was rebuilt and manifest-checked; user modpacks and live servers remain unverified. See [validation details](../../docs/ux3/VALIDATION-UX3.md).
 
 The project is released under CC0-1.0. BetterBundleHUD and its original author zeroowo24 are credited as the HUD design reference. Pinyin search uses PinIn and pinyin4j; see `LICENSE-PinIn`.

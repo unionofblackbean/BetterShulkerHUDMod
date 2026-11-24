@@ -1,6 +1,11 @@
 package bettershulkerhud.gui;
 
 import bettershulkerhud.config.Configs;
+import bettershulkerhud.core.StableOrder;
+import bettershulkerhud.core.HudOverlayLayout;
+import bettershulkerhud.core.HudPanelLayout;
+import bettershulkerhud.core.HudPresentation;
+import net.minecraft.client.gui.screens.Screen;
 import bettershulkerhud.compat.StorageClientNetwork;
 import net.sourceforge.pinyin4j.PinyinHelper;
 import net.sourceforge.pinyin4j.format.HanyuPinyinOutputFormat;
@@ -51,7 +56,7 @@ public final class BundlePanelRenderer {
     public static final int CAT_BAR_WIDTH = CAT_BUTTON_SIZE;
     public static final int SEARCH_BAR_HEIGHT = 18;
     public static final int HEADER_HEIGHT = 24;
-    public static final int FOOTER_HEIGHT = 24;
+    public static final int FOOTER_HEIGHT = 36;
     public static final int TOGGLE_WIDTH = 20;
     public static final int TOGGLE_HEIGHT = 18;
     public static final int STORAGE_TAB_SIZE = 18;
@@ -62,6 +67,8 @@ public final class BundlePanelRenderer {
     private static final int SCROLL_GAP = 7;
     private static final int STORAGE_TAB_GAP = 2;
     private static final int BODY_INSET = 12;
+    private static final int MIN_PANEL_WIDTH = 84;
+    private static final int PANEL_BOUNDS_EXTRA_WIDTH = 8;
     private static final int CONTROL_SIZE = 14;
     private static final int COLOR_PANEL = 0xFFC6C6C6;
     private static final int COLOR_BORDER_LIGHT = 0xFFFFFFFF;
@@ -113,6 +120,7 @@ public final class BundlePanelRenderer {
     private static Object cachedScreen;
     private static boolean sortPreparedAfterClose;
     private static long cachedInventoryFingerprint = Long.MIN_VALUE;
+    private static int lastContentsCheckTick = Integer.MIN_VALUE;
     private static List<ShulkerSlotEntry> cachedAllShulkers = List.of();
     private static List<ShulkerSlotEntry> cachedNonEmptyShulkers = List.of();
     private static List<FlatItem> cachedFlatItems = List.of();
@@ -125,41 +133,84 @@ public final class BundlePanelRenderer {
     private static long cachedEnderRevision = Long.MIN_VALUE;
     private static long cachedVisibleEnderRevision = Long.MIN_VALUE;
     private static ActiveContentsSnapshot activeContentsSnapshot;
+    private static StorageStats cachedShulkerStats;
+    private static StorageStats cachedBundleStats;
+    private static StorageStats cachedEnderStats;
+    private static long cachedStatsEnderRevision = Long.MIN_VALUE;
     public static BundleCategory currentCategory = BundleCategory.OVERVIEW;
     private static StorageView storageView = StorageView.SHULKERS;
 
     private BundlePanelRenderer() {}
 
+    public static boolean startPanelLayoutEditor() { return HudPanelLayoutEditor.start(); }
+
+    private static int panelPositionX() {
+        return HudPanelLayoutEditor.isActive() ? HudPanelLayoutEditor.draftX()
+                : Configs.General.HUD_PANEL_X.getIntegerValue();
+    }
+
+    private static int panelPositionY() {
+        return HudPanelLayoutEditor.isActive() ? HudPanelLayoutEditor.draftY()
+                : Configs.General.HUD_PANEL_Y.getIntegerValue();
+    }
+
+    private static boolean hasManualPanelPosition() {
+        // The recipe book only overrides the resolved layout, never the saved coordinates.
+        return !isRecipeBookLayoutForcedRight()
+                && HudPanelLayout.isManual(panelPositionX(), panelPositionY());
+    }
+
+    private static boolean isRecipeBookLayoutForcedRight() {
+        return isRecipeBookOpen() && !HudPanelLayoutEditor.isActive();
+    }
+
+    public static HudPanelLayout.Rect panelBounds(int leftPos, int topPos, int imageHeight) {
+        return HudPanelLayout.bounds(panelX(leftPos), panelY(topPos, imageHeight),
+                panelWidth(leftPos), panelHeight(topPos, imageHeight), 0);
+    }
+
     public record ShulkerSlotEntry(int inventorySlot, ItemStack shulkerStack, List<ItemStack> contents) {}
 
-    public static int columnCount(int leftPos) {
+    private static HudOverlayLayout.Placement overlayPlacement(int leftPos) {
         Minecraft client = Minecraft.getInstance();
-        int screenWidth = client.getWindow().getGuiScaledWidth();
         int imageWidth = client.screen instanceof AbstractContainerScreen<?> screen
                 ? screen.imageWidth : 176;
-        int leftSpace = leftPos - SCREEN_MARGIN - PANEL_GAP;
-        int rightSpace = screenWidth - (leftPos + imageWidth)
-                - SCREEN_MARGIN - PANEL_GAP;
-        int available = isRecipeBookOpen() ? rightSpace : Math.max(leftSpace, rightSpace);
-        int fixedWidth = PADDING + CAT_BAR_WIDTH + CATEGORY_GAP
-                + SCROLL_BAR_WIDTH + SCROLL_GAP + PADDING;
-        int columns = (available - fixedWidth + SLOT_SPACING)
-                / (SLOT_SIZE + SLOT_SPACING);
-        return Math.clamp(columns, 1, Configs.General.HUD_MAX_COLUMNS.getIntegerValue());
+        return HudOverlayLayout.choose(client.getWindow().getGuiScaledWidth(),
+                leftPos, imageWidth, MIN_PANEL_WIDTH + PANEL_BOUNDS_EXTRA_WIDTH,
+                isRecipeBookOpen(), FabricLoader.getInstance().isModLoaded("jei"),
+                FabricLoader.getInstance().isModLoaded("roughlyenoughitems"));
+    }
+
+    public static int columnCount(int leftPos) {
+        HudOverlayLayout.Placement placement = overlayPlacement(leftPos);
+        int available = (hasManualPanelPosition() || HudPanelLayoutEditor.isActive())
+                && placement.side() == HudOverlayLayout.Side.HIDDEN
+                ? Minecraft.getInstance().getWindow().getGuiScaledWidth() - SCREEN_MARGIN * 2
+                : placement.availableWidth();
+        int columns = Math.max(1, Configs.General.HUD_MAX_COLUMNS.getIntegerValue());
+        while (columns > 1
+                && panelWidthForColumns(columns) + PANEL_BOUNDS_EXTRA_WIDTH > available) {
+            columns--;
+        }
+        return columns;
     }
 
     public static int visibleRowCount(int topPos, int imageHeight) {
         Minecraft client = Minecraft.getInstance();
         int availableHeight = client.getWindow().getGuiScaledHeight() - SCREEN_MARGIN * 2;
-        int contentHeight = availableHeight - HEADER_HEIGHT - PADDING * 2 - FOOTER_HEIGHT;
+        int contentHeight = availableHeight - 5 - HEADER_HEIGHT - PADDING * 2 - FOOTER_HEIGHT;
         int rows = (contentHeight + SLOT_SPACING) / (SLOT_SIZE + SLOT_SPACING);
         return Math.clamp(rows, 1, Configs.General.HUD_MAX_ROWS.getIntegerValue());
     }
 
     public static int panelWidth(int leftPos) {
-        int columns = columnCount(leftPos);
-        return PADDING + CAT_BAR_WIDTH + CATEGORY_GAP + SCROLL_BAR_WIDTH + SCROLL_GAP
-                + columns * (SLOT_SIZE + SLOT_SPACING) - SLOT_SPACING + PADDING;
+        return panelWidthForColumns(columnCount(leftPos));
+    }
+
+    private static int panelWidthForColumns(int columns) {
+        return Math.max(MIN_PANEL_WIDTH, PADDING + CAT_BAR_WIDTH + CATEGORY_GAP
+                + SCROLL_BAR_WIDTH + SCROLL_GAP
+                + columns * (SLOT_SIZE + SLOT_SPACING) - SLOT_SPACING + PADDING);
     }
 
     public static int panelHeight(int topPos, int imageHeight) {
@@ -177,7 +228,7 @@ public final class BundlePanelRenderer {
     }
 
     public static int exclusionWidth(int leftPos) {
-        return panelWidth(leftPos) + 8;
+        return panelWidth(leftPos) + PANEL_BOUNDS_EXTRA_WIDTH;
     }
 
     public static int exclusionHeight(int topPos, int imageHeight) {
@@ -186,34 +237,45 @@ public final class BundlePanelRenderer {
 
     public static int panelX(int leftPos) {
         Minecraft client = Minecraft.getInstance();
+        if (hasManualPanelPosition()) {
+            return HudPanelLayout.resolve(panelPositionX(), client.getWindow().getGuiScaledWidth(),
+                    exclusionWidth(leftPos), 0) + 4;
+        }
         int screenWidth = client.getWindow().getGuiScaledWidth();
         int imageWidth = client.screen instanceof AbstractContainerScreen<?> screen
                 ? screen.imageWidth
                 : 176;
         int width = panelWidth(leftPos);
-        int right = leftPos + imageWidth + PANEL_GAP;
-        int immediateLeft = leftPos - width - PANEL_GAP;
+        // Anchor the complete bounds, including the four-pixel protrusion on each side.
+        int right = leftPos + imageWidth + PANEL_GAP + 4;
+        int immediateLeft = leftPos - width - PANEL_GAP - 4;
+        HudOverlayLayout.Side side = overlayPlacement(leftPos).side();
+        if (side == HudOverlayLayout.Side.LEFT) return clampPanelX(immediateLeft, leftPos);
+        if (side == HudOverlayLayout.Side.RIGHT) return clampPanelX(right, leftPos);
         int leftSpace = leftPos - SCREEN_MARGIN;
         int rightSpace = screenWidth - (leftPos + imageWidth) - SCREEN_MARGIN;
 
-        if (isRecipeBookOpen()) {
-            return Math.clamp(right, SCREEN_MARGIN,
-                    Math.max(SCREEN_MARGIN, screenWidth - width - SCREEN_MARGIN));
-        }
-
-        if (leftSpace >= rightSpace && immediateLeft >= SCREEN_MARGIN) return immediateLeft;
-        if (right + width <= screenWidth - SCREEN_MARGIN) return right;
-        if (immediateLeft >= SCREEN_MARGIN) return immediateLeft;
-        return Math.clamp(immediateLeft, SCREEN_MARGIN,
-                Math.max(SCREEN_MARGIN, screenWidth - width - SCREEN_MARGIN));
+        if (isRecipeBookOpen()) return clampPanelX(right, leftPos);
+        if (leftSpace >= rightSpace && immediateLeft >= SCREEN_MARGIN) return clampPanelX(immediateLeft, leftPos);
+        if (right + width <= screenWidth - SCREEN_MARGIN) return clampPanelX(right, leftPos);
+        return clampPanelX(immediateLeft, leftPos);
     }
 
     public static int panelY(int topPos, int imageHeight) {
         Minecraft client = Minecraft.getInstance();
         int screenHeight = client.getWindow().getGuiScaledHeight();
         int height = panelHeight(topPos, imageHeight);
-        return Math.clamp(topPos, SCREEN_MARGIN,
-                Math.max(SCREEN_MARGIN, screenHeight - height - SCREEN_MARGIN));
+        if (hasManualPanelPosition()) {
+            return HudPanelLayout.resolve(panelPositionY(), screenHeight, height + 5, 0) + 1;
+        }
+        return Math.clamp(topPos, SCREEN_MARGIN + 1,
+                Math.max(SCREEN_MARGIN + 1, screenHeight - height - 4 - SCREEN_MARGIN));
+    }
+
+    private static int clampPanelX(int anchor, int leftPos) {
+        int screenWidth = Minecraft.getInstance().getWindow().getGuiScaledWidth();
+        return Math.clamp(anchor, SCREEN_MARGIN + 4,
+                Math.max(SCREEN_MARGIN + 4, screenWidth - exclusionWidth(leftPos) - SCREEN_MARGIN + 4));
     }
 
     public static int toggleX(int leftPos, int imageWidth) {
@@ -300,7 +362,8 @@ public final class BundlePanelRenderer {
 
     public static void scrollBy(int delta) {
         Minecraft client = Minecraft.getInstance();
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen)) return;
+        if (!(client.screen instanceof AbstractContainerScreen<?> screen)
+                || !hasRenderablePanel()) return;
         int maxScroll = maxScroll(screen.leftPos, screen.topPos, screen.imageHeight);
         scrollOffset = Math.clamp(scrollOffset + delta, 0, maxScroll);
     }
@@ -379,7 +442,7 @@ public final class BundlePanelRenderer {
             int leftPos, int topPos, int imageHeight) {
         if (!scrollBarDragging) return false;
         if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT
-                || !isEffectivelyVisible()) {
+                || !hasRenderablePanel()) {
             scrollBarDragging = false;
             return false;
         }
@@ -388,6 +451,10 @@ public final class BundlePanelRenderer {
     }
 
     public static boolean handleScrollBarRelease(int button) {
+        if (!hasRenderablePanel()) {
+            scrollBarDragging = false;
+            return false;
+        }
         if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT || !scrollBarDragging) {
             return false;
         }
@@ -467,28 +534,19 @@ public final class BundlePanelRenderer {
 
     private static List<FlatItem> updateFlatItemsKeepingOrder(
             List<FlatItem> previous, List<FlatItem> current) {
-        if (previous.isEmpty()) return current;
+        return StableOrder.refresh(previous, current, item -> new StackKey(item.stack()));
+    }
 
-        Map<StackKey, FlatItem> currentByKey = new LinkedHashMap<>();
-        for (FlatItem item : current) {
-            currentByKey.put(new StackKey(item.stack()), item);
-        }
+    private static List<FlatItem> sortedFlatItems(List<FlatItem> items) {
+        List<FlatItem> sorted = new ArrayList<>(items);
+        sortFlatItems(sorted);
+        return List.copyOf(sorted);
+    }
 
-        List<FlatItem> ordered = new ArrayList<>(current.size());
-        Set<StackKey> used = new HashSet<>();
-        for (FlatItem previousItem : previous) {
-            StackKey key = new StackKey(previousItem.stack());
-            FlatItem refreshed = currentByKey.get(key);
-            if (refreshed != null && used.add(key)) {
-                ordered.add(refreshed);
-            }
-        }
-        for (FlatItem item : current) {
-            if (used.add(new StackKey(item.stack()))) {
-                ordered.add(item);
-            }
-        }
-        return ordered;
+    private static void sortCachedStorageItems() {
+        cachedFlatItems = sortedFlatItems(cachedFlatItems);
+        cachedBundleFlatItems = sortedFlatItems(cachedBundleFlatItems);
+        cachedEnderFlatItems = sortedFlatItems(getEnderFlatItems());
     }
 
     public static List<FlatItem> getVisibleItems() {
@@ -526,6 +584,8 @@ public final class BundlePanelRenderer {
             return false;
         }
         if (storageView == selected) return true;
+        // Changing the storage page explicitly ends the current stable-order session.
+        sortCachedStorageItems();
         storageView = selected;
         scrollOffset = 0;
         searchFocused = false;
@@ -540,7 +600,7 @@ public final class BundlePanelRenderer {
     public static StorageView getStorageViewAt(
             double mouseX, double mouseY,
             int leftPos, int topPos, int imageHeight) {
-        if (!isEffectivelyVisible()) return null;
+        if (!hasRenderablePanel()) return null;
         ensureCache();
         if (!hasAnyPortableStorage()) return null;
         int y = storageTabY(topPos, imageHeight);
@@ -564,7 +624,9 @@ public final class BundlePanelRenderer {
     }
 
     public static int storageTabX(int leftPos, int index) {
-        return panelX(leftPos) + BODY_INSET + 4
+        int groupWidth = StorageView.values().length * STORAGE_TAB_SIZE
+                + (StorageView.values().length - 1) * STORAGE_TAB_GAP;
+        return panelX(leftPos) + panelWidth(leftPos) - 5 - groupWidth
                 + index * (STORAGE_TAB_SIZE + STORAGE_TAB_GAP);
     }
 
@@ -619,7 +681,8 @@ public final class BundlePanelRenderer {
                     StorageView.ENDER_CHEST, -1, slot, stack.copy(),
                     new ItemStack(Items.ENDER_CHEST)));
         }
-        cachedEnderFlatItems = finishSources(aggregated);
+        cachedEnderFlatItems = updateFlatItemsKeepingOrder(
+                cachedEnderFlatItems, finishSources(aggregated));
         cachedEnderRevision = revision;
         return cachedEnderFlatItems;
     }
@@ -732,6 +795,7 @@ public final class BundlePanelRenderer {
         cachedScreen = null;
         sortPreparedAfterClose = false;
         cachedInventoryFingerprint = Long.MIN_VALUE;
+        lastContentsCheckTick = Integer.MIN_VALUE;
         cachedAllShulkers = List.of();
         cachedNonEmptyShulkers = List.of();
         cachedFlatItems = List.of();
@@ -745,6 +809,10 @@ public final class BundlePanelRenderer {
         cachedVisibleEnderRevision = Long.MIN_VALUE;
         hoveredShulkerInventorySlot = -1;
         activeContentsSnapshot = null;
+        cachedShulkerStats = null;
+        cachedBundleStats = null;
+        cachedEnderStats = null;
+        cachedStatsEnderRevision = Long.MIN_VALUE;
     }
 
     /**
@@ -755,11 +823,7 @@ public final class BundlePanelRenderer {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null) return;
         ensureCache();
-        if (!cachedFlatItems.isEmpty()) {
-            List<FlatItem> sorted = new ArrayList<>(cachedFlatItems);
-            sortFlatItems(sorted);
-            cachedFlatItems = List.copyOf(sorted);
-        }
+        sortCachedStorageItems();
         cachedScreen = null;
         sortPreparedAfterClose = true;
         cachedVisibleItems = List.of();
@@ -792,8 +856,7 @@ public final class BundlePanelRenderer {
      */
     public static void invalidateContentsCache() {
         cachedInventoryFingerprint = Long.MIN_VALUE;
-        cachedAllShulkers = List.of();
-        cachedNonEmptyShulkers = List.of();
+        lastContentsCheckTick = Integer.MIN_VALUE;
         cachedVisibleItems = List.of();
         cachedSearchQuery = null;
         cachedCategory = null;
@@ -807,6 +870,12 @@ public final class BundlePanelRenderer {
             invalidateCache();
             return;
         }
+        // A render pass calls this from many widgets. Hash nested contents once per
+        // client tick, not once per widget. Packet updates explicitly invalidate it,
+        // so a same-tick server reply still refreshes counts immediately.
+        if (cachedPlayer == player && cachedScreen == client.screen
+                && lastContentsCheckTick == player.tickCount) return;
+        lastContentsCheckTick = player.tickCount;
         Inventory inv = player.getInventory();
         QuickShulkerExtractionController.ActiveShulkerContents liveContents =
                 QuickShulkerExtractionController.getActiveShulkerContents();
@@ -869,8 +938,20 @@ public final class BundlePanelRenderer {
         cachedScreen = client.screen;
         cachedInventoryFingerprint = fingerprint;
         cachedAllShulkers = List.copyOf(all);
+        List<ItemStack> capacityStacks = new ArrayList<>();
+        for (ShulkerSlotEntry entry : all) capacityStacks.addAll(entry.contents());
+        cachedShulkerStats = slotStats(capacityStacks, all.size() * ShulkerContentsHelper.SHULKER_SIZE);
+        cachedBundleStats = bundleStats(inv);
         cachedNonEmptyShulkers = List.copyOf(nonEmpty);
-        cachedBundleFlatItems = buildBundleFlatItems(inv);
+        List<FlatItem> rebuiltBundles = buildBundleFlatItems(inv);
+        if (newContainerScreen && !sortPreparedAfterClose) {
+            cachedBundleFlatItems = rebuiltBundles;
+            cachedEnderFlatItems = List.of();
+            cachedEnderRevision = Long.MIN_VALUE;
+        } else {
+            cachedBundleFlatItems = updateFlatItemsKeepingOrder(
+                    cachedBundleFlatItems, rebuiltBundles);
+        }
         cachedVisibleItems = List.of();
         cachedSearchQuery = null;
         cachedCategory = null;
@@ -932,9 +1013,17 @@ public final class BundlePanelRenderer {
                 && !isCreativeInventoryScreen();
     }
     public static boolean hasRenderablePanel() {
-        if (!isEffectivelyVisible()) return false;
+        if (!isEffectivelyVisible() && !HudPanelLayoutEditor.isActive()) return false;
+        Minecraft client = Minecraft.getInstance();
+        if (!(client.screen instanceof AbstractContainerScreen<?> screen)
+                || (isRecipeBookLayoutForcedRight()
+                && client.getWindow().getGuiScaledWidth() < 379)
+                || (!hasManualPanelPosition() && !HudPanelLayoutEditor.isActive()
+                && overlayPlacement(screen.leftPos).side() == HudOverlayLayout.Side.HIDDEN)) {
+            return false;
+        }
         ensureCache();
-        return hasAnyPortableStorage();
+        return HudPanelLayoutEditor.isActive() || hasAnyPortableStorage();
     }
     public static void toggleVisible() {
         Configs.Features.HUD_ENABLED.setBooleanValue(
@@ -1151,10 +1240,7 @@ public final class BundlePanelRenderer {
     public static boolean isInsidePanelBounds(
             double mouseX, double mouseY, int leftPos, int topPos, int imageHeight) {
         if (!hasRenderablePanel()) return false;
-        int x = panelX(leftPos) + BODY_INSET;
-        int y = panelY(topPos, imageHeight);
-        return mouseX >= x && mouseX < panelX(leftPos) + panelWidth(leftPos)
-                && mouseY >= y && mouseY < y + panelHeight(topPos, imageHeight);
+        return panelBounds(leftPos, topPos, imageHeight).contains(mouseX, mouseY);
     }
 
     private static int headerActionButtonX(int leftPos) {
@@ -1171,7 +1257,7 @@ public final class BundlePanelRenderer {
     }
 
     public static boolean onCharTyped(int codepoint) {
-        if (!searchFocused) return false;
+        if (!searchFocused || !hasRenderablePanel()) return false;
         if (Character.isValidCodePoint(codepoint)
                 && !Character.isISOControl(codepoint)) {
             searchQuery += new String(Character.toChars(codepoint));
@@ -1181,7 +1267,7 @@ public final class BundlePanelRenderer {
     }
 
     public static boolean onSearchKeyPress(int key, int modifiers) {
-        if (!searchFocused) return false;
+        if (!searchFocused || !hasRenderablePanel()) return false;
         if (key == GLFW.GLFW_KEY_BACKSPACE) {
             if (!searchQuery.isEmpty()) { searchQuery = searchQuery.substring(0, searchQuery.length() - 1); scrollOffset = 0; }
             return true;
@@ -1229,7 +1315,7 @@ public final class BundlePanelRenderer {
     public static void render(GuiGraphicsExtractor graphics, int leftPos, int topPos, int imageHeight, int mouseX, int mouseY) {
         if (!hasRenderablePanel()) { scrollOffset = 0; return; }
         selectFirstAvailableStorageView();
-        if (storageView == StorageView.ENDER_CHEST
+        if (!HudPanelLayoutEditor.isActive() && storageView == StorageView.ENDER_CHEST
                 && !StorageClientNetwork.isEnderLoaded()
                 && !StorageClientNetwork.isEnderRequestPending()) {
             StorageClientNetwork.requestEnderContents();
@@ -1343,12 +1429,22 @@ public final class BundlePanelRenderer {
             }
         }
 
-        if (hoveredFlatIndex >= 0) {
+        if (items.isEmpty()) {
+            Component state = emptyStateMessage();
+            if (mouseX >= gridX && mouseX < gridX + gridWidth
+                    && mouseY >= gridY && mouseY < gridY + gridHeight) {
+                graphics.setTooltipForNextFrame(font, state, mouseX, mouseY);
+            }
+        }
+
+        if (!HudPanelLayoutEditor.isActive() && hoveredFlatIndex >= 0) {
             int hRow = hoveredFlatIndex / columns - startRow;
             int hCol = hoveredFlatIndex % columns;
             int hx = gridX + hCol * (SLOT_SIZE + SLOT_SPACING);
             int hy = gridY + hRow * (SLOT_SIZE + SLOT_SPACING);
-            graphics.setTooltipForNextFrame(client.font, items.get(hoveredFlatIndex).stack(), mouseX, mouseY);
+            FlatItem hovered = items.get(hoveredFlatIndex);
+            graphics.setTooltipForNextFrame(client.font, itemTooltip(hovered),
+                    hovered.stack().getTooltipImage(), mouseX, mouseY);
             hoveredShulkerInventorySlot = items.get(hoveredFlatIndex).inventorySlot();
         } else {
             hoveredShulkerInventorySlot = -1;
@@ -1385,12 +1481,18 @@ public final class BundlePanelRenderer {
         }
 
         // Capacity display in the footer.
-        int[] stats = getStorageStats();
-        String countText = fitTail(font, stats[0] + " / " + stats[1], gridWidth);
+        StorageStats stats = getStorageStats();
+        int capacityLeft = panelX + BODY_INSET + 4;
+        int capacityRight = panelX + pw - 4;
+        String countText = fitTail(font, stats.capacityLabel().getString(), capacityRight - capacityLeft);
         int textW = font.width(countText);
-        int countX = gridX + gridWidth - textW;
-        int countY = panelY + panelHeight - 17;
+        int countX = capacityRight - textW;
+        int countY = panelY + panelHeight - 33;
         graphics.text(font, countText, countX, countY, COLOR_TEXT_MUTED, false);
+        if (!HudPanelLayoutEditor.isActive() && mouseX >= countX && mouseX < capacityRight
+                && mouseY >= countY && mouseY < countY + font.lineHeight) {
+            graphics.setComponentTooltipForNextFrame(font, stats.tooltip(), mouseX, mouseY);
+        }
 
         int returnX = returnButtonX(leftPos);
         int returnY = returnButtonY(topPos, imageHeight);
@@ -1428,10 +1530,15 @@ public final class BundlePanelRenderer {
             if (hovered) hoveredStorage = view;
         }
 
-        if (hoveredStorage != null) {
+        BundleCategory hoveredCategory = getCategoryAt(
+                mouseX, mouseY, leftPos, topPos, imageHeight);
+        if (!HudPanelLayoutEditor.isActive() && hoveredCategory != null) {
+            graphics.setTooltipForNextFrame(client.font,
+                    Component.literal(hoveredCategory.getDisplayName()), mouseX, mouseY);
+        } else if (hoveredStorage != null) {
             graphics.setTooltipForNextFrame(client.font,
                     storageViewTooltip(hoveredStorage), mouseX, mouseY);
-        } else if (dropHovered) {
+        } else if (dropHovered && hoveredFlatIndex < 0) {
             graphics.setTooltipForNextFrame(client.font,
                     Component.translatable("message.better-shulker-hud.store_drop_target"),
                     mouseX, mouseY);
@@ -1613,7 +1720,8 @@ public final class BundlePanelRenderer {
         graphics.itemDecorations(font, vanillaDecorations, x, y);
         if (stack.getCount() <= 1) return;
 
-        String countText = Integer.toString(stack.getCount());
+        String countText = HudPresentation.formatCount(stack.getCount(),
+                Configs.General.COMPACT_COUNTS.getBooleanValue());
         int textWidth = Math.max(1, font.width(countText));
         float scale = Math.min(1.0F, 14.0F / textWidth);
         float drawX = x + 16.0F - textWidth * scale;
@@ -1657,39 +1765,113 @@ public final class BundlePanelRenderer {
                 view.displayName());
     }
 
-    private static int[] getStorageStats() {
+    private record StorageStats(Component capacityLabel, List<Component> tooltip) {}
+
+    private static StorageStats getStorageStats() {
+        ensureCache();
         if (storageView == StorageView.ENDER_CHEST) {
-            int total = StorageClientNetwork.getEnderContents().stream()
-                    .mapToInt(ItemStack::getCount).sum();
-            return new int[]{total, 27 * 64};
-        }
-        if (storageView == StorageView.BUNDLES) {
-            Minecraft client = Minecraft.getInstance();
-            if (client.player == null) return new int[]{0, 0};
-            int total = 0;
-            int bundleCount = 0;
-            Inventory inventory = client.player.getInventory();
-            for (int slot = 0; slot < 36; slot++) {
-                ItemStack bundle = inventory.getItem(slot);
-                if (!(bundle.getItem() instanceof BundleItem)) continue;
-                bundleCount++;
-                BundleContents contents = bundle.getOrDefault(
-                        DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY);
-                total += contents.weight().result()
-                        .map(weight -> Math.clamp(
-                                (int) Math.ceil(weight.doubleValue() * 64.0), 0, 64))
-                        .orElseGet(() -> contents.itemCopyStream()
-                                .mapToInt(ItemStack::getCount).sum());
+            if (!StorageClientNetwork.isEnderLoaded()) {
+                Component unknown = Component.translatable("message.better-shulker-hud.capacity_unknown");
+                return new StorageStats(unknown, List.of(emptyStateMessage()));
             }
-            return new int[]{total, bundleCount * 64};
+            long revision = StorageClientNetwork.getEnderRevision();
+            if (cachedEnderStats == null || cachedStatsEnderRevision != revision) {
+                cachedEnderStats = slotStats(StorageClientNetwork.getEnderContents(), 27);
+                cachedStatsEnderRevision = revision;
+            }
+            return cachedEnderStats;
         }
-        List<ShulkerSlotEntry> all = getAllShulkers();
-        int totalItems = 0;
-        for (ShulkerSlotEntry entry : all) {
-            totalItems += entry.contents().stream().mapToInt(ItemStack::getCount).sum();
+        StorageStats stats = storageView == StorageView.BUNDLES ? cachedBundleStats : cachedShulkerStats;
+        return stats != null ? stats : slotStats(List.of(), 0);
+    }
+
+    private static StorageStats slotStats(List<ItemStack> stacks, int capacity) {
+        long actual = 0;
+        int occupied = 0;
+        for (ItemStack stack : stacks) {
+            if (stack.isEmpty()) continue;
+            occupied++;
+            actual += stack.getCount();
         }
-        // remaining weight → how many more "standard" items (weight 1/64) would fit
-        int capacity = all.size() * ShulkerContentsHelper.SHULKER_SIZE * 64;
-        return new int[] { totalItems, capacity };
+        Component label = Component.translatable("message.better-shulker-hud.capacity_slots", occupied, capacity);
+        return statsWithActual(label, actual);
+    }
+
+    /** Rebuilt only with the existing inventory-content snapshot, never per render. */
+    private static StorageStats bundleStats(Inventory inventory) {
+        long actual = 0;
+        int capacity = 0;
+        double weight = 0;
+        boolean knownWeight = true;
+        for (int slot = 0; slot < 36; slot++) {
+            ItemStack bundle = inventory.getItem(slot);
+            if (!(bundle.getItem() instanceof BundleItem)) continue;
+            capacity++;
+            BundleContents contents = bundle.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY);
+            actual += contents.itemCopyStream().mapToLong(ItemStack::getCount).sum();
+            var result = contents.weight().result();
+            if (result.isPresent()) weight += result.get().doubleValue();
+            else knownWeight = false;
+        }
+        Component label = knownWeight
+                ? Component.translatable("message.better-shulker-hud.capacity_weight",
+                String.format(Locale.ROOT, "%.1f", weight * 100), capacity * 100)
+                : Component.translatable("message.better-shulker-hud.capacity_unknown");
+        return statsWithActual(label, actual);
+    }
+
+    private static StorageStats statsWithActual(Component label, long actual) {
+        return new StorageStats(label, List.of(label,
+                Component.translatable("message.better-shulker-hud.actual_items", Long.toString(actual))));
+    }
+
+    private static Component emptyStateMessage() {
+        if (storageView == StorageView.ENDER_CHEST && !StorageClientNetwork.isEnderLoaded()) {
+            return Component.translatable(StorageClientNetwork.isEnderRequestPending()
+                    ? "message.better-shulker-hud.state_loading"
+                    : "message.better-shulker-hud.state_unknown");
+        }
+        if (!searchQuery.isEmpty() || currentCategory != BundleCategory.OVERVIEW) {
+            return Component.translatable("message.better-shulker-hud.state_no_match");
+        }
+        return Component.translatable("message.better-shulker-hud.state_empty");
+    }
+
+    private record SourceKey(StorageView view, int inventorySlot) {}
+
+    /** Source details are read-only; never replace the vanilla tooltip or its image. */
+    private static List<Component> itemTooltip(FlatItem item) {
+        Minecraft client = Minecraft.getInstance();
+        List<Component> lines = new ArrayList<>(Screen.getTooltipFromItem(client, item.stack()));
+        lines.add(Component.translatable("message.better-shulker-hud.actual_items",
+                Long.toString(item.sources().stream().mapToLong(s -> s.stack().getCount()).sum())));
+        if (!Configs.General.SHOW_SOURCE_DETAILS.getBooleanValue()) return lines;
+        Map<SourceKey, Long> quantities = new LinkedHashMap<>();
+        Map<SourceKey, ItemSource> examples = new LinkedHashMap<>();
+        for (ItemSource source : item.sources()) {
+            SourceKey key = new SourceKey(source.storageView(), source.inventorySlot());
+            quantities.merge(key, (long) source.stack().getCount(), Long::sum);
+            examples.putIfAbsent(key, source);
+        }
+        int shown = 0;
+        for (var entry : quantities.entrySet()) {
+            if (shown++ >= 6) break;
+            SourceKey key = entry.getKey();
+            if (key.view() == StorageView.ENDER_CHEST) {
+                lines.add(Component.translatable("message.better-shulker-hud.source_ender_quantity",
+                        Long.toString(entry.getValue())));
+                continue;
+            }
+            Component name = examples.get(key).containerStack().getHoverName();
+            Component location = key.view() == StorageView.ENDER_CHEST ? key.view().displayName()
+                    : Component.translatable("message.better-shulker-hud.source_inventory_slot",
+                    key.inventorySlot() + 1);
+            lines.add(Component.translatable("message.better-shulker-hud.source_quantity",
+                    name, location, Long.toString(entry.getValue())));
+        }
+        if (quantities.size() > 6) {
+            lines.add(Component.translatable("message.better-shulker-hud.source_more", quantities.size() - 6));
+        }
+        return lines;
     }
 }

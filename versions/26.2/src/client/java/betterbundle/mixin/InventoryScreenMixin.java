@@ -51,6 +51,7 @@ public abstract class InventoryScreenMixin {
 
         if (self instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen) {
             BundlePanelRenderer.renderAdjustControls(graphics, mouseX, mouseY);
+            bettershulkerhud.gui.HudPanelLayoutEditor.render(graphics, mouseX, mouseY);
         }
     }
 
@@ -69,7 +70,8 @@ public abstract class InventoryScreenMixin {
     private void betterShulkerHud$hideCursorStagingTooltip(
             GuiGraphicsExtractor graphics, int mouseX, int mouseY, CallbackInfo ci) {
         AbstractContainerScreen<?> self = (AbstractContainerScreen<?>) (Object) this;
-        if (self instanceof InventoryScreen
+        if (bettershulkerhud.gui.HudPanelLayoutEditor.isActive()
+                || self instanceof InventoryScreen
                 && betterShulkerHud$isCursorStagingSlot(self.hoveredSlot)) {
             ci.cancel();
         }

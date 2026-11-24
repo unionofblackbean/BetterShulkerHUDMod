@@ -29,7 +29,7 @@ public abstract class LitematicaInventoryUtilsMixin {
         if (!LitematicaEasyPlaceCompat.shouldPreserveEmptyBucketSelection(required, held)) {
             return;
         }
-        QuickShulkerExtractionController.requestLitematicaRestock(required);
+        QuickShulkerExtractionController.requestLitematicaRestock(required, pos);
         ci.cancel();
     }
 
@@ -41,6 +41,6 @@ public abstract class LitematicaInventoryUtilsMixin {
     private static void betterShulkerHud$restockForEasyPlace(
             ItemStack required, BlockPos pos, Level level,
             Minecraft client, CallbackInfo ci) {
-        QuickShulkerExtractionController.requestLitematicaRestock(required);
+        QuickShulkerExtractionController.requestLitematicaRestock(required, pos);
     }
 }

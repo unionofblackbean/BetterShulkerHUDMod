@@ -21,12 +21,16 @@ public final class ReiExclusionPlugin implements REIClientPlugin {
                     BundlePanelRenderer.TOGGLE_WIDTH + 4,
                     BundlePanelRenderer.TOGGLE_HEIGHT + 4));
             }
-            if (BundlePanelRenderer.isEffectivelyVisible()) {
+            if (BundlePanelRenderer.hasRenderablePanel()) {
                 exclusions.add(new Rectangle(
                         BundlePanelRenderer.exclusionX(screen.leftPos),
                         BundlePanelRenderer.exclusionY(screen.topPos, screen.imageHeight),
                         BundlePanelRenderer.exclusionWidth(screen.leftPos),
                         BundlePanelRenderer.exclusionHeight(screen.topPos, screen.imageHeight)));
+            }
+            if (bettershulkerhud.gui.HudPanelLayoutEditor.isActive()) {
+                var controls = bettershulkerhud.gui.HudPanelLayoutEditor.controlsBounds();
+                exclusions.add(new Rectangle(controls.x(), controls.y(), controls.width(), controls.height()));
             }
             if (BundlePanelRenderer.isTogglePositionAdjustMode()) {
                 int[] reset = BundlePanelRenderer.adjustResetRect();

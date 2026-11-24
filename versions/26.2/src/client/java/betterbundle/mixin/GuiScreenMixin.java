@@ -32,6 +32,7 @@ public abstract class GuiScreenMixin {
             return;
         }
         if (client.gui.screen() != screen) {
+            bettershulkerhud.gui.HudPanelLayoutEditor.onScreenChanging(screen);
             BundlePanelRenderer.resetToggleButtonInteraction();
         }
         if (client.gui.screen() instanceof AbstractContainerScreen<?>

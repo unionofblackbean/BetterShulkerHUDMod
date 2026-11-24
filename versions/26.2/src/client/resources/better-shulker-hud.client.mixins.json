@@ -7,11 +7,15 @@
         "PlayerInventoryScreenMixin",
         "AbstractContainerScreenMixin",
         "AbstractRecipeBookScreenMixin",
+        "RecipeBookComponentMixin",
+        "StackedItemContentsMixin",
+        "RecipeBookComponentAccessor",
         "ContainerEventHandlerMixin",
         "ClientPacketListenerMixin",
         "GuiScreenMixin",
         "ItemScrollerInputHandlerMixin",
-        "LitematicaInventoryUtilsMixin"
+        "LitematicaInventoryUtilsMixin",
+        "MultiPlayerGameModeMixin"
     ],
     "injectors": {
         "defaultRequire": 1

@@ -1,9 +1,11 @@
 package bettershulkerhud.mixin;
 
 import bettershulkerhud.config.Configs;
+import bettershulkerhud.compat.RecipePreparationController;
 import bettershulkerhud.gui.BundleCategory;
 import bettershulkerhud.gui.BundlePanelInteraction;
 import bettershulkerhud.gui.BundlePanelRenderer;
+import bettershulkerhud.gui.HudPanelLayoutEditor;
 import bettershulkerhud.gui.StorageView;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.ImageButton;
@@ -72,6 +74,14 @@ public abstract class AbstractRecipeBookScreenMixin {
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void onMouseClicked(MouseButtonEvent event, boolean doubleClick, CallbackInfoReturnable<Boolean> cir) {
+        if (HudPanelLayoutEditor.mouseClicked(event.x(), event.y(), event.button())) {
+            cir.setReturnValue(true);
+            return;
+        }
+        if (RecipePreparationController.shouldBlockRecipeInput()) {
+            cir.setReturnValue(true);
+            return;
+        }
         AbstractContainerScreen<?> self = (AbstractContainerScreen<?>) (Object) this;
         double mouseX = event.x();
         double mouseY = event.y();
@@ -130,6 +140,14 @@ public abstract class AbstractRecipeBookScreenMixin {
     private void onMouseDragged(
             MouseButtonEvent event, double dragX, double dragY,
             CallbackInfoReturnable<Boolean> cir) {
+        if (HudPanelLayoutEditor.mouseDragged(event.x(), event.y(), event.button())) {
+            cir.setReturnValue(true);
+            return;
+        }
+        if (RecipePreparationController.shouldBlockRecipeInput()) {
+            cir.setReturnValue(true);
+            return;
+        }
         AbstractContainerScreen<?> screen =
                 (AbstractContainerScreen<?>) (Object) this;
         if (BundlePanelRenderer.handleScrollBarDrag(
@@ -146,6 +164,14 @@ public abstract class AbstractRecipeBookScreenMixin {
 
     @Inject(method = "charTyped", at = @At("HEAD"), cancellable = true)
     private void onCharTyped(CharacterEvent event, CallbackInfoReturnable<Boolean> cir) {
+        if (HudPanelLayoutEditor.isActive()) {
+            cir.setReturnValue(true);
+            return;
+        }
+        if (RecipePreparationController.shouldBlockRecipeInput()) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (BundlePanelRenderer.onCharTyped(event.codepoint())) {
             cir.setReturnValue(true);
         }
@@ -153,6 +179,14 @@ public abstract class AbstractRecipeBookScreenMixin {
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
     private void onKeyPressed(KeyEvent event, CallbackInfoReturnable<Boolean> cir) {
+        if (HudPanelLayoutEditor.keyPressed(event.key())) {
+            cir.setReturnValue(true);
+            return;
+        }
+        if (RecipePreparationController.shouldBlockRecipeInput()) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (BundlePanelRenderer.onSearchKeyPress(event.key(), event.modifiers())) {
             cir.setReturnValue(true);
         }

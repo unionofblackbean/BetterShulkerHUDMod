@@ -1,6 +1,8 @@
 package bettershulkerhud;
 
 import bettershulkerhud.compat.QuickShulkerExtractionController;
+import bettershulkerhud.compat.RecipePreparationController;
+import bettershulkerhud.compat.StorageClientNetwork;
 import bettershulkerhud.config.Callbacks;
 import bettershulkerhud.config.Configs;
 import bettershulkerhud.event.InputHandler;
@@ -32,6 +34,8 @@ public final class BetterShulkerInitHandler implements IInitializationHandler {
         TickHandler.getInstance().registerClientTickHandler(
                 QuickShulkerExtractionController::onClientTick);
         TickHandler.getInstance().registerClientTickHandler(
+                RecipePreparationController::onClientTick);
+        TickHandler.getInstance().registerClientTickHandler(
                 InventoryDragStoreController::onClientTick);
         WorldLoadHandler.getInstance().registerWorldLoadPreHandler(new WorldListener());
     }
@@ -41,6 +45,8 @@ public final class BetterShulkerInitHandler implements IInitializationHandler {
         public void onWorldLoadPre(
                 ClientLevel worldBefore, ClientLevel worldAfter, Minecraft client) {
             QuickShulkerExtractionController.clearWorldState();
+            RecipePreparationController.clearWorldState();
+            StorageClientNetwork.clearWorldState();
             BundleCategory.resetCategoryItems();
             InventoryDragStoreController.clear();
             BundlePanelRenderer.invalidateCache();
